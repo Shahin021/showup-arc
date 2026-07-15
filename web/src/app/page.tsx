@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CircleWalletButton from "@/components/circle-wallet-button";
 
 const steps = [
   {
@@ -58,12 +59,7 @@ export default function Home() {
             </a>
           </nav>
 
-          <button
-            type="button"
-            className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/10"
-          >
-            Connect wallet
-          </button>
+          <CircleWalletButton />
         </div>
       </header>
 
