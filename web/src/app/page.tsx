@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const steps = [
   {
     number: "01",
@@ -31,7 +33,7 @@ export default function Home() {
     <main className="min-h-screen bg-[#07110f] text-white">
       <header className="border-b border-white/10">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-10">
-          <a href="#" className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#74f2c2] text-lg font-black text-[#07110f]">
               S
             </div>
@@ -40,7 +42,7 @@ export default function Home() {
               <p className="text-lg font-semibold tracking-tight">ShowUp</p>
               <p className="text-xs text-white/45">Built on Arc</p>
             </div>
-          </a>
+          </Link>
 
           <nav className="hidden items-center gap-8 text-sm text-white/65 md:flex">
             <a href="#how-it-works" className="transition hover:text-white">
@@ -56,7 +58,10 @@ export default function Home() {
             </a>
           </nav>
 
-          <button className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/10">
+          <button
+            type="button"
+            className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/10"
+          >
             Connect wallet
           </button>
         </div>
@@ -85,13 +90,19 @@ export default function Home() {
             </p>
 
             <div className="mt-9 flex flex-col gap-4 sm:flex-row">
-              <button className="rounded-full bg-[#74f2c2] px-7 py-3.5 font-semibold text-[#07110f] transition hover:bg-[#9dffda]">
+              <a
+                href="#event"
+                className="rounded-full bg-[#74f2c2] px-7 py-3.5 text-center font-semibold text-[#07110f] transition hover:bg-[#9dffda]"
+              >
                 Explore events
-              </button>
+              </a>
 
-              <button className="rounded-full border border-white/15 bg-white/5 px-7 py-3.5 font-semibold transition hover:border-white/30 hover:bg-white/10">
+              <Link
+                href="/create"
+                className="rounded-full border border-white/15 bg-white/5 px-7 py-3.5 text-center font-semibold transition hover:border-white/30 hover:bg-white/10"
+              >
                 Create an event
-              </button>
+              </Link>
             </div>
 
             <div className="mt-10 grid max-w-xl grid-cols-2 gap-3 sm:grid-cols-4">
@@ -150,7 +161,10 @@ export default function Home() {
                   </p>
                 </div>
 
-                <button className="mt-6 w-full rounded-2xl bg-[#74f2c2] py-4 font-semibold text-[#07110f] transition hover:bg-[#9dffda]">
+                <button
+                  type="button"
+                  className="mt-6 w-full rounded-2xl bg-[#74f2c2] py-4 font-semibold text-[#07110f] transition hover:bg-[#9dffda]"
+                >
                   Reserve with USDC
                 </button>
 
@@ -211,9 +225,12 @@ export default function Home() {
             </h2>
           </div>
 
-          <button className="shrink-0 rounded-full bg-white px-7 py-3.5 font-semibold text-[#07110f] transition hover:bg-[#dfffee]">
+          <Link
+            href="/create"
+            className="shrink-0 rounded-full bg-white px-7 py-3.5 text-center font-semibold text-[#07110f] transition hover:bg-[#dfffee]"
+          >
             Create your first event
-          </button>
+          </Link>
         </div>
       </section>
 
