@@ -1,87 +1,34 @@
 import Link from "next/link";
 
-type EventStatus = "Open" | "Almost full" | "Upcoming";
-
-type EventItem = {
-  id: number;
-  title: string;
-  description: string;
-  date: string;
-  month: string;
-  time: string;
-  location: string;
-  deposit: string;
-  reserved: number;
-  capacity: number;
-  status: EventStatus;
-  category: string;
-  organizer: string;
-};
-
-const events: EventItem[] = [
+const steps = [
   {
-    id: 1,
-    title: "Arc Builders Workshop",
+    number: "01",
+    title: "Create an event",
     description:
-      "A hands-on session for builders exploring programmable money, USDC and applications on Arc.",
-    date: "17",
-    month: "JUL",
-    time: "6:00 PM – 8:00 PM",
-    location: "Online",
-    deposit: "2 USDC",
-    reserved: 12,
-    capacity: 30,
-    status: "Open",
-    category: "Workshop",
-    organizer: "Arc Community",
+      "The organizer sets the capacity, cancellation deadline and refundable USDC deposit.",
   },
   {
-    id: 2,
-    title: "Stablecoin Product Meetup",
+    number: "02",
+    title: "Reserve with USDC",
     description:
-      "Meet founders and developers building practical stablecoin products for everyday users.",
-    date: "20",
-    month: "JUL",
-    time: "5:30 PM – 7:30 PM",
-    location: "Milan, Italy",
-    deposit: "3 USDC",
-    reserved: 21,
-    capacity: 25,
-    status: "Almost full",
-    category: "Meetup",
-    organizer: "USDC Builders",
+      "Attendees lock a small commitment deposit when they reserve their seat.",
   },
   {
-    id: 3,
-    title: "Programmable Payments Demo Day",
+    number: "03",
+    title: "Attend and get it back",
     description:
-      "A community showcase featuring applications that use programmable USDC settlement.",
-    date: "24",
-    month: "JUL",
-    time: "7:00 PM – 9:00 PM",
-    location: "Online",
-    deposit: "1 USDC",
-    reserved: 8,
-    capacity: 40,
-    status: "Upcoming",
-    category: "Demo Day",
-    organizer: "ShowUp Labs",
+      "The deposit is refunded after attendance or a cancellation made before the deadline.",
   },
 ];
 
-function getStatusClassName(status: EventStatus) {
-  if (status === "Almost full") {
-    return "border-amber-300/20 bg-amber-300/10 text-amber-200";
-  }
+const features = [
+  "Refundable USDC deposits",
+  "Transparent rules on Arc",
+  "Automatic fallback refunds",
+  "No hidden booking fees",
+];
 
-  if (status === "Upcoming") {
-    return "border-blue-300/20 bg-blue-300/10 text-blue-200";
-  }
-
-  return "border-[#74f2c2]/20 bg-[#74f2c2]/10 text-[#aaffdc]";
-}
-
-export default function EventsPage() {
+export default function Home() {
   return (
     <main className="min-h-screen bg-[#07110f] text-white">
       <header className="border-b border-white/10">
@@ -97,18 +44,18 @@ export default function EventsPage() {
             </div>
           </Link>
 
-          <nav className="hidden items-center gap-7 text-sm text-white/60 md:flex">
-            <Link href="/" className="transition hover:text-white">
-              Home
-            </Link>
+          <nav className="hidden items-center gap-8 text-sm text-white/65 md:flex">
+            <a href="#how-it-works" className="transition hover:text-white">
+              How it works
+            </a>
 
-            <Link href="/events" className="font-medium text-[#74f2c2]">
+            <Link href="/events" className="transition hover:text-white">
               Explore
             </Link>
 
-            <Link href="/create" className="transition hover:text-white">
-              Create event
-            </Link>
+            <a href="#about" className="transition hover:text-white">
+              About
+            </a>
           </nav>
 
           <button
@@ -120,218 +67,169 @@ export default function EventsPage() {
         </div>
       </header>
 
-      <section className="relative overflow-hidden border-b border-white/10">
-        <div className="absolute left-1/2 top-0 h-[460px] w-[600px] -translate-x-1/2 rounded-full bg-[#35d69e]/10 blur-[150px]" />
+      <section className="relative overflow-hidden">
+        <div className="absolute left-1/2 top-0 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-[#35d69e]/15 blur-[140px]" />
 
-        <div className="relative mx-auto max-w-7xl px-6 py-16 lg:px-10 lg:py-20">
-          <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
-            <div className="max-w-3xl">
-              <div className="mb-5 flex w-fit items-center gap-2 rounded-full border border-[#74f2c2]/20 bg-[#74f2c2]/10 px-4 py-2 text-sm text-[#9dffda]">
-                <span className="h-2 w-2 rounded-full bg-[#74f2c2]" />
-                Discover accountable events
-              </div>
-
-              <h1 className="text-4xl font-semibold tracking-[-0.04em] sm:text-5xl lg:text-6xl">
-                Reserve a seat.
-                <span className="block text-[#74f2c2]">
-                  Get your commitment back.
-                </span>
-              </h1>
-
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-white/55">
-                Explore events that use refundable USDC deposits to reduce
-                no-shows without turning free experiences into paid ones.
-              </p>
+        <div className="relative mx-auto grid max-w-7xl gap-16 px-6 py-20 lg:grid-cols-[1.1fr_0.9fr] lg:px-10 lg:py-28">
+          <div className="flex flex-col justify-center">
+            <div className="mb-7 flex w-fit items-center gap-2 rounded-full border border-[#74f2c2]/20 bg-[#74f2c2]/10 px-4 py-2 text-sm text-[#9dffda]">
+              <span className="h-2 w-2 rounded-full bg-[#74f2c2]" />
+              Programmable commitment on Arc
             </div>
 
-            <Link
-              href="/create"
-              className="w-fit shrink-0 rounded-full bg-[#74f2c2] px-7 py-3.5 text-center font-semibold text-[#07110f] transition hover:bg-[#9dffda]"
-            >
-              Create an event
-            </Link>
+            <h1 className="max-w-4xl text-5xl font-semibold leading-[1.02] tracking-[-0.04em] sm:text-6xl lg:text-7xl">
+              Free events are easy to book.
+              <span className="block text-[#74f2c2]">
+                ShowUp makes them harder to ignore.
+              </span>
+            </h1>
+
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-white/60">
+              ShowUp turns refundable USDC deposits into a programmable
+              commitment layer for events, workshops and reservations.
+            </p>
+
+            <div className="mt-9 flex flex-col gap-4 sm:flex-row">
+              <Link
+                href="/events"
+                className="rounded-full bg-[#74f2c2] px-7 py-3.5 text-center font-semibold text-[#07110f] transition hover:bg-[#9dffda]"
+              >
+                Explore events
+              </Link>
+
+              <Link
+                href="/create"
+                className="rounded-full border border-white/15 bg-white/5 px-7 py-3.5 text-center font-semibold transition hover:border-white/30 hover:bg-white/10"
+              >
+                Create an event
+              </Link>
+            </div>
+
+            <div className="mt-10 grid max-w-xl grid-cols-2 gap-3 sm:grid-cols-4">
+              {features.map((feature) => (
+                <div
+                  key={feature}
+                  className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-4 text-sm leading-5 text-white/65"
+                >
+                  {feature}
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="mt-10 flex flex-wrap gap-3">
-            {["All events", "Workshops", "Meetups", "Demo days", "Online"].map(
-              (filter, index) => (
-                <button
-                  key={filter}
-                  type="button"
-                  className={
-                    index === 0
-                      ? "rounded-full bg-white px-5 py-2.5 text-sm font-medium text-[#07110f]"
-                      : "rounded-full border border-white/10 bg-white/[0.035] px-5 py-2.5 text-sm text-white/55 transition hover:border-white/25 hover:text-white"
-                  }
+          <div className="flex items-center justify-center">
+            <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-white/[0.055] p-4 shadow-2xl shadow-black/40 backdrop-blur">
+              <div className="rounded-[26px] border border-white/10 bg-[#0b1916] p-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#74f2c2]">
+                      Featured event
+                    </p>
+
+                    <h2 className="mt-3 text-2xl font-semibold">
+                      Arc Builders Workshop
+                    </h2>
+
+                    <p className="mt-2 text-sm text-white/50">
+                      Build, connect and ship on Arc.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-[#74f2c2] px-3 py-2 text-center text-[#07110f]">
+                    <p className="text-xs font-semibold">JUL</p>
+                    <p className="text-xl font-black">17</p>
+                  </div>
+                </div>
+
+                <div className="my-6 h-px bg-white/10" />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded-2xl bg-white/[0.04] p-4">
+                    <p className="text-xs text-white/40">Commitment deposit</p>
+                    <p className="mt-2 text-xl font-semibold">2 USDC</p>
+                  </div>
+
+                  <div className="rounded-2xl bg-white/[0.04] p-4">
+                    <p className="text-xs text-white/40">Available seats</p>
+                    <p className="mt-2 text-xl font-semibold">18 / 30</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-[#74f2c2]/20 bg-[#74f2c2]/10 p-4">
+                  <p className="text-sm font-medium text-[#b7ffe3]">
+                    Attend or cancel on time and your full deposit returns.
+                  </p>
+                </div>
+
+                <Link
+                  href="/events"
+                  className="mt-6 block w-full rounded-2xl bg-[#74f2c2] py-4 text-center font-semibold text-[#07110f] transition hover:bg-[#9dffda]"
                 >
-                  {filter}
-                </button>
-              ),
-            )}
+                  View events
+                </Link>
+
+                <p className="mt-4 text-center text-xs text-white/35">
+                  Settlement secured transparently on Arc
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 py-14 lg:px-10 lg:py-20">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#74f2c2]">
-              Available events
+      <section
+        id="how-it-works"
+        className="border-y border-white/10 bg-white/[0.025]"
+      >
+        <div className="mx-auto max-w-7xl px-6 py-20 lg:px-10">
+          <div className="max-w-2xl">
+            <p className="text-sm font-medium uppercase tracking-[0.22em] text-[#74f2c2]">
+              How it works
             </p>
 
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight">
-              Upcoming commitments
+            <h2 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">
+              Accountability without turning the event into a paid experience.
             </h2>
           </div>
 
-          <p className="hidden text-sm text-white/35 sm:block">
-            {events.length} events available
-          </p>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-3">
-          {events.map((event) => {
-            const remainingSeats = event.capacity - event.reserved;
-            const progress = Math.min(
-              100,
-              Math.round((event.reserved / event.capacity) * 100),
-            );
-
-            return (
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {steps.map((step) => (
               <article
-                key={event.id}
-                className="group flex h-full flex-col rounded-[28px] border border-white/10 bg-white/[0.035] p-4 transition hover:-translate-y-1 hover:border-[#74f2c2]/25 hover:bg-white/[0.05]"
+                key={step.number}
+                className="rounded-[28px] border border-white/10 bg-[#0a1714] p-7"
               >
-                <div className="flex h-full flex-col rounded-[23px] border border-white/10 bg-[#0b1916] p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/50">
-                        {event.category}
-                      </span>
+                <p className="text-sm font-semibold text-[#74f2c2]">
+                  {step.number}
+                </p>
 
-                      <span
-                        className={`rounded-full border px-3 py-1.5 text-xs ${getStatusClassName(
-                          event.status,
-                        )}`}
-                      >
-                        {event.status}
-                      </span>
-                    </div>
+                <h3 className="mt-8 text-2xl font-semibold">{step.title}</h3>
 
-                    <div className="shrink-0 rounded-2xl bg-[#74f2c2] px-3 py-2 text-center text-[#07110f]">
-                      <p className="text-xs font-semibold">{event.month}</p>
-                      <p className="text-xl font-black">{event.date}</p>
-                    </div>
-                  </div>
-
-                  <h3 className="mt-6 text-2xl font-semibold leading-tight">
-                    {event.title}
-                  </h3>
-
-                  <p className="mt-3 min-h-20 text-sm leading-6 text-white/45">
-                    {event.description}
-                  </p>
-
-                  <div className="mt-6 space-y-3 border-y border-white/10 py-5">
-                    <div className="flex items-center justify-between gap-4 text-sm">
-                      <span className="text-white/35">Time</span>
-                      <span className="text-right font-medium text-white/70">
-                        {event.time}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-4 text-sm">
-                      <span className="text-white/35">Location</span>
-                      <span className="text-right font-medium text-white/70">
-                        {event.location}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-4 text-sm">
-                      <span className="text-white/35">Organizer</span>
-                      <span className="text-right font-medium text-white/70">
-                        {event.organizer}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl bg-white/[0.04] p-4">
-                      <p className="text-xs leading-5 text-white/35">
-                        Refundable deposit
-                      </p>
-
-                      <p className="mt-2 text-lg font-semibold">
-                        {event.deposit}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl bg-white/[0.04] p-4">
-                      <p className="text-xs leading-5 text-white/35">
-                        Seats remaining
-                      </p>
-
-                      <p className="mt-2 text-lg font-semibold">
-                        {remainingSeats}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5">
-                    <div className="flex items-center justify-between text-xs text-white/35">
-                      <span>
-                        {event.reserved} of {event.capacity} reserved
-                      </span>
-                      <span>{progress}%</span>
-                    </div>
-
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-[#74f2c2]"
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-auto pt-6">
-                    <button
-                      type="button"
-                      className="w-full rounded-2xl bg-[#74f2c2] py-4 font-semibold text-[#07110f] transition hover:bg-[#9dffda]"
-                    >
-                      View event
-                    </button>
-
-                    <p className="mt-3 text-center text-xs text-white/30">
-                      Refundable commitment secured on Arc
-                    </p>
-                  </div>
-                </div>
+                <p className="mt-4 leading-7 text-white/55">
+                  {step.description}
+                </p>
               </article>
-            );
-          })}
+            ))}
+          </div>
         </div>
+      </section>
 
-        <div className="mt-14 rounded-[30px] border border-[#74f2c2]/20 bg-[#74f2c2]/10 p-8 lg:flex lg:items-center lg:justify-between lg:p-10">
+      <section id="about" className="px-6 py-20 lg:px-10">
+        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 rounded-[32px] border border-[#74f2c2]/20 bg-[#74f2c2]/10 p-8 md:flex-row md:items-center lg:p-12">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#9dffda]">
-              Hosting something?
+            <p className="text-sm font-medium uppercase tracking-[0.22em] text-[#9dffda]">
+              Powered by programmable money
             </p>
 
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight">
-              Fill your seats with people who intend to attend.
+            <h2 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl">
+              Commit to the seat, not a booking fee.
             </h2>
-
-            <p className="mt-3 max-w-2xl leading-7 text-white/50">
-              Create transparent cancellation, attendance and refund rules
-              backed by programmable USDC.
-            </p>
           </div>
 
           <Link
             href="/create"
-            className="mt-7 inline-block shrink-0 rounded-full bg-white px-7 py-3.5 text-center font-semibold text-[#07110f] transition hover:bg-[#dfffee] lg:mt-0"
+            className="shrink-0 rounded-full bg-white px-7 py-3.5 text-center font-semibold text-[#07110f] transition hover:bg-[#dfffee]"
           >
-            Create your event
+            Create your first event
           </Link>
         </div>
       </section>
@@ -339,7 +237,7 @@ export default function EventsPage() {
       <footer className="border-t border-white/10">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 text-sm text-white/40 sm:flex-row sm:items-center sm:justify-between lg:px-10">
           <p>ShowUp. Programmable commitment on Arc.</p>
-          <p>Sample events will be replaced by onchain event data.</p>
+          <p>USDC deposits. Transparent settlement. Real attendance.</p>
         </div>
       </footer>
     </main>
