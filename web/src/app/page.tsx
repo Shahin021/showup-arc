@@ -49,9 +49,9 @@ export default function Home() {
               How it works
             </a>
 
-            <a href="#event" className="transition hover:text-white">
+            <Link href="/events" className="transition hover:text-white">
               Explore
-            </a>
+            </Link>
 
             <a href="#about" className="transition hover:text-white">
               About
@@ -90,12 +90,12 @@ export default function Home() {
             </p>
 
             <div className="mt-9 flex flex-col gap-4 sm:flex-row">
-              <a
-                href="#event"
+              <Link
+                href="/events"
                 className="rounded-full bg-[#74f2c2] px-7 py-3.5 text-center font-semibold text-[#07110f] transition hover:bg-[#9dffda]"
               >
                 Explore events
-              </a>
+              </Link>
 
               <Link
                 href="/create"
@@ -117,10 +117,10 @@ export default function Home() {
             </div>
           </div>
 
-          <div id="event" className="flex items-center justify-center">
+          <div className="flex items-center justify-center">
             <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-white/[0.055] p-4 shadow-2xl shadow-black/40 backdrop-blur">
               <div className="rounded-[26px] border border-white/10 bg-[#0b1916] p-6">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#74f2c2]">
                       Featured event
@@ -135,7 +135,7 @@ export default function Home() {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-[#74f2c2] px-3 py-2 text-center text-[#07110f]">
+                  <div className="shrink-0 rounded-2xl bg-[#74f2c2] px-3 py-2 text-center text-[#07110f]">
                     <p className="text-xs font-semibold">JUL</p>
                     <p className="text-xl font-black">17</p>
                   </div>
@@ -145,28 +145,32 @@ export default function Home() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="rounded-2xl bg-white/[0.04] p-4">
-                    <p className="text-xs text-white/40">Commitment deposit</p>
+                    <p className="text-xs text-white/40">
+                      Commitment deposit
+                    </p>
+
                     <p className="mt-2 text-xl font-semibold">2 USDC</p>
                   </div>
 
                   <div className="rounded-2xl bg-white/[0.04] p-4">
                     <p className="text-xs text-white/40">Available seats</p>
+
                     <p className="mt-2 text-xl font-semibold">18 / 30</p>
                   </div>
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-[#74f2c2]/20 bg-[#74f2c2]/10 p-4">
-                  <p className="text-sm font-medium text-[#b7ffe3]">
+                  <p className="text-sm font-medium leading-6 text-[#b7ffe3]">
                     Attend or cancel on time and your full deposit returns.
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  className="mt-6 w-full rounded-2xl bg-[#74f2c2] py-4 font-semibold text-[#07110f] transition hover:bg-[#9dffda]"
+                <Link
+                  href="/events"
+                  className="mt-6 block w-full rounded-2xl bg-[#74f2c2] py-4 text-center font-semibold text-[#07110f] transition hover:bg-[#9dffda]"
                 >
-                  Reserve with USDC
-                </button>
+                  View events
+                </Link>
 
                 <p className="mt-4 text-center text-xs text-white/35">
                   Settlement secured transparently on Arc
@@ -237,6 +241,7 @@ export default function Home() {
       <footer className="border-t border-white/10">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 text-sm text-white/40 sm:flex-row sm:items-center sm:justify-between lg:px-10">
           <p>ShowUp. Programmable commitment on Arc.</p>
+
           <p>USDC deposits. Transparent settlement. Real attendance.</p>
         </div>
       </footer>
