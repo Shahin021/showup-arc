@@ -219,7 +219,12 @@ export default function CircleWalletButton() {
   const [message, setMessage] = useState("");
   const [walletAddress, setWalletAddress] = useState("");
   const [circleUserId, setCircleUserId] = useState("");
+  const [hasSavedUserId, setHasSavedUserId] = useState(false);
+
   const [menuOpen, setMenuOpen] = useState(false);
+  const [walletChooserOpen, setWalletChooserOpen] =
+    useState(false);
+
   const [copied, setCopied] = useState(false);
 
   const [recoveryDialogOpen, setRecoveryDialogOpen] =
@@ -254,6 +259,7 @@ export default function CircleWalletButton() {
 
       if (savedUserId) {
         setCircleUserId(savedUserId);
+        setHasSavedUserId(true);
       }
 
       if (!savedUserId || walletReady !== "true") {
@@ -282,7 +288,9 @@ export default function CircleWalletButton() {
         }
 
         saveWallet(wallet);
+
         setCircleUserId(session.userId);
+        setHasSavedUserId(true);
         setWalletAddress(wallet.address);
         setStatus("ready");
         setMessage("");
@@ -316,6 +324,7 @@ export default function CircleWalletButton() {
         !menuRef.current.contains(event.target as Node)
       ) {
         setMenuOpen(false);
+        setWalletChooserOpen(false);
       }
     }
 
@@ -361,6 +370,7 @@ export default function CircleWalletButton() {
     setStatus("ready");
     setMessage("");
     setMenuOpen(false);
+    setWalletChooserOpen(false);
   }
 
   async function handleConnect(forceNewUser = false) {
@@ -380,11 +390,15 @@ export default function CircleWalletButton() {
       return;
     }
 
+    setWalletChooserOpen(false);
+    setMenuOpen(false);
+
     if (forceNewUser) {
       clearWalletStorage(false);
+
       setWalletAddress("");
       setCircleUserId("");
-      setMenuOpen(false);
+      setHasSavedUserId(false);
     }
 
     try {
@@ -405,6 +419,7 @@ export default function CircleWalletButton() {
       );
 
       setCircleUserId(session.userId);
+      setHasSavedUserId(true);
 
       setMessage(
         "Preparing Circle's secure wallet interface...",
@@ -468,6 +483,7 @@ export default function CircleWalletButton() {
 
           if (error) {
             setStatus("error");
+
             setMessage(
               error.message ||
                 `Circle wallet setup failed${
@@ -480,6 +496,7 @@ export default function CircleWalletButton() {
 
           if (!result || result.status !== "COMPLETE") {
             setStatus("error");
+
             setMessage(
               "Circle wallet setup was not completed.",
             );
@@ -521,6 +538,7 @@ export default function CircleWalletButton() {
 
   async function handleRestoreWallet(userId: string) {
     const normalizedUserId = userId.trim();
+
     const hadConnectedWallet =
       status === "ready" && Boolean(walletAddress);
 
@@ -534,6 +552,7 @@ export default function CircleWalletButton() {
       setStatus("loading");
       setMessage("Restoring your Circle wallet...");
       setMenuOpen(false);
+      setWalletChooserOpen(false);
 
       const session =
         await requestCircleSession(normalizedUserId);
@@ -553,6 +572,7 @@ export default function CircleWalletButton() {
       saveWallet(wallet);
 
       setCircleUserId(session.userId);
+      setHasSavedUserId(true);
       setWalletAddress(wallet.address);
       setStatus("ready");
       setMessage("");
@@ -610,15 +630,27 @@ export default function CircleWalletButton() {
     setRecoveryMode(mode);
     setRecoveryDialogOpen(true);
     setMenuOpen(false);
+    setWalletChooserOpen(false);
+    setMessage("");
+
+    if (status === "error") {
+      setStatus("idle");
+    }
   }
 
   function handleDisconnect() {
     clearWalletStorage(true);
 
+    const savedUserId = window.localStorage.getItem(
+      CIRCLE_USER_ID_KEY,
+    );
+
+    setHasSavedUserId(Boolean(savedUserId));
     setWalletAddress("");
     setStatus("idle");
     setMessage("");
     setMenuOpen(false);
+    setWalletChooserOpen(false);
     setCopied(false);
   }
 
@@ -634,12 +666,24 @@ export default function CircleWalletButton() {
     void handleConnect(true);
   }
 
+  function toggleWalletChooser() {
+    if (status === "loading") {
+      return;
+    }
+
+    setMenuOpen(false);
+    setWalletChooserOpen((current) => !current);
+    setMessage("");
+
+    if (status === "error") {
+      setStatus("idle");
+    }
+  }
+
   const buttonLabel =
     status === "loading"
       ? "Connecting..."
-      : status === "error"
-        ? "Try again"
-        : "Connect wallet";
+      : "Choose wallet";
 
   return (
     <>
@@ -653,6 +697,7 @@ export default function CircleWalletButton() {
               type="button"
               onClick={() => {
                 setMenuOpen((current) => !current);
+                setWalletChooserOpen(false);
               }}
               aria-expanded={menuOpen}
               aria-haspopup="menu"
@@ -765,29 +810,120 @@ export default function CircleWalletButton() {
             )}
           </>
         ) : (
-          <div className="flex flex-col items-end gap-1.5">
+          <>
             <button
               type="button"
-              onClick={() => {
-                void handleConnect(false);
-              }}
+              onClick={toggleWalletChooser}
               disabled={status === "loading"}
-              className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/10 disabled:cursor-wait disabled:opacity-70"
+              aria-expanded={walletChooserOpen}
+              aria-haspopup="menu"
+              className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/10 disabled:cursor-wait disabled:opacity-70"
             >
               {buttonLabel}
+
+              {status !== "loading" && (
+                <svg
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  aria-hidden="true"
+                  className={`h-4 w-4 transition ${
+                    walletChooserOpen ? "rotate-180" : ""
+                  }`}
+                >
+                  <path
+                    d="M5 7.5 10 12.5 15 7.5"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                openRecoveryDialog("restore");
-              }}
-              disabled={status === "loading"}
-              className="px-2 text-xs text-white/45 transition hover:text-[#9dffda] disabled:opacity-40"
-            >
-              Restore existing wallet
-            </button>
-          </div>
+            {walletChooserOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full z-50 mt-3 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1916]/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
+              >
+                <div className="px-3 pb-3 pt-2">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#74f2c2]">
+                    Choose a wallet
+                  </p>
+
+                  <p className="mt-2 text-xs leading-5 text-white/45">
+                    Create a new Circle wallet or reconnect one
+                    you already backed up.
+                  </p>
+                </div>
+
+                <div className="h-px bg-white/10" />
+
+                <div className="space-y-1 pt-2">
+                  {hasSavedUserId && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        void handleConnect(false);
+                      }}
+                      className="w-full rounded-xl px-3 py-3 text-left transition hover:bg-white/[0.06]"
+                    >
+                      <span className="block text-sm font-medium text-white/80">
+                        Resume or reconnect wallet
+                      </span>
+
+                      <span className="mt-1 block text-xs leading-5 text-white/40">
+                        Continue with the Circle wallet saved in
+                        this browser.
+                      </span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      openRecoveryDialog("restore");
+                    }}
+                    className="w-full rounded-xl px-3 py-3 text-left transition hover:bg-white/[0.06]"
+                  >
+                    <span className="block text-sm font-medium text-white/80">
+                      Restore existing wallet
+                    </span>
+
+                    <span className="mt-1 block text-xs leading-5 text-white/40">
+                      Use a ShowUp recovery code from another
+                      browser or device.
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      if (hasSavedUserId) {
+                        handleChangeWallet();
+                        return;
+                      }
+
+                      void handleConnect(true);
+                    }}
+                    className="w-full rounded-xl px-3 py-3 text-left transition hover:bg-white/[0.06]"
+                  >
+                    <span className="block text-sm font-medium text-white/80">
+                      Create new Circle wallet
+                    </span>
+
+                    <span className="mt-1 block text-xs leading-5 text-white/40">
+                      Set up a new PIN-secured wallet on Arc
+                      Testnet.
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {message && status !== "ready" && (
