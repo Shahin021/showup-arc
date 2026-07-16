@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 
 const CIRCLE_USER_ID_KEY = "showup_circle_user_id";
 const CIRCLE_WALLET_READY_KEY = "showup_circle_wallet_ready";
+const CIRCLE_WALLET_ADDRESS_KEY = "showup_circle_wallet_address";
+const CIRCLE_WALLET_ID_KEY = "showup_circle_wallet_id";
 
 type ConnectionStatus = "idle" | "loading" | "ready" | "error";
 
@@ -21,6 +23,20 @@ type InitializeResponse = {
   error?: string;
 };
 
+type WalletDetails = {
+  id: string;
+  address: string;
+  blockchain: string;
+  state?: string;
+  accountType?: string;
+  createDate?: string;
+};
+
+type WalletResponse = {
+  wallet?: WalletDetails;
+  error?: string;
+};
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -29,29 +45,312 @@ function getErrorMessage(error: unknown): string {
   return "Something went wrong while connecting the Circle wallet.";
 }
 
-export default function CircleWalletButton() {
-  const [status, setStatus] = useState<ConnectionStatus>("idle");
-  const [message, setMessage] = useState("");
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+function wait(milliseconds: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
 
-  useEffect(() => {
-    const savedUserId = window.localStorage.getItem(CIRCLE_USER_ID_KEY);
-    const walletReady = window.localStorage.getItem(CIRCLE_WALLET_READY_KEY);
+function shortenAddress(address: string) {
+  if (address.length <= 14) {
+    return address;
+  }
 
-    if (savedUserId && walletReady === "true") {
-      setStatus("ready");
-      setMessage("Circle wallet ready on Arc Testnet.");
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+async function requestCircleSession(
+  userId?: string,
+): Promise<{
+  userId: string;
+  userToken: string;
+  encryptionKey: string;
+}> {
+  const response = await fetch("/api/circle/session", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+    body: JSON.stringify({
+      userId,
+    }),
+  });
+
+  const data = (await response.json()) as SessionResponse;
+
+  if (
+    !response.ok ||
+    !data.userId ||
+    !data.userToken ||
+    !data.encryptionKey
+  ) {
+    throw new Error(
+      data.error ?? "Unable to create the Circle session.",
+    );
+  }
+
+  return {
+    userId: data.userId,
+    userToken: data.userToken,
+    encryptionKey: data.encryptionKey,
+  };
+}
+
+async function requestWalletInitialization(
+  userToken: string,
+): Promise<InitializeResponse> {
+  const response = await fetch("/api/circle/initialize", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+    body: JSON.stringify({
+      userToken,
+    }),
+  });
+
+  const data = (await response.json()) as InitializeResponse;
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ?? "Unable to initialize the Circle wallet.",
+    );
+  }
+
+  return data;
+}
+
+async function requestCircleWallet(
+  userToken: string,
+  attempts = 1,
+): Promise<WalletDetails> {
+  let lastError = "Unable to retrieve the Circle wallet.";
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const response = await fetch("/api/circle/wallets", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        userToken,
+      }),
+    });
+
+    const data = (await response.json()) as WalletResponse;
+
+    if (
+      response.ok &&
+      data.wallet?.id &&
+      data.wallet.address &&
+      data.wallet.blockchain
+    ) {
+      return data.wallet;
     }
 
+    lastError =
+      data.error ?? "Unable to retrieve the Circle wallet.";
+
+    const canRetry =
+      response.status === 404 && attempt < attempts - 1;
+
+    if (!canRetry) {
+      throw new Error(lastError);
+    }
+
+    await wait(1500);
+  }
+
+  throw new Error(lastError);
+}
+
+function saveWallet(wallet: WalletDetails) {
+  window.localStorage.setItem(
+    CIRCLE_WALLET_READY_KEY,
+    "true",
+  );
+
+  window.localStorage.setItem(
+    CIRCLE_WALLET_ADDRESS_KEY,
+    wallet.address,
+  );
+
+  window.localStorage.setItem(
+    CIRCLE_WALLET_ID_KEY,
+    wallet.id,
+  );
+}
+
+function clearWalletStorage(keepUserId: boolean) {
+  window.localStorage.removeItem(CIRCLE_WALLET_READY_KEY);
+  window.localStorage.removeItem(CIRCLE_WALLET_ADDRESS_KEY);
+  window.localStorage.removeItem(CIRCLE_WALLET_ID_KEY);
+
+  if (!keepUserId) {
+    window.localStorage.removeItem(CIRCLE_USER_ID_KEY);
+  }
+}
+
+function copyWithFallback(text: string) {
+  const textarea = document.createElement("textarea");
+
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.opacity = "0";
+
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
+}
+
+export default function CircleWalletButton() {
+  const [status, setStatus] =
+    useState<ConnectionStatus>("idle");
+
+  const [message, setMessage] = useState("");
+  const [walletAddress, setWalletAddress] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const setupTimeoutRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const copiedTimeoutRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreWallet() {
+      const savedUserId = window.localStorage.getItem(
+        CIRCLE_USER_ID_KEY,
+      );
+
+      const walletReady = window.localStorage.getItem(
+        CIRCLE_WALLET_READY_KEY,
+      );
+
+      const cachedAddress = window.localStorage.getItem(
+        CIRCLE_WALLET_ADDRESS_KEY,
+      );
+
+      if (!savedUserId || walletReady !== "true") {
+        return;
+      }
+
+      if (cachedAddress) {
+        setWalletAddress(cachedAddress);
+        setStatus("ready");
+        setMessage("");
+      } else {
+        setStatus("loading");
+        setMessage("Restoring your Circle wallet...");
+      }
+
+      try {
+        const session = await requestCircleSession(savedUserId);
+
+        const wallet = await requestCircleWallet(
+          session.userToken,
+          3,
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        saveWallet(wallet);
+        setWalletAddress(wallet.address);
+        setStatus("ready");
+        setMessage("");
+      } catch (error) {
+        console.error("Circle wallet restoration failed:", error);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (cachedAddress) {
+          setWalletAddress(cachedAddress);
+          setStatus("ready");
+          setMessage("");
+          return;
+        }
+
+        clearWalletStorage(true);
+        setWalletAddress("");
+        setStatus("idle");
+        setMessage("");
+      }
+    }
+
+    function handleOutsideClick(event: MouseEvent) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node)
+      ) {
+        setMenuOpen(false);
+      }
+    }
+
+    void restoreWallet();
+
+    document.addEventListener(
+      "mousedown",
+      handleOutsideClick,
+    );
+
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      cancelled = true;
+
+      document.removeEventListener(
+        "mousedown",
+        handleOutsideClick,
+      );
+
+      if (setupTimeoutRef.current) {
+        clearTimeout(setupTimeoutRef.current);
+      }
+
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
       }
     };
   }, []);
 
-  async function handleConnect() {
-    if (status === "loading" || status === "ready") {
+  async function finishWalletConnection(
+    userToken: string,
+    attempts: number,
+  ) {
+    setMessage("Loading your Arc Testnet wallet...");
+
+    const wallet = await requestCircleWallet(
+      userToken,
+      attempts,
+    );
+
+    saveWallet(wallet);
+
+    setWalletAddress(wallet.address);
+    setStatus("ready");
+    setMessage("");
+    setMenuOpen(false);
+  }
+
+  async function handleConnect(forceNewUser = false) {
+    if (status === "loading") {
+      return;
+    }
+
+    if (status === "ready" && !forceNewUser) {
       return;
     }
 
@@ -63,44 +362,32 @@ export default function CircleWalletButton() {
       return;
     }
 
+    if (forceNewUser) {
+      clearWalletStorage(false);
+      setWalletAddress("");
+      setMenuOpen(false);
+    }
+
     try {
       setStatus("loading");
       setMessage("Creating a secure Circle session...");
 
-      const savedUserId =
-        window.localStorage.getItem(CIRCLE_USER_ID_KEY) ?? undefined;
+      const savedUserId = forceNewUser
+        ? undefined
+        : window.localStorage.getItem(
+              CIRCLE_USER_ID_KEY,
+            ) ?? undefined;
 
-      const sessionResponse = await fetch("/api/circle/session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        cache: "no-store",
-        body: JSON.stringify({
-          userId: savedUserId,
-        }),
-      });
-
-      const sessionData =
-        (await sessionResponse.json()) as SessionResponse;
-
-      if (
-        !sessionResponse.ok ||
-        !sessionData.userId ||
-        !sessionData.userToken ||
-        !sessionData.encryptionKey
-      ) {
-        throw new Error(
-          sessionData.error ?? "Unable to create the Circle session.",
-        );
-      }
+      const session = await requestCircleSession(savedUserId);
 
       window.localStorage.setItem(
         CIRCLE_USER_ID_KEY,
-        sessionData.userId,
+        session.userId,
       );
 
-      setMessage("Preparing Circle's secure wallet interface...");
+      setMessage(
+        "Preparing Circle's secure wallet interface...",
+      );
 
       const { W3SSdk } = await import(
         "@circle-fin/w3s-pw-web-sdk"
@@ -115,53 +402,35 @@ export default function CircleWalletButton() {
       await circleSdk.getDeviceId();
 
       circleSdk.setAuthentication({
-        userToken: sessionData.userToken,
-        encryptionKey: sessionData.encryptionKey,
+        userToken: session.userToken,
+        encryptionKey: session.encryptionKey,
       });
 
-      const initializeResponse = await fetch(
-        "/api/circle/initialize",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          cache: "no-store",
-          body: JSON.stringify({
-            userToken: sessionData.userToken,
-          }),
-        },
-      );
-
-      const initializeData =
-        (await initializeResponse.json()) as InitializeResponse;
-
-      if (!initializeResponse.ok) {
-        throw new Error(
-          initializeData.error ?? "Unable to initialize the Circle wallet.",
-        );
-      }
-
-      if (initializeData.alreadyInitialized) {
-        window.localStorage.setItem(
-          CIRCLE_WALLET_READY_KEY,
-          "true",
+      const initialization =
+        await requestWalletInitialization(
+          session.userToken,
         );
 
-        setStatus("ready");
-        setMessage("Circle wallet ready on Arc Testnet.");
+      if (initialization.alreadyInitialized) {
+        await finishWalletConnection(
+          session.userToken,
+          4,
+        );
+
         return;
       }
 
-      if (!initializeData.challengeId) {
-        throw new Error("Circle did not return a wallet challenge.");
+      if (!initialization.challengeId) {
+        throw new Error(
+          "Circle did not return a wallet challenge.",
+        );
       }
 
       setMessage(
         "Complete your PIN setup in Circle's secure window.",
       );
 
-      timeoutRef.current = setTimeout(() => {
+      setupTimeoutRef.current = setTimeout(() => {
         setStatus("idle");
         setMessage(
           "Wallet setup timed out. You can safely try again.",
@@ -169,11 +438,11 @@ export default function CircleWalletButton() {
       }, 10 * 60 * 1000);
 
       circleSdk.execute(
-        initializeData.challengeId,
-        (error, result) => {
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-            timeoutRef.current = null;
+        initialization.challengeId,
+        async (error, result) => {
+          if (setupTimeoutRef.current) {
+            clearTimeout(setupTimeoutRef.current);
+            setupTimeoutRef.current = null;
           }
 
           if (error) {
@@ -184,62 +453,222 @@ export default function CircleWalletButton() {
                   error.code ? ` (${error.code})` : ""
                 }.`,
             );
+
             return;
           }
 
           if (!result || result.status !== "COMPLETE") {
             setStatus("error");
-            setMessage("Circle wallet setup was not completed.");
+            setMessage(
+              "Circle wallet setup was not completed.",
+            );
+
             return;
           }
 
-          window.localStorage.setItem(
-            CIRCLE_WALLET_READY_KEY,
-            "true",
-          );
+          try {
+            await finishWalletConnection(
+              session.userToken,
+              8,
+            );
+          } catch (walletError) {
+            console.error(
+              "Circle wallet lookup failed after setup:",
+              walletError,
+            );
 
-          setStatus("ready");
-          setMessage("Circle wallet ready on Arc Testnet.");
+            setStatus("error");
+            setMessage(getErrorMessage(walletError));
+          }
         },
       );
     } catch (error) {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
+      if (setupTimeoutRef.current) {
+        clearTimeout(setupTimeoutRef.current);
+        setupTimeoutRef.current = null;
       }
 
-      console.error("Circle wallet connection failed:", error);
+      console.error(
+        "Circle wallet connection failed:",
+        error,
+      );
 
       setStatus("error");
       setMessage(getErrorMessage(error));
     }
   }
 
+  async function handleCopyAddress() {
+    if (!walletAddress) {
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(walletAddress);
+      } else {
+        copyWithFallback(walletAddress);
+      }
+
+      setCopied(true);
+
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+
+      copiedTimeoutRef.current = setTimeout(() => {
+        setCopied(false);
+      }, 1800);
+    } catch (error) {
+      console.error("Unable to copy wallet address:", error);
+      copyWithFallback(walletAddress);
+      setCopied(true);
+    }
+  }
+
+  function handleDisconnect() {
+    clearWalletStorage(true);
+
+    setWalletAddress("");
+    setStatus("idle");
+    setMessage("");
+    setMenuOpen(false);
+    setCopied(false);
+  }
+
+  function handleChangeWallet() {
+    const confirmed = window.confirm(
+      "Change wallet will create a new Circle wallet on Arc Testnet. Your current wallet will not be deleted, but ShowUp will stop using it. Continue?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    void handleConnect(true);
+  }
+
   const buttonLabel =
     status === "loading"
       ? "Connecting..."
-      : status === "ready"
-        ? "Wallet ready"
-        : status === "error"
-          ? "Try again"
-          : "Connect wallet";
+      : status === "error"
+        ? "Try again"
+        : "Connect wallet";
 
   return (
-    <div className="relative flex flex-col items-end">
-      <button
-        type="button"
-        onClick={handleConnect}
-        disabled={status === "loading" || status === "ready"}
-        className={`rounded-full border px-5 py-2.5 text-sm font-medium transition ${
-          status === "ready"
-            ? "cursor-default border-[#74f2c2]/30 bg-[#74f2c2]/15 text-[#9dffda]"
-            : "border-white/15 bg-white/5 text-white hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/10"
-        } disabled:opacity-70`}
-      >
-        {buttonLabel}
-      </button>
+    <div
+      ref={menuRef}
+      className="relative flex flex-col items-end"
+    >
+      {status === "ready" && walletAddress ? (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen((current) => !current);
+            }}
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            className="flex items-center gap-2 rounded-full border border-[#74f2c2]/30 bg-[#74f2c2]/15 px-4 py-2.5 text-sm font-medium text-[#9dffda] transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/20"
+          >
+            <span className="h-2 w-2 rounded-full bg-[#74f2c2]" />
 
-      {message && status !== "idle" && (
+            <span className="font-mono">
+              {shortenAddress(walletAddress)}
+            </span>
+
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              aria-hidden="true"
+              className={`h-4 w-4 transition ${
+                menuOpen ? "rotate-180" : ""
+              }`}
+            >
+              <path
+                d="M5 7.5 10 12.5 15 7.5"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+
+          {menuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-full z-50 mt-3 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1916]/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
+            >
+              <div className="px-2 pb-3 pt-1">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#74f2c2]">
+                    Circle wallet
+                  </p>
+
+                  <span className="rounded-full bg-[#74f2c2]/10 px-2 py-1 text-[10px] font-medium text-[#9dffda]">
+                    Arc Testnet
+                  </span>
+                </div>
+
+                <p className="mt-3 break-all font-mono text-xs leading-5 text-white/55">
+                  {walletAddress}
+                </p>
+              </div>
+
+              <div className="h-px bg-white/10" />
+
+              <div className="space-y-1 pt-2">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    void handleCopyAddress();
+                  }}
+                  className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
+                >
+                  <span>Copy address</span>
+
+                  <span className="text-xs text-[#74f2c2]">
+                    {copied ? "Copied" : "Copy"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleChangeWallet}
+                  className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
+                >
+                  Change wallet
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleDisconnect}
+                  className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-red-300 transition hover:bg-red-400/10 hover:text-red-200"
+                >
+                  Disconnect
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            void handleConnect(false);
+          }}
+          disabled={status === "loading"}
+          className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/10 disabled:cursor-wait disabled:opacity-70"
+        >
+          {buttonLabel}
+        </button>
+      )}
+
+      {message && status !== "ready" && (
         <p
           aria-live="polite"
           className={`absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border px-3 py-2 text-xs leading-5 shadow-xl backdrop-blur ${
