@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import WalletRecoveryDialog, {
+  type WalletRecoveryMode,
+} from "@/components/wallet-recovery-dialog";
 
 const CIRCLE_USER_ID_KEY = "showup_circle_user_id";
 const CIRCLE_WALLET_READY_KEY = "showup_circle_wallet_ready";
@@ -215,8 +218,15 @@ export default function CircleWalletButton() {
 
   const [message, setMessage] = useState("");
   const [walletAddress, setWalletAddress] = useState("");
+  const [circleUserId, setCircleUserId] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const [recoveryDialogOpen, setRecoveryDialogOpen] =
+    useState(false);
+
+  const [recoveryMode, setRecoveryMode] =
+    useState<WalletRecoveryMode>("backup");
 
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -241,6 +251,10 @@ export default function CircleWalletButton() {
       const cachedAddress = window.localStorage.getItem(
         CIRCLE_WALLET_ADDRESS_KEY,
       );
+
+      if (savedUserId) {
+        setCircleUserId(savedUserId);
+      }
 
       if (!savedUserId || walletReady !== "true") {
         return;
@@ -268,11 +282,15 @@ export default function CircleWalletButton() {
         }
 
         saveWallet(wallet);
+        setCircleUserId(session.userId);
         setWalletAddress(wallet.address);
         setStatus("ready");
         setMessage("");
       } catch (error) {
-        console.error("Circle wallet restoration failed:", error);
+        console.error(
+          "Circle wallet restoration failed:",
+          error,
+        );
 
         if (cancelled) {
           return;
@@ -365,6 +383,7 @@ export default function CircleWalletButton() {
     if (forceNewUser) {
       clearWalletStorage(false);
       setWalletAddress("");
+      setCircleUserId("");
       setMenuOpen(false);
     }
 
@@ -384,6 +403,8 @@ export default function CircleWalletButton() {
         CIRCLE_USER_ID_KEY,
         session.userId,
       );
+
+      setCircleUserId(session.userId);
 
       setMessage(
         "Preparing Circle's secure wallet interface...",
@@ -498,6 +519,61 @@ export default function CircleWalletButton() {
     }
   }
 
+  async function handleRestoreWallet(userId: string) {
+    const normalizedUserId = userId.trim();
+    const hadConnectedWallet =
+      status === "ready" && Boolean(walletAddress);
+
+    if (!normalizedUserId) {
+      throw new Error(
+        "The recovery code did not contain a valid Circle user.",
+      );
+    }
+
+    try {
+      setStatus("loading");
+      setMessage("Restoring your Circle wallet...");
+      setMenuOpen(false);
+
+      const session =
+        await requestCircleSession(normalizedUserId);
+
+      const wallet = await requestCircleWallet(
+        session.userToken,
+        4,
+      );
+
+      clearWalletStorage(false);
+
+      window.localStorage.setItem(
+        CIRCLE_USER_ID_KEY,
+        session.userId,
+      );
+
+      saveWallet(wallet);
+
+      setCircleUserId(session.userId);
+      setWalletAddress(wallet.address);
+      setStatus("ready");
+      setMessage("");
+    } catch (error) {
+      console.error(
+        "Circle wallet recovery connection failed:",
+        error,
+      );
+
+      if (hadConnectedWallet) {
+        setStatus("ready");
+        setMessage("");
+      } else {
+        setStatus("error");
+        setMessage(getErrorMessage(error));
+      }
+
+      throw error;
+    }
+  }
+
   async function handleCopyAddress() {
     if (!walletAddress) {
       return;
@@ -520,10 +596,20 @@ export default function CircleWalletButton() {
         setCopied(false);
       }, 1800);
     } catch (error) {
-      console.error("Unable to copy wallet address:", error);
+      console.error(
+        "Unable to copy wallet address:",
+        error,
+      );
+
       copyWithFallback(walletAddress);
       setCopied(true);
     }
+  }
+
+  function openRecoveryDialog(mode: WalletRecoveryMode) {
+    setRecoveryMode(mode);
+    setRecoveryDialogOpen(true);
+    setMenuOpen(false);
   }
 
   function handleDisconnect() {
@@ -538,7 +624,7 @@ export default function CircleWalletButton() {
 
   function handleChangeWallet() {
     const confirmed = window.confirm(
-      "Change wallet will create a new Circle wallet on Arc Testnet. Your current wallet will not be deleted, but ShowUp will stop using it. Continue?",
+      "Change wallet will create a new Circle wallet on Arc Testnet. Your current wallet will not be deleted, but ShowUp will stop using it. Make sure you have saved its recovery code first. Continue?",
     );
 
     if (!confirmed) {
@@ -556,130 +642,177 @@ export default function CircleWalletButton() {
         : "Connect wallet";
 
   return (
-    <div
-      ref={menuRef}
-      className="relative flex flex-col items-end"
-    >
-      {status === "ready" && walletAddress ? (
-        <>
-          <button
-            type="button"
-            onClick={() => {
-              setMenuOpen((current) => !current);
-            }}
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
-            className="flex items-center gap-2 rounded-full border border-[#74f2c2]/30 bg-[#74f2c2]/15 px-4 py-2.5 text-sm font-medium text-[#9dffda] transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/20"
-          >
-            <span className="h-2 w-2 rounded-full bg-[#74f2c2]" />
-
-            <span className="font-mono">
-              {shortenAddress(walletAddress)}
-            </span>
-
-            <svg
-              viewBox="0 0 20 20"
-              fill="none"
-              aria-hidden="true"
-              className={`h-4 w-4 transition ${
-                menuOpen ? "rotate-180" : ""
-              }`}
+    <>
+      <div
+        ref={menuRef}
+        className="relative flex flex-col items-end"
+      >
+        {status === "ready" && walletAddress ? (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen((current) => !current);
+              }}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              className="flex items-center gap-2 rounded-full border border-[#74f2c2]/30 bg-[#74f2c2]/15 px-4 py-2.5 text-sm font-medium text-[#9dffda] transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/20"
             >
-              <path
-                d="M5 7.5 10 12.5 15 7.5"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+              <span className="h-2 w-2 rounded-full bg-[#74f2c2]" />
 
-          {menuOpen && (
-            <div
-              role="menu"
-              className="absolute right-0 top-full z-50 mt-3 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1916]/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
-            >
-              <div className="px-2 pb-3 pt-1">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#74f2c2]">
-                    Circle wallet
+              <span className="font-mono">
+                {shortenAddress(walletAddress)}
+              </span>
+
+              <svg
+                viewBox="0 0 20 20"
+                fill="none"
+                aria-hidden="true"
+                className={`h-4 w-4 transition ${
+                  menuOpen ? "rotate-180" : ""
+                }`}
+              >
+                <path
+                  d="M5 7.5 10 12.5 15 7.5"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+
+            {menuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full z-50 mt-3 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1916]/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
+              >
+                <div className="px-2 pb-3 pt-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#74f2c2]">
+                      Circle wallet
+                    </p>
+
+                    <span className="rounded-full bg-[#74f2c2]/10 px-2 py-1 text-[10px] font-medium text-[#9dffda]">
+                      Arc Testnet
+                    </span>
+                  </div>
+
+                  <p className="mt-3 break-all font-mono text-xs leading-5 text-white/55">
+                    {walletAddress}
                   </p>
-
-                  <span className="rounded-full bg-[#74f2c2]/10 px-2 py-1 text-[10px] font-medium text-[#9dffda]">
-                    Arc Testnet
-                  </span>
                 </div>
 
-                <p className="mt-3 break-all font-mono text-xs leading-5 text-white/55">
-                  {walletAddress}
-                </p>
+                <div className="h-px bg-white/10" />
+
+                <div className="space-y-1 pt-2">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      void handleCopyAddress();
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
+                  >
+                    <span>Copy address</span>
+
+                    <span className="text-xs text-[#74f2c2]">
+                      {copied ? "Copied" : "Copy"}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      openRecoveryDialog("backup");
+                    }}
+                    className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
+                  >
+                    Back up wallet
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      openRecoveryDialog("restore");
+                    }}
+                    className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
+                  >
+                    Restore wallet
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleChangeWallet}
+                    className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
+                  >
+                    Change wallet
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleDisconnect}
+                    className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-red-300 transition hover:bg-red-400/10 hover:text-red-200"
+                  >
+                    Disconnect
+                  </button>
+                </div>
               </div>
+            )}
+          </>
+        ) : (
+          <div className="flex flex-col items-end gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                void handleConnect(false);
+              }}
+              disabled={status === "loading"}
+              className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/10 disabled:cursor-wait disabled:opacity-70"
+            >
+              {buttonLabel}
+            </button>
 
-              <div className="h-px bg-white/10" />
+            <button
+              type="button"
+              onClick={() => {
+                openRecoveryDialog("restore");
+              }}
+              disabled={status === "loading"}
+              className="px-2 text-xs text-white/45 transition hover:text-[#9dffda] disabled:opacity-40"
+            >
+              Restore existing wallet
+            </button>
+          </div>
+        )}
 
-              <div className="space-y-1 pt-2">
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    void handleCopyAddress();
-                  }}
-                  className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
-                >
-                  <span>Copy address</span>
+        {message && status !== "ready" && (
+          <p
+            aria-live="polite"
+            className={`absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border px-3 py-2 text-xs leading-5 shadow-xl backdrop-blur ${
+              status === "error"
+                ? "border-red-400/25 bg-red-950/90 text-red-200"
+                : "border-white/10 bg-[#0b1916]/95 text-white/65"
+            }`}
+          >
+            {message}
+          </p>
+        )}
+      </div>
 
-                  <span className="text-xs text-[#74f2c2]">
-                    {copied ? "Copied" : "Copy"}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={handleChangeWallet}
-                  className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
-                >
-                  Change wallet
-                </button>
-
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={handleDisconnect}
-                  className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-red-300 transition hover:bg-red-400/10 hover:text-red-200"
-                >
-                  Disconnect
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            void handleConnect(false);
-          }}
-          disabled={status === "loading"}
-          className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/10 disabled:cursor-wait disabled:opacity-70"
-        >
-          {buttonLabel}
-        </button>
-      )}
-
-      {message && status !== "ready" && (
-        <p
-          aria-live="polite"
-          className={`absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border px-3 py-2 text-xs leading-5 shadow-xl backdrop-blur ${
-            status === "error"
-              ? "border-red-400/25 bg-red-950/90 text-red-200"
-              : "border-white/10 bg-[#0b1916]/95 text-white/65"
-          }`}
-        >
-          {message}
-        </p>
-      )}
-    </div>
+      <WalletRecoveryDialog
+        open={recoveryDialogOpen}
+        mode={recoveryMode}
+        userId={circleUserId || undefined}
+        onClose={() => {
+          setRecoveryDialogOpen(false);
+        }}
+        onRestore={handleRestoreWallet}
+      />
+    </>
   );
 }
