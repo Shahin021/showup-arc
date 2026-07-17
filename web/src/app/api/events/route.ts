@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
-import {
-  createPublicClient,
-  formatUnits,
-  http,
-} from "viem";
+import { formatUnits } from "viem";
+
+import { arcPublicClient } from "@/lib/arc-public-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const RPC_URL = "https://rpc.testnet.arc.network";
 
 const FALLBACK_CONTRACT_ADDRESS =
   "0x0506cF7B5408C046F0f693a52394F481C0922B2D";
@@ -124,12 +120,6 @@ function getContractAddress() {
   return configuredAddress as `0x${string}`;
 }
 
-function wait(milliseconds: number) {
-  return new Promise<void>((resolve) => {
-    setTimeout(resolve, milliseconds);
-  });
-}
-
 function isRateLimitError(error: unknown) {
   const message =
     error instanceof Error
@@ -146,47 +136,15 @@ function isRateLimitError(error: unknown) {
   );
 }
 
-async function withRpcRetry<T>(
-  operation: () => Promise<T>,
-): Promise<T> {
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= 5; attempt += 1) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-
-      if (!isRateLimitError(error) || attempt === 5) {
-        throw error;
-      }
-
-      await wait(attempt * 1_000);
-    }
-  }
-
-  throw lastError;
-}
-
 export async function GET() {
   try {
     const contractAddress = getContractAddress();
 
-    const client = createPublicClient({
-      transport: http(RPC_URL, {
-        retryCount: 5,
-        retryDelay: 1_000,
-        timeout: 20_000,
-      }),
+    const eventCount = await arcPublicClient.readContract({
+      address: contractAddress,
+      abi: SHOWUP_ABI,
+      functionName: "eventCount",
     });
-
-    const eventCount = await withRpcRetry(() =>
-      client.readContract({
-        address: contractAddress,
-        abi: SHOWUP_ABI,
-        functionName: "eventCount",
-      }),
-    );
 
     const count = Number(eventCount);
 
@@ -212,55 +170,65 @@ export async function GET() {
       );
     }
 
-    const contractEvents = [];
+    const eventCalls = Array.from(
+      {
+        length: count,
+      },
+      (_, index) => ({
+        address: contractAddress,
+        abi: SHOWUP_ABI,
+        functionName: "getEvent" as const,
+        args: [BigInt(index + 1)] as const,
+      }),
+    );
 
-    /*
-     * Read events one by one instead of sending concurrent
-     * requests to the rate-limited public Arc RPC.
-     */
-    for (let eventNumber = 1; eventNumber <= count; eventNumber += 1) {
-      await wait(1_200);
+    const eventDetails =
+      (await arcPublicClient.multicall({
+        contracts: eventCalls,
+        allowFailure: false,
 
-      const eventId = BigInt(eventNumber);
+        /*
+         * This controls only the calldata size of each RPC batch.
+         * It does not limit or remove any events.
+         * Viem automatically continues until every call is read.
+         */
+        batchSize: 16_384,
+      })) as readonly ContractEvent[];
 
-      const details = (await withRpcRetry(() =>
-        client.readContract({
-          address: contractAddress,
-          abi: SHOWUP_ABI,
-          functionName: "getEvent",
-          args: [eventId],
-        }),
-      )) as ContractEvent;
+    const events = eventDetails
+      .map((details, index) => {
+        const eventId = BigInt(index + 1);
 
-      contractEvents.push({
-        id: eventId.toString(),
-        organizer: details.organizer,
-        title: details.title,
-        description: details.description,
-        deposit: formatUnits(
-          details.depositAmount,
-          6,
-        ),
-        depositAmount:
-          details.depositAmount.toString(),
-        capacity: details.capacity.toString(),
-        reservedSeats:
-          details.reservedSeats.toString(),
-        escrowedAmount:
-          details.escrowedAmount.toString(),
-        cancellationDeadline:
-          details.cancellationDeadline.toString(),
-        eventStart: details.eventStart.toString(),
-        eventEnd: details.eventEnd.toString(),
-        resolutionDeadline:
-          details.resolutionDeadline.toString(),
-        cancelled: details.cancelled,
-      });
-    }
+        return {
+          id: eventId.toString(),
+          organizer: details.organizer,
+          title: details.title,
+          description: details.description,
+          deposit: formatUnits(
+            details.depositAmount,
+            6,
+          ),
+          depositAmount:
+            details.depositAmount.toString(),
+          capacity: details.capacity.toString(),
+          reservedSeats:
+            details.reservedSeats.toString(),
+          escrowedAmount:
+            details.escrowedAmount.toString(),
+          cancellationDeadline:
+            details.cancellationDeadline.toString(),
+          eventStart: details.eventStart.toString(),
+          eventEnd: details.eventEnd.toString(),
+          resolutionDeadline:
+            details.resolutionDeadline.toString(),
+          cancelled: details.cancelled,
+        };
+      })
+      .reverse();
 
     return NextResponse.json(
       {
-        events: contractEvents.reverse(),
+        events,
         contractAddress,
       },
       {
@@ -282,7 +250,7 @@ export async function GET() {
     return NextResponse.json(
       {
         error: rateLimited
-          ? "Arc Testnet is temporarily limiting public RPC requests. Please refresh in a few seconds."
+          ? "All available Arc Testnet RPC endpoints are temporarily limiting requests. Please refresh in a few seconds."
           : "Unable to load events from Arc Testnet.",
       },
       {
