@@ -763,6 +763,48 @@ export default function EventDetailsPage() {
                 <ReserveSeatButton
                   eventId={event.id}
                   depositFormatted={event.deposit}
+                  onReservationConfirmed={(
+                    reservedSeats,
+                  ) => {
+                    setEvent(
+                      (
+                        currentEvent,
+                      ) => {
+                        if (
+                          !currentEvent
+                        ) {
+                          return currentEvent;
+                        }
+
+                        const nextReservedSeats =
+                          reservedSeats ||
+                          (
+                            BigInt(
+                              currentEvent
+                                .reservedSeats,
+                            ) +
+                            BigInt(1)
+                          ).toString();
+
+                        return {
+                          ...currentEvent,
+                          reservedSeats:
+                            nextReservedSeats,
+                          escrowedAmount:
+                            (
+                              BigInt(
+                                currentEvent
+                                  .escrowedAmount,
+                              ) +
+                              BigInt(
+                                currentEvent
+                                  .depositAmount,
+                              )
+                            ).toString(),
+                        };
+                      },
+                    );
+                  }}
                 />
               </div>
 

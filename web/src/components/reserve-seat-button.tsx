@@ -55,6 +55,7 @@ type ReservationStatusResponse = {
     open: boolean;
     cancelled: boolean;
     capacityAvailable: boolean;
+    reservedSeats: string;
   };
 
   canReserve?: boolean;
@@ -64,6 +65,9 @@ type ReservationStatusResponse = {
 type ReserveSeatButtonProps = {
   eventId: string;
   depositFormatted: string;
+  onReservationConfirmed?: (
+    reservedSeats: string,
+  ) => void;
 };
 
 function wait(milliseconds: number) {
@@ -283,6 +287,7 @@ async function waitForStatus(
 export default function ReserveSeatButton({
   eventId,
   depositFormatted,
+  onReservationConfirmed,
 }: ReserveSeatButtonProps) {
   const [busy, setBusy] =
     useState(false);
@@ -634,28 +639,27 @@ export default function ReserveSeatButton({
         "Waiting for the reservation to be confirmed on Arc Testnet...",
       );
 
-      await waitForStatus(
-        eventId,
-        walletAddress,
-        (currentStatus) =>
-          Boolean(
-            currentStatus
-              .reservation
-              ?.active,
-          ),
-        "The reservation was submitted but has not been confirmed yet. Please refresh shortly.",
+      const confirmedStatus =
+        await waitForStatus(
+          eventId,
+          walletAddress,
+          (currentStatus) =>
+            Boolean(
+              currentStatus
+                .reservation
+                ?.active,
+            ),
+          "The reservation was submitted but has not been confirmed yet. Please refresh shortly.",
+        );
+
+      onReservationConfirmed?.(
+        confirmedStatus.event
+          ?.reservedSeats ?? "",
       );
 
       setReserved(true);
       setMessage(
         "Seat reserved successfully. Your USDC deposit is now secured by ShowUp.",
-      );
-
-      window.setTimeout(
-        () => {
-          window.location.reload();
-        },
-        1500,
       );
     } catch (reserveError) {
       console.error(
