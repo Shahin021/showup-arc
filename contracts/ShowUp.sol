@@ -13,6 +13,7 @@ contract ShowUp is ReentrancyGuard {
 
     uint256 public constant MAX_TITLE_BYTES = 320;
     uint256 public constant MAX_DESCRIPTION_BYTES = 960;
+    uint256 public constant MAX_METADATA_URI_BYTES = 2048;
 
     uint256 public constant MAX_RESOLUTION_PERIOD = 7 days;
 
@@ -33,8 +34,11 @@ contract ShowUp is ReentrancyGuard {
 
     struct EventDetails {
         address organizer;
+
         string title;
         string description;
+        string metadataURI;
+
         uint256 depositAmount;
 
         // capacity == 0 means unlimited capacity.
@@ -76,6 +80,9 @@ contract ShowUp is ReentrancyGuard {
     error InvalidTitle();
     error TitleTooLong();
     error DescriptionTooLong();
+    error InvalidMetadataURI();
+    error MetadataURITooLong();
+
     error InvalidDepositAmount();
     error InvalidTimeline();
     error ResolutionPeriodTooLong();
@@ -99,8 +106,16 @@ contract ShowUp is ReentrancyGuard {
         uint256 indexed eventId,
         address indexed organizer,
         string title,
+        string metadataURI,
         uint256 depositAmount,
         uint256 capacity
+    );
+
+    event EventContentUpdated(
+        uint256 indexed eventId,
+        address indexed organizer,
+        string title,
+        string metadataURI
     );
 
     event SeatReserved(
@@ -180,6 +195,7 @@ contract ShowUp is ReentrancyGuard {
     function createEvent(
         string calldata title,
         string calldata description,
+        string calldata metadataURI,
         uint256 depositAmount,
         uint256 capacity,
         uint64 cancellationDeadline,
@@ -187,20 +203,11 @@ contract ShowUp is ReentrancyGuard {
         uint64 eventEnd,
         uint64 resolutionDeadline
     ) external returns (uint256 eventId) {
-        uint256 titleLength = bytes(title).length;
-        uint256 descriptionLength = bytes(description).length;
-
-        if (titleLength == 0) {
-            revert InvalidTitle();
-        }
-
-        if (titleLength > MAX_TITLE_BYTES) {
-            revert TitleTooLong();
-        }
-
-        if (descriptionLength > MAX_DESCRIPTION_BYTES) {
-            revert DescriptionTooLong();
-        }
+        _validateEventContent(
+            title,
+            description,
+            metadataURI
+        );
 
         if (depositAmount == 0) {
             revert InvalidDepositAmount();
@@ -230,6 +237,7 @@ contract ShowUp is ReentrancyGuard {
             organizer: msg.sender,
             title: title,
             description: description,
+            metadataURI: metadataURI,
             depositAmount: depositAmount,
             capacity: capacity,
             reservedSeats: 0,
@@ -245,8 +253,45 @@ contract ShowUp is ReentrancyGuard {
             eventId,
             msg.sender,
             title,
+            metadataURI,
             depositAmount,
             capacity
+        );
+    }
+
+    function updateEventContent(
+        uint256 eventId,
+        string calldata title,
+        string calldata description,
+        string calldata metadataURI
+    )
+        external
+        eventExists(eventId)
+        onlyOrganizer(eventId)
+        eventActive(eventId)
+    {
+        EventDetails storage eventDetails =
+            _events[eventId];
+
+        if (block.timestamp >= eventDetails.eventStart) {
+            revert EventHasStarted();
+        }
+
+        _validateEventContent(
+            title,
+            description,
+            metadataURI
+        );
+
+        eventDetails.title = title;
+        eventDetails.description = description;
+        eventDetails.metadataURI = metadataURI;
+
+        emit EventContentUpdated(
+            eventId,
+            msg.sender,
+            title,
+            metadataURI
         );
     }
 
@@ -604,6 +649,17 @@ contract ShowUp is ReentrancyGuard {
         return _events[eventId];
     }
 
+    function getEventMetadataURI(
+        uint256 eventId
+    )
+        external
+        view
+        eventExists(eventId)
+        returns (string memory)
+    {
+        return _events[eventId].metadataURI;
+    }
+
     function getReservation(
         uint256 eventId,
         address attendee
@@ -689,6 +745,44 @@ contract ShowUp is ReentrancyGuard {
         ) {
             attendees[index - offset] =
                 _attendees[eventId][index];
+        }
+    }
+
+    function _validateEventContent(
+        string calldata title,
+        string calldata description,
+        string calldata metadataURI
+    ) private pure {
+        uint256 titleLength = bytes(title).length;
+        uint256 descriptionLength =
+            bytes(description).length;
+        uint256 metadataLength =
+            bytes(metadataURI).length;
+
+        if (titleLength == 0) {
+            revert InvalidTitle();
+        }
+
+        if (titleLength > MAX_TITLE_BYTES) {
+            revert TitleTooLong();
+        }
+
+        if (
+            descriptionLength >
+            MAX_DESCRIPTION_BYTES
+        ) {
+            revert DescriptionTooLong();
+        }
+
+        if (metadataLength == 0) {
+            revert InvalidMetadataURI();
+        }
+
+        if (
+            metadataLength >
+            MAX_METADATA_URI_BYTES
+        ) {
+            revert MetadataURITooLong();
         }
     }
 
