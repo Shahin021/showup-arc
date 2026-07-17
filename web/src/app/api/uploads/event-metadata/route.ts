@@ -246,6 +246,67 @@ export async function POST(request: Request) {
       },
     );
 
+    const videoSource = readText(
+      formData,
+      "videoSource",
+      {
+        maxLength: 20,
+      },
+    );
+
+    const videoUrl = readText(
+      formData,
+      "videoUrl",
+      {
+        maxLength: 2_000,
+      },
+    );
+
+    if (
+      videoSource &&
+      videoSource !== "upload" &&
+      videoSource !== "external"
+    ) {
+      throw new Error(
+        "Video source must be upload or external.",
+      );
+    }
+
+    if (Boolean(videoSource) !== Boolean(videoUrl)) {
+      throw new Error(
+        "Video source and video URL must be provided together.",
+      );
+    }
+
+    if (videoUrl) {
+      let parsedVideoUrl: URL;
+
+      try {
+        parsedVideoUrl = new URL(videoUrl);
+      } catch {
+        throw new Error(
+          "The video URL is invalid.",
+        );
+      }
+
+      if (parsedVideoUrl.protocol !== "https:") {
+        throw new Error(
+          "The video URL must use HTTPS.",
+        );
+      }
+
+      if (
+        videoSource === "upload" &&
+        !parsedVideoUrl.hostname.endsWith(
+          ".public.blob.vercel-storage.com",
+        )
+      ) {
+        throw new Error(
+          "The uploaded video URL is not from the connected Vercel Blob store.",
+        );
+      }
+    }
+
     const rules = readText(
       formData,
       "rules",
@@ -330,6 +391,12 @@ export async function POST(request: Request) {
         x: organizerX || null,
         walletAddress: wallet.address,
       },
+      video: videoUrl
+        ? {
+            source: videoSource,
+            url: videoUrl,
+          }
+        : null,
       rules: rules || null,
       storage: {
         provider: "vercel-blob",
