@@ -550,13 +550,16 @@ export default function EventsPage() {
                     )}
 
                     <div className="mt-auto pt-6">
-                      <div className="rounded-2xl border border-[#74f2c2]/20 bg-[#74f2c2]/10 px-4 py-3 text-center text-sm font-medium text-[#b7ffe3]">
-                        Recorded on Arc Testnet
-                      </div>
+                      <Link
+                        href={`/events/${event.id}`}
+                        className="block rounded-2xl border border-[#74f2c2]/25 bg-[#74f2c2]/10 px-4 py-3 text-center text-sm font-medium text-[#b7ffe3] transition hover:bg-[#74f2c2]/15"
+                      >
+                        View event
+                      </Link>
 
                       <p className="mt-3 text-center text-xs text-white/30">
-                        Reservation and event details are
-                        added next.
+                        Open full details, organizer profile,
+                        media, and attendance rules.
                       </p>
                     </div>
                   </div>
