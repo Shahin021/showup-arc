@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { formatUnits } from "viem";
-
 import { arcPublicClient } from "@/lib/arc-public-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const FALLBACK_CONTRACT_ADDRESS =
-  "0x0506cF7B5408C046F0f693a52394F481C0922B2D";
+  "0x26Df9d3c1272745508A700E005f1892Ef10d7B84";
 
 const SHOWUP_ABI = [
   {
@@ -47,6 +46,10 @@ const SHOWUP_ABI = [
           },
           {
             name: "description",
+            type: "string",
+          },
+          {
+            name: "metadataURI",
             type: "string",
           },
           {
@@ -95,6 +98,7 @@ type ContractEvent = {
   organizer: `0x${string}`;
   title: string;
   description: string;
+  metadataURI: string;
   depositAmount: bigint;
   capacity: bigint;
   reservedSeats: bigint;
@@ -108,10 +112,16 @@ type ContractEvent = {
 
 function getContractAddress() {
   const configuredAddress =
-    process.env.NEXT_PUBLIC_SHOWUP_CONTRACT_ADDRESS?.trim() ||
+    process.env
+      .NEXT_PUBLIC_SHOWUP_CONTRACT_ADDRESS
+      ?.trim() ||
     FALLBACK_CONTRACT_ADDRESS;
 
-  if (!/^0x[a-fA-F0-9]{40}$/.test(configuredAddress)) {
+  if (
+    !/^0x[a-fA-F0-9]{40}$/.test(
+      configuredAddress,
+    )
+  ) {
     throw new Error(
       "ShowUp contract address is not configured correctly.",
     );
@@ -120,7 +130,9 @@ function getContractAddress() {
   return configuredAddress as `0x${string}`;
 }
 
-function isRateLimitError(error: unknown) {
+function isRateLimitError(
+  error: unknown,
+) {
   const message =
     error instanceof Error
       ? error.message.toLowerCase()
@@ -138,17 +150,22 @@ function isRateLimitError(error: unknown) {
 
 export async function GET() {
   try {
-    const contractAddress = getContractAddress();
+    const contractAddress =
+      getContractAddress();
 
-    const eventCount = await arcPublicClient.readContract({
-      address: contractAddress,
-      abi: SHOWUP_ABI,
-      functionName: "eventCount",
-    });
+    const eventCount =
+      await arcPublicClient.readContract({
+        address: contractAddress,
+        abi: SHOWUP_ABI,
+        functionName: "eventCount",
+      });
 
     const count = Number(eventCount);
 
-    if (!Number.isSafeInteger(count) || count < 0) {
+    if (
+      !Number.isSafeInteger(count) ||
+      count < 0
+    ) {
       throw new Error(
         "The contract returned an invalid event count.",
       );
@@ -178,7 +195,9 @@ export async function GET() {
         address: contractAddress,
         abi: SHOWUP_ABI,
         functionName: "getEvent" as const,
-        args: [BigInt(index + 1)] as const,
+        args: [
+          BigInt(index + 1),
+        ] as const,
       }),
     );
 
@@ -186,42 +205,46 @@ export async function GET() {
       (await arcPublicClient.multicall({
         contracts: eventCalls,
         allowFailure: false,
-
-        /*
-         * This controls only the calldata size of each RPC batch.
-         * It does not limit or remove any events.
-         * Viem automatically continues until every call is read.
-         */
         batchSize: 16_384,
       })) as readonly ContractEvent[];
 
     const events = eventDetails
       .map((details, index) => {
-        const eventId = BigInt(index + 1);
+        const eventId =
+          BigInt(index + 1);
 
         return {
           id: eventId.toString(),
-          organizer: details.organizer,
-          title: details.title,
-          description: details.description,
+          organizer:
+            details.organizer,
+          title:
+            details.title,
+          description:
+            details.description,
+          metadataURI:
+            details.metadataURI,
           deposit: formatUnits(
             details.depositAmount,
             6,
           ),
           depositAmount:
             details.depositAmount.toString(),
-          capacity: details.capacity.toString(),
+          capacity:
+            details.capacity.toString(),
           reservedSeats:
             details.reservedSeats.toString(),
           escrowedAmount:
             details.escrowedAmount.toString(),
           cancellationDeadline:
             details.cancellationDeadline.toString(),
-          eventStart: details.eventStart.toString(),
-          eventEnd: details.eventEnd.toString(),
+          eventStart:
+            details.eventStart.toString(),
+          eventEnd:
+            details.eventEnd.toString(),
           resolutionDeadline:
             details.resolutionDeadline.toString(),
-          cancelled: details.cancelled,
+          cancelled:
+            details.cancelled,
         };
       })
       .reverse();
@@ -245,7 +268,8 @@ export async function GET() {
       error,
     );
 
-    const rateLimited = isRateLimitError(error);
+    const rateLimited =
+      isRateLimitError(error);
 
     return NextResponse.json(
       {
@@ -254,9 +278,12 @@ export async function GET() {
           : "Unable to load events from Arc Testnet.",
       },
       {
-        status: rateLimited ? 503 : 500,
+        status: rateLimited
+          ? 503
+          : 500,
         headers: {
-          "Cache-Control": "no-store",
+          "Cache-Control":
+            "no-store",
         },
       },
     );
