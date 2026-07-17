@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import CircleWalletButton from "@/components/circle-wallet-button";
+import ReserveSeatButton from "@/components/reserve-seat-button";
 
 type OnchainEvent = {
   id: string;
@@ -759,17 +760,10 @@ export default function EventDetailsPage() {
                   </div>
                 ) : null}
 
-                <button
-                  type="button"
-                  disabled
-                  className="mt-6 w-full cursor-not-allowed rounded-2xl bg-[#74f2c2] py-4 font-semibold text-[#07110f] opacity-55"
-                >
-                  Reserve seat — next step
-                </button>
-
-                <p className="mt-3 text-center text-xs leading-5 text-white/30">
-                  The Circle USDC reservation transaction will be connected next.
-                </p>
+                <ReserveSeatButton
+                  eventId={event.id}
+                  depositFormatted={event.deposit}
+                />
               </div>
 
               <div className="rounded-[30px] border border-white/10 bg-white/[0.035] p-6">
