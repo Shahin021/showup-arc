@@ -33,10 +33,22 @@ type WalletDetails = {
   state?: string;
   accountType?: string;
   createDate?: string;
+  updateDate?: string;
+  name?: string;
+  refId?: string;
 };
 
 type WalletResponse = {
-  wallet?: WalletDetails;
+  wallets?: WalletDetails[];
+  wallet?: WalletDetails | null;
+  error?: string;
+};
+
+type CreateWalletResponse = {
+  challengeId?: string;
+  walletName?: string;
+  blockchain?: string;
+  accountType?: string;
   error?: string;
 };
 
@@ -125,11 +137,43 @@ async function requestWalletInitialization(
   return data;
 }
 
-async function requestCircleWallet(
+async function requestNewWalletChallenge(
+  userToken: string,
+  walletName: string,
+): Promise<string> {
+  const response = await fetch(
+    "/api/circle/wallets/create",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        userToken,
+        walletName,
+      }),
+    },
+  );
+
+  const data =
+    (await response.json()) as CreateWalletResponse;
+
+  if (!response.ok || !data.challengeId) {
+    throw new Error(
+      data.error ??
+        "Unable to prepare the new Circle wallet.",
+    );
+  }
+
+  return data.challengeId;
+}
+
+async function requestCircleWallets(
   userToken: string,
   attempts = 1,
-): Promise<WalletDetails> {
-  let lastError = "Unable to retrieve the Circle wallet.";
+): Promise<WalletDetails[]> {
+  let lastError = "Unable to retrieve the Circle wallets.";
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const response = await fetch("/api/circle/wallets", {
@@ -145,17 +189,25 @@ async function requestCircleWallet(
 
     const data = (await response.json()) as WalletResponse;
 
-    if (
-      response.ok &&
-      data.wallet?.id &&
-      data.wallet.address &&
-      data.wallet.blockchain
-    ) {
-      return data.wallet;
+    const wallets = Array.isArray(data.wallets)
+      ? data.wallets
+      : data.wallet
+        ? [data.wallet]
+        : [];
+
+    const validWallets = wallets.filter(
+      (wallet) =>
+        wallet.id &&
+        wallet.address &&
+        wallet.blockchain === "ARC-TESTNET",
+    );
+
+    if (response.ok && validWallets.length > 0) {
+      return validWallets;
     }
 
     lastError =
-      data.error ?? "Unable to retrieve the Circle wallet.";
+      data.error ?? "Unable to retrieve the Circle wallets.";
 
     const canRetry =
       response.status === 404 && attempt < attempts - 1;
@@ -168,6 +220,36 @@ async function requestCircleWallet(
   }
 
   throw new Error(lastError);
+}
+
+function chooseActiveWallet(
+  wallets: WalletDetails[],
+): WalletDetails {
+  const savedWalletId = window.localStorage.getItem(
+    CIRCLE_WALLET_ID_KEY,
+  );
+
+  const savedWallet = savedWalletId
+    ? wallets.find((wallet) => wallet.id === savedWalletId)
+    : undefined;
+
+  return (
+    savedWallet ??
+    wallets.find((wallet) => wallet.state === "LIVE") ??
+    wallets[0]
+  );
+}
+
+async function requestCircleWallet(
+  userToken: string,
+  attempts = 1,
+): Promise<WalletDetails> {
+  const wallets = await requestCircleWallets(
+    userToken,
+    attempts,
+  );
+
+  return chooseActiveWallet(wallets);
 }
 
 function saveWallet(wallet: WalletDetails) {
@@ -218,6 +300,9 @@ export default function CircleWalletButton() {
 
   const [message, setMessage] = useState("");
   const [walletAddress, setWalletAddress] = useState("");
+  const [wallets, setWallets] = useState<WalletDetails[]>([]);
+  const [activeWalletId, setActiveWalletId] = useState("");
+
   const [circleUserId, setCircleUserId] = useState("");
   const [hasSavedUserId, setHasSavedUserId] = useState(false);
 
@@ -278,10 +363,12 @@ export default function CircleWalletButton() {
       try {
         const session = await requestCircleSession(savedUserId);
 
-        const wallet = await requestCircleWallet(
+        const availableWallets = await requestCircleWallets(
           session.userToken,
           3,
         );
+
+        const wallet = chooseActiveWallet(availableWallets);
 
         if (cancelled) {
           return;
@@ -291,6 +378,8 @@ export default function CircleWalletButton() {
 
         setCircleUserId(session.userId);
         setHasSavedUserId(true);
+        setWallets(availableWallets);
+        setActiveWalletId(wallet.id);
         setWalletAddress(wallet.address);
         setStatus("ready");
         setMessage("");
@@ -359,13 +448,17 @@ export default function CircleWalletButton() {
   ) {
     setMessage("Loading your Arc Testnet wallet...");
 
-    const wallet = await requestCircleWallet(
+    const availableWallets = await requestCircleWallets(
       userToken,
       attempts,
     );
 
+    const wallet = chooseActiveWallet(availableWallets);
+
     saveWallet(wallet);
 
+    setWallets(availableWallets);
+    setActiveWalletId(wallet.id);
     setWalletAddress(wallet.address);
     setStatus("ready");
     setMessage("");
@@ -557,10 +650,12 @@ export default function CircleWalletButton() {
       const session =
         await requestCircleSession(normalizedUserId);
 
-      const wallet = await requestCircleWallet(
+      const availableWallets = await requestCircleWallets(
         session.userToken,
         4,
       );
+
+      const wallet = chooseActiveWallet(availableWallets);
 
       clearWalletStorage(false);
 
@@ -573,6 +668,8 @@ export default function CircleWalletButton() {
 
       setCircleUserId(session.userId);
       setHasSavedUserId(true);
+      setWallets(availableWallets);
+      setActiveWalletId(wallet.id);
       setWalletAddress(wallet.address);
       setStatus("ready");
       setMessage("");
@@ -592,6 +689,21 @@ export default function CircleWalletButton() {
 
       throw error;
     }
+  }
+
+  function handleSwitchWallet(wallet: WalletDetails) {
+    if (!wallet.id || !wallet.address) {
+      return;
+    }
+
+    saveWallet(wallet);
+
+    setActiveWalletId(wallet.id);
+    setWalletAddress(wallet.address);
+    setCopied(false);
+    setMessage("");
+    setMenuOpen(false);
+    setWalletChooserOpen(false);
   }
 
   async function handleCopyAddress() {
@@ -646,6 +758,8 @@ export default function CircleWalletButton() {
     );
 
     setHasSavedUserId(Boolean(savedUserId));
+    setWallets([]);
+    setActiveWalletId("");
     setWalletAddress("");
     setStatus("idle");
     setMessage("");
@@ -654,16 +768,192 @@ export default function CircleWalletButton() {
     setCopied(false);
   }
 
-  function handleChangeWallet() {
+  async function handleCreateNewWallet() {
+    if (status === "loading") {
+      return;
+    }
+
+    const appId =
+      process.env.NEXT_PUBLIC_CIRCLE_APP_ID;
+
+    if (!appId) {
+      setStatus("error");
+      setMessage("Circle App ID is not configured.");
+      return;
+    }
+
+    const savedUserId =
+      circleUserId ||
+      window.localStorage.getItem(
+        CIRCLE_USER_ID_KEY,
+      ) ||
+      "";
+
+    if (!savedUserId) {
+      setStatus("error");
+      setMessage(
+        "Connect or restore a Circle account before creating another wallet.",
+      );
+      return;
+    }
+
     const confirmed = window.confirm(
-      "Change wallet will create a new Circle wallet on Arc Testnet. Your current wallet will not be deleted, but ShowUp will stop using it. Make sure you have saved its recovery code first. Continue?",
+      "Create a new Arc Testnet wallet inside your current Circle account? Your existing wallets will remain available.",
     );
 
     if (!confirmed) {
       return;
     }
 
-    void handleConnect(true);
+    const existingWalletIds = new Set(
+      wallets.map((wallet) => wallet.id),
+    );
+
+    try {
+      setMenuOpen(false);
+      setWalletChooserOpen(false);
+      setStatus("loading");
+      setMessage("Preparing a new Circle wallet...");
+
+      const session =
+        await requestCircleSession(savedUserId);
+
+      window.localStorage.setItem(
+        CIRCLE_USER_ID_KEY,
+        session.userId,
+      );
+
+      setCircleUserId(session.userId);
+      setHasSavedUserId(true);
+
+      const { W3SSdk } = await import(
+        "@circle-fin/w3s-pw-web-sdk"
+      );
+
+      const circleSdk = new W3SSdk({
+        appSettings: {
+          appId,
+        },
+      });
+
+      await circleSdk.getDeviceId();
+
+      circleSdk.setAuthentication({
+        userToken: session.userToken,
+        encryptionKey: session.encryptionKey,
+      });
+
+      const walletName =
+        `ShowUp Wallet ${wallets.length + 1}`;
+
+      const challengeId =
+        await requestNewWalletChallenge(
+          session.userToken,
+          walletName,
+        );
+
+      setMessage(
+        "Approve the new wallet in Circle's secure window.",
+      );
+
+      setupTimeoutRef.current = setTimeout(() => {
+        setStatus("error");
+        setMessage(
+          "New wallet creation timed out. Your existing wallets are safe.",
+        );
+      }, 10 * 60 * 1000);
+
+      circleSdk.execute(
+        challengeId,
+        async (error, result) => {
+          if (setupTimeoutRef.current) {
+            clearTimeout(setupTimeoutRef.current);
+            setupTimeoutRef.current = null;
+          }
+
+          if (error) {
+            setStatus("error");
+            setMessage(
+              error.message ||
+                `Circle wallet creation failed${
+                  error.code
+                    ? ` (${error.code})`
+                    : ""
+                }.`,
+            );
+            return;
+          }
+
+          if (
+            !result ||
+            result.status !== "COMPLETE"
+          ) {
+            setStatus("error");
+            setMessage(
+              "The new Circle wallet was not created.",
+            );
+            return;
+          }
+
+          try {
+            setMessage(
+              "Loading your newly created wallet...",
+            );
+
+            const availableWallets =
+              await requestCircleWallets(
+                session.userToken,
+                8,
+              );
+
+            const newWallet =
+              availableWallets.find(
+                (wallet) =>
+                  !existingWalletIds.has(wallet.id),
+              ) ?? availableWallets[0];
+
+            if (!newWallet) {
+              throw new Error(
+                "The new wallet was created, but ShowUp could not load it yet.",
+              );
+            }
+
+            saveWallet(newWallet);
+
+            setWallets(availableWallets);
+            setActiveWalletId(newWallet.id);
+            setWalletAddress(newWallet.address);
+            setStatus("ready");
+            setMessage("");
+            setMenuOpen(false);
+            setWalletChooserOpen(false);
+          } catch (walletError) {
+            console.error(
+              "New Circle wallet lookup failed:",
+              walletError,
+            );
+
+            setStatus("error");
+            setMessage(
+              getErrorMessage(walletError),
+            );
+          }
+        },
+      );
+    } catch (error) {
+      if (setupTimeoutRef.current) {
+        clearTimeout(setupTimeoutRef.current);
+        setupTimeoutRef.current = null;
+      }
+
+      console.error(
+        "New Circle wallet creation failed:",
+        error,
+      );
+
+      setStatus("error");
+      setMessage(getErrorMessage(error));
+    }
   }
 
   function toggleWalletChooser() {
@@ -750,6 +1040,63 @@ export default function CircleWalletButton() {
 
                 <div className="h-px bg-white/10" />
 
+                <div className="px-2 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/45">
+                      Your wallets
+                    </p>
+
+                    <span className="text-xs text-white/35">
+                      {wallets.length}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 max-h-52 space-y-2 overflow-y-auto pr-1">
+                    {wallets.map((wallet, index) => {
+                      const isActive =
+                        wallet.id === activeWalletId;
+
+                      return (
+                        <button
+                          key={wallet.id}
+                          type="button"
+                          onClick={() => {
+                            handleSwitchWallet(wallet);
+                          }}
+                          className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
+                            isActive
+                              ? "border-[#74f2c2]/30 bg-[#74f2c2]/10"
+                              : "border-white/[0.07] bg-white/[0.025] hover:border-white/15 hover:bg-white/[0.06]"
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-medium text-white/75">
+                              {wallet.name ||
+                                `Wallet ${index + 1}`}
+                            </span>
+
+                            <span className="mt-1 block font-mono text-[11px] text-white/40">
+                              {shortenAddress(wallet.address)}
+                            </span>
+                          </span>
+
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-medium ${
+                              isActive
+                                ? "bg-[#74f2c2]/15 text-[#9dffda]"
+                                : "bg-white/[0.06] text-white/35"
+                            }`}
+                          >
+                            {isActive ? "Active" : "Switch"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="h-px bg-white/10" />
+
                 <div className="space-y-1 pt-2">
                   <button
                     type="button"
@@ -785,16 +1132,18 @@ export default function CircleWalletButton() {
                     }}
                     className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
                   >
-                    Restore wallet
+                    Restore existing Circle account
                   </button>
 
                   <button
                     type="button"
                     role="menuitem"
-                    onClick={handleChangeWallet}
+                    onClick={() => {
+                      void handleCreateNewWallet();
+                    }}
                     className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
                   >
-                    Change wallet
+                    Create new wallet
                   </button>
 
                   <button
@@ -889,7 +1238,7 @@ export default function CircleWalletButton() {
                     className="w-full rounded-xl px-3 py-3 text-left transition hover:bg-white/[0.06]"
                   >
                     <span className="block text-sm font-medium text-white/80">
-                      Restore existing wallet
+                      Restore existing Circle account
                     </span>
 
                     <span className="mt-1 block text-xs leading-5 text-white/40">
@@ -903,7 +1252,7 @@ export default function CircleWalletButton() {
                     role="menuitem"
                     onClick={() => {
                       if (hasSavedUserId) {
-                        handleChangeWallet();
+                        void handleCreateNewWallet();
                         return;
                       }
 
