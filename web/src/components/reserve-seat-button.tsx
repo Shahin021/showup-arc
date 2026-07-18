@@ -204,19 +204,39 @@ async function executeCircleChallenge(
             return;
           }
 
-          if (
-            !result ||
-            result.status !==
-              "COMPLETE"
-          ) {
+          console.info(
+            "Circle transaction challenge result:",
+            {
+              type: result?.type,
+              status: result?.status,
+            },
+          );
+
+          if (!result) {
             reject(
               new Error(
-                "Circle authorization was not completed.",
+                "Circle did not return an authorization result.",
               ),
             );
             return;
           }
 
+          if (
+            result.status === "FAILED" ||
+            result.status === "EXPIRED"
+          ) {
+            reject(
+              new Error(
+                `Circle authorization ended with status: ${result.status}.`,
+              ),
+            );
+            return;
+          }
+
+          /*
+           * COMPLETE, PENDING and IN_PROGRESS all continue
+           * to the existing onchain polling below.
+           */
           resolve();
         },
       );
