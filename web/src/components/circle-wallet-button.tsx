@@ -252,6 +252,46 @@ async function requestCircleWallet(
   return chooseActiveWallet(wallets);
 }
 
+async function waitForNewCircleWallet(
+  userToken: string,
+  existingWalletIds: Set<string>,
+  attempts = 30,
+): Promise<{
+  wallets: WalletDetails[];
+  newWallet: WalletDetails;
+}> {
+  let lastError =
+    "The new wallet is still being processed by Circle.";
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const availableWallets =
+        await requestCircleWallets(userToken, 1);
+
+      const newWallet = availableWallets.find(
+        (wallet) => !existingWalletIds.has(wallet.id),
+      );
+
+      if (newWallet) {
+        return {
+          wallets: availableWallets,
+          newWallet,
+        };
+      }
+    } catch (error) {
+      lastError = getErrorMessage(error);
+    }
+
+    if (attempt < attempts - 1) {
+      await wait(1500);
+    }
+  }
+
+  throw new Error(
+    `${lastError} Reconnect in a moment to refresh your wallet list.`,
+  );
+}
+
 function saveWallet(wallet: WalletDetails) {
   window.localStorage.setItem(
     CIRCLE_WALLET_READY_KEY,
@@ -884,13 +924,29 @@ export default function CircleWalletButton() {
             return;
           }
 
+          console.info(
+            "Circle create-wallet challenge result:",
+            {
+              type: result?.type,
+              status: result?.status,
+            },
+          );
+
+          if (!result) {
+            setStatus("error");
+            setMessage(
+              "Circle did not return a wallet creation result.",
+            );
+            return;
+          }
+
           if (
-            !result ||
-            result.status !== "COMPLETE"
+            result.status === "FAILED" ||
+            result.status === "EXPIRED"
           ) {
             setStatus("error");
             setMessage(
-              "The new Circle wallet was not created.",
+              `Circle wallet creation ended with status: ${result.status}.`,
             );
             return;
           }
@@ -900,23 +956,13 @@ export default function CircleWalletButton() {
               "Loading your newly created wallet...",
             );
 
-            const availableWallets =
-              await requestCircleWallets(
-                session.userToken,
-                8,
-              );
-
-            const newWallet =
-              availableWallets.find(
-                (wallet) =>
-                  !existingWalletIds.has(wallet.id),
-              ) ?? availableWallets[0];
-
-            if (!newWallet) {
-              throw new Error(
-                "The new wallet was created, but ShowUp could not load it yet.",
-              );
-            }
+            const {
+              wallets: availableWallets,
+              newWallet,
+            } = await waitForNewCircleWallet(
+              session.userToken,
+              existingWalletIds,
+            );
 
             saveWallet(newWallet);
 
