@@ -17,6 +17,9 @@ const CIRCLE_WALLET_ADDRESS_KEY =
 const CIRCLE_WALLET_ID_KEY =
   "showup_circle_wallet_id";
 
+const CIRCLE_WALLET_CHANGED_EVENT =
+  "showup-circle-wallet-changed";
+
 type SessionResponse = {
   userToken?: string;
   encryptionKey?: string;
@@ -324,26 +327,11 @@ export default function ReserveSeatButton({
     useState("");
 
   useEffect(() => {
-    const walletReady =
-      window.localStorage.getItem(
-        CIRCLE_WALLET_READY_KEY,
-      ) === "true";
-
-    const walletAddress =
-      window.localStorage.getItem(
-        CIRCLE_WALLET_ADDRESS_KEY,
-      ) ?? "";
-
-    if (
-      !walletReady ||
-      !walletAddress
-    ) {
-      return;
-    }
-
     let cancelled = false;
 
-    async function checkStatus() {
+    async function checkStatusForWallet(
+      walletAddress: string,
+    ) {
       try {
         const status =
           await requestReservationStatus(
@@ -351,9 +339,20 @@ export default function ReserveSeatButton({
             walletAddress,
           );
 
-        if (cancelled) {
+        const currentWalletAddress =
+          window.localStorage.getItem(
+            CIRCLE_WALLET_ADDRESS_KEY,
+          ) ?? "";
+
+        if (
+          cancelled ||
+          currentWalletAddress.toLowerCase() !==
+            walletAddress.toLowerCase()
+        ) {
           return;
         }
+
+        setError("");
 
         if (
           status.reservation?.active
@@ -364,6 +363,8 @@ export default function ReserveSeatButton({
           );
           return;
         }
+
+        setReserved(false);
 
         if (
           !status.usdc
@@ -393,15 +394,73 @@ export default function ReserveSeatButton({
           `Ready to reserve with a ${depositFormatted} USDC commitment deposit.`,
         );
       } catch {
-        // The button will retry the
-        // complete check when clicked.
+        const currentWalletAddress =
+          window.localStorage.getItem(
+            CIRCLE_WALLET_ADDRESS_KEY,
+          ) ?? "";
+
+        if (
+          cancelled ||
+          currentWalletAddress.toLowerCase() !==
+            walletAddress.toLowerCase()
+        ) {
+          return;
+        }
+
+        setReserved(false);
+        setMessage(
+          "Unable to refresh this wallet's reservation status. Please try again.",
+        );
       }
     }
 
-    void checkStatus();
+    function refreshActiveWallet() {
+      const walletReady =
+        window.localStorage.getItem(
+          CIRCLE_WALLET_READY_KEY,
+        ) === "true";
+
+      const walletAddress =
+        window.localStorage.getItem(
+          CIRCLE_WALLET_ADDRESS_KEY,
+        ) ?? "";
+
+      setReserved(false);
+      setError("");
+
+      if (
+        !walletReady ||
+        !walletAddress
+      ) {
+        setMessage(
+          "Connect your Circle wallet to reserve this seat.",
+        );
+        return;
+      }
+
+      setMessage(
+        "Checking this wallet's reservation status...",
+      );
+
+      void checkStatusForWallet(
+        walletAddress,
+      );
+    }
+
+    refreshActiveWallet();
+
+    window.addEventListener(
+      CIRCLE_WALLET_CHANGED_EVENT,
+      refreshActiveWallet,
+    );
 
     return () => {
       cancelled = true;
+
+      window.removeEventListener(
+        CIRCLE_WALLET_CHANGED_EVENT,
+        refreshActiveWallet,
+      );
     };
   }, [
     eventId,

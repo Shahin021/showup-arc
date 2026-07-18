@@ -10,6 +10,9 @@ const CIRCLE_WALLET_READY_KEY = "showup_circle_wallet_ready";
 const CIRCLE_WALLET_ADDRESS_KEY = "showup_circle_wallet_address";
 const CIRCLE_WALLET_ID_KEY = "showup_circle_wallet_id";
 
+const CIRCLE_WALLET_CHANGED_EVENT =
+  "showup-circle-wallet-changed";
+
 type ConnectionStatus = "idle" | "loading" | "ready" | "error";
 
 type SessionResponse = {
@@ -307,12 +310,24 @@ function saveWallet(wallet: WalletDetails) {
     CIRCLE_WALLET_ID_KEY,
     wallet.id,
   );
+
+  window.dispatchEvent(
+    new Event(
+      CIRCLE_WALLET_CHANGED_EVENT,
+    ),
+  );
 }
 
 function clearWalletStorage(keepUserId: boolean) {
   window.localStorage.removeItem(CIRCLE_WALLET_READY_KEY);
   window.localStorage.removeItem(CIRCLE_WALLET_ADDRESS_KEY);
   window.localStorage.removeItem(CIRCLE_WALLET_ID_KEY);
+
+  window.dispatchEvent(
+    new Event(
+      CIRCLE_WALLET_CHANGED_EVENT,
+    ),
+  );
 
   if (!keepUserId) {
     window.localStorage.removeItem(CIRCLE_USER_ID_KEY);
