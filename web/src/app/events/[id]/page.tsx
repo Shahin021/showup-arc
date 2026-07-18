@@ -9,6 +9,7 @@ import {
 } from "react";
 import CircleWalletButton from "@/components/circle-wallet-button";
 import ReserveSeatButton from "@/components/reserve-seat-button";
+import OrganizerAttendancePanel from "@/components/organizer-attendance-panel";
 
 type OnchainEvent = {
   id: string;
@@ -801,6 +802,51 @@ export default function EventDetailsPage() {
                                   .depositAmount,
                               )
                             ).toString(),
+                        };
+                      },
+                    );
+                  }}
+                />
+
+                <OrganizerAttendancePanel
+                  eventId={event.id}
+                  organizer={event.organizer}
+                  depositFormatted={event.deposit}
+                  eventStart={event.eventStart}
+                  resolutionDeadline={
+                    event.resolutionDeadline
+                  }
+                  onAttendanceConfirmed={() => {
+                    setEvent(
+                      (currentEvent) => {
+                        if (
+                          !currentEvent
+                        ) {
+                          return currentEvent;
+                        }
+
+                        const currentEscrow =
+                          BigInt(
+                            currentEvent
+                              .escrowedAmount,
+                          );
+
+                        const depositAmount =
+                          BigInt(
+                            currentEvent
+                              .depositAmount,
+                          );
+
+                        return {
+                          ...currentEvent,
+                          escrowedAmount:
+                            currentEscrow >=
+                            depositAmount
+                              ? (
+                                  currentEscrow -
+                                  depositAmount
+                                ).toString()
+                              : "0",
                         };
                       },
                     );
