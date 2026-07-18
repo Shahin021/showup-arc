@@ -55,6 +55,12 @@ type CreateWalletResponse = {
   error?: string;
 };
 
+type RenameWalletResponse = {
+  walletId?: string;
+  walletName?: string;
+  error?: string;
+};
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -75,6 +81,47 @@ function shortenAddress(address: string) {
   }
 
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function getNextWalletName(
+  availableWallets: WalletDetails[],
+) {
+  let highestNumber = 0;
+
+  for (const wallet of availableWallets) {
+    const match =
+      wallet.name
+        ?.trim()
+        .match(
+          /^ShowUp Wallet (\d+)$/i,
+        );
+
+    if (!match) {
+      continue;
+    }
+
+    const walletNumber =
+      Number(match[1]);
+
+    if (
+      Number.isInteger(
+        walletNumber,
+      ) &&
+      walletNumber >
+        highestNumber
+    ) {
+      highestNumber =
+        walletNumber;
+    }
+  }
+
+  const nextNumber =
+    Math.max(
+      highestNumber + 1,
+      availableWallets.length + 1,
+    );
+
+  return `ShowUp Wallet ${nextNumber}`;
 }
 
 async function requestCircleSession(
@@ -170,6 +217,40 @@ async function requestNewWalletChallenge(
   }
 
   return data.challengeId;
+}
+
+async function requestWalletRename(
+  userToken: string,
+  walletId: string,
+  walletName: string,
+) {
+  const response = await fetch(
+    "/api/circle/wallets/rename",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        userToken,
+        walletId,
+        walletName,
+      }),
+    },
+  );
+
+  const data =
+    (await response
+      .json()) as RenameWalletResponse;
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ??
+        "Unable to rename the Circle wallet.",
+    );
+  }
 }
 
 async function requestCircleWallets(
@@ -823,6 +904,117 @@ export default function CircleWalletButton() {
     setCopied(false);
   }
 
+  async function handleRenameWallet(
+    wallet: WalletDetails,
+  ) {
+    if (status === "loading") {
+      return;
+    }
+
+    const currentName =
+      wallet.name?.trim() ||
+      "ShowUp Wallet";
+
+    const requestedName =
+      window.prompt(
+        "Enter a new name for this wallet:",
+        currentName,
+      );
+
+    if (requestedName === null) {
+      return;
+    }
+
+    const walletName =
+      requestedName.trim();
+
+    if (!walletName) {
+      setStatus("error");
+      setMessage(
+        "Wallet name cannot be empty.",
+      );
+      return;
+    }
+
+    if (walletName.length > 64) {
+      setStatus("error");
+      setMessage(
+        "Wallet name must be 64 characters or fewer.",
+      );
+      return;
+    }
+
+    if (walletName === currentName) {
+      return;
+    }
+
+    const savedUserId =
+      circleUserId ||
+      window.localStorage.getItem(
+        CIRCLE_USER_ID_KEY,
+      ) ||
+      "";
+
+    if (!savedUserId) {
+      setStatus("error");
+      setMessage(
+        "Connect or restore your Circle account before renaming a wallet.",
+      );
+      return;
+    }
+
+    try {
+      setMenuOpen(false);
+      setWalletChooserOpen(false);
+      setStatus("loading");
+      setMessage(
+        "Renaming your Circle wallet...",
+      );
+
+      const session =
+        await requestCircleSession(
+          savedUserId,
+        );
+
+      await requestWalletRename(
+        session.userToken,
+        wallet.id,
+        walletName,
+      );
+
+      setWallets(
+        (currentWallets) =>
+          currentWallets.map(
+            (currentWallet) =>
+              currentWallet.id ===
+              wallet.id
+                ? {
+                    ...currentWallet,
+                    name:
+                      walletName,
+                  }
+                : currentWallet,
+          ),
+      );
+
+      setStatus("ready");
+      setMessage("");
+      setMenuOpen(true);
+    } catch (error) {
+      console.error(
+        "Circle wallet rename failed:",
+        error,
+      );
+
+      setStatus("error");
+      setMessage(
+        getErrorMessage(
+          error,
+        ),
+      );
+    }
+  }
+
   async function handleCreateNewWallet() {
     if (status === "loading") {
       return;
@@ -899,7 +1091,9 @@ export default function CircleWalletButton() {
       });
 
       const walletName =
-        `ShowUp Wallet ${wallets.length + 1}`;
+        getNextWalletName(
+          wallets,
+        );
 
       const challengeId =
         await requestNewWalletChallenge(
@@ -1117,40 +1311,60 @@ export default function CircleWalletButton() {
                       const isActive =
                         wallet.id === activeWalletId;
 
+                      const displayName =
+                        wallet.name ||
+                        `Wallet ${index + 1}`;
+
                       return (
-                        <button
+                        <div
                           key={wallet.id}
-                          type="button"
-                          onClick={() => {
-                            handleSwitchWallet(wallet);
-                          }}
-                          className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
+                          className={`flex w-full items-center gap-2 rounded-xl border px-2 py-2 transition ${
                             isActive
                               ? "border-[#74f2c2]/30 bg-[#74f2c2]/10"
                               : "border-white/[0.07] bg-white/[0.025] hover:border-white/15 hover:bg-white/[0.06]"
                           }`}
                         >
-                          <span className="min-w-0">
-                            <span className="block truncate text-xs font-medium text-white/75">
-                              {wallet.name ||
-                                `Wallet ${index + 1}`}
-                            </span>
-
-                            <span className="mt-1 block font-mono text-[11px] text-white/40">
-                              {shortenAddress(wallet.address)}
-                            </span>
-                          </span>
-
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-medium ${
-                              isActive
-                                ? "bg-[#74f2c2]/15 text-[#9dffda]"
-                                : "bg-white/[0.06] text-white/35"
-                            }`}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleSwitchWallet(wallet);
+                            }}
+                            className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-1 py-0.5 text-left"
                           >
-                            {isActive ? "Active" : "Switch"}
-                          </span>
-                        </button>
+                            <span className="min-w-0">
+                              <span className="block truncate text-xs font-medium text-white/75">
+                                {displayName}
+                              </span>
+
+                              <span className="mt-1 block font-mono text-[11px] text-white/40">
+                                {shortenAddress(wallet.address)}
+                              </span>
+                            </span>
+
+                            <span
+                              className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-medium ${
+                                isActive
+                                  ? "bg-[#74f2c2]/15 text-[#9dffda]"
+                                  : "bg-white/[0.06] text-white/35"
+                              }`}
+                            >
+                              {isActive ? "Active" : "Switch"}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            aria-label={`Rename ${displayName}`}
+                            onClick={() => {
+                              void handleRenameWallet(
+                                wallet,
+                              );
+                            }}
+                            className="shrink-0 rounded-lg border border-white/10 px-2 py-1.5 text-[10px] font-medium text-white/45 transition hover:border-[#74f2c2]/25 hover:bg-[#74f2c2]/10 hover:text-[#9dffda]"
+                          >
+                            Rename
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
