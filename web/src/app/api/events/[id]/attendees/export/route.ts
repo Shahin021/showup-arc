@@ -25,7 +25,7 @@ type AuthBody = {
   walletId?: unknown;
 };
 
-type ReservationRow = {
+type ExportAttendee = {
   attendee: `0x${string}`;
   status: number;
   label: string;
@@ -80,54 +80,8 @@ const ATTENDEE_READ_ABI = [
   },
 ] as const;
 
-const PAGE_SIZE = 20;
 const ADDRESS_BATCH_SIZE = BigInt(100);
 const RESERVATION_CONCURRENCY = 8;
-
-const STATUS_FILTERS: Record<string, number | null> = {
-  all: null,
-  reserved: 1,
-  cancelled: 2,
-  attended: 3,
-  "no-show": 4,
-  "fallback-refunded": 5,
-  "event-cancelled-refunded": 6,
-};
-
-function parsePage(value: string | null) {
-  if (!value) {
-    return 1;
-  }
-
-  if (!/^\d+$/.test(value)) {
-    throw new ShowUpApiError("Page number is invalid.");
-  }
-
-  return Math.max(1, Number.parseInt(value, 10));
-}
-
-function parseSearch(value: string | null) {
-  const normalized = value?.trim().toLowerCase() ?? "";
-
-  if (normalized.length > 42) {
-    throw new ShowUpApiError("Wallet search is too long.");
-  }
-
-  return normalized;
-}
-
-function parseStatusFilter(value: string | null) {
-  const normalized = value?.trim().toLowerCase() || "all";
-
-  if (!(normalized in STATUS_FILTERS)) {
-    throw new ShowUpApiError("Attendance status filter is invalid.");
-  }
-
-  return {
-    key: normalized,
-    status: STATUS_FILTERS[normalized],
-  };
-}
 
 async function readAttendeeAddresses(
   eventId: bigint,
@@ -182,11 +136,14 @@ async function mapWithConcurrency<TInput, TOutput>(
   return results;
 }
 
-async function loadReservationRows(eventId: bigint, addresses: `0x${string}`[]) {
+async function loadExportAttendees(
+  eventId: bigint,
+  addresses: `0x${string}`[],
+) {
   return mapWithConcurrency(
     addresses,
     RESERVATION_CONCURRENCY,
-    async (attendee): Promise<ReservationRow> => {
+    async (attendee): Promise<ExportAttendee> => {
       const reservation = await getReservation(eventId, attendee);
       const status = Number(reservation.status);
 
@@ -203,12 +160,62 @@ async function loadReservationRows(eventId: bigint, addresses: `0x${string}`[]) 
   );
 }
 
-function calculateTotalPages(total: bigint) {
-  if (total === BigInt(0)) {
-    return 1;
+function csvCell(value: string | number) {
+  const text = String(value);
+
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
   }
 
-  return Number((total + BigInt(PAGE_SIZE - 1)) / BigInt(PAGE_SIZE));
+  return text;
+}
+
+function timestampToIso(timestamp: string) {
+  const seconds = Number(timestamp);
+
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return "";
+  }
+
+  return new Date(seconds * 1000).toISOString();
+}
+
+function createCsv(input: {
+  eventId: string;
+  eventTitle: string;
+  organizer: string;
+  depositFormatted: string;
+  attendees: ExportAttendee[];
+}) {
+  const rows: Array<Array<string | number>> = [
+    [
+      "Index",
+      "Event ID",
+      "Event Title",
+      "Wallet Address",
+      "Status",
+      "Reserved At (UTC)",
+      "Updated At (UTC)",
+      "Deposit (USDC)",
+      "Organizer Wallet",
+    ],
+  ];
+
+  input.attendees.forEach((attendee, index) => {
+    rows.push([
+      index + 1,
+      input.eventId,
+      input.eventTitle,
+      attendee.attendee,
+      attendee.label,
+      timestampToIso(attendee.reservedAt),
+      timestampToIso(attendee.updatedAt),
+      input.depositFormatted,
+      input.organizer,
+    ]);
+  });
+
+  return `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -227,15 +234,10 @@ export async function POST(request: Request, context: RouteContext) {
       eventDetails.organizer.toLowerCase()
     ) {
       throw new ShowUpApiError(
-        "Only the organizer wallet can view the attendee list.",
+        "Only the organizer wallet can export attendee data.",
         403,
       );
     }
-
-    const url = new URL(request.url);
-    const requestedPage = parsePage(url.searchParams.get("page"));
-    const search = parseSearch(url.searchParams.get("search"));
-    const statusFilter = parseStatusFilter(url.searchParams.get("status"));
 
     const attendeeCount = await arcPublicClient.readContract({
       address: getShowUpAddress(),
@@ -243,97 +245,71 @@ export async function POST(request: Request, context: RouteContext) {
       functionName: "getAttendeeCount",
       args: [eventId],
     });
+    const addresses = await readAllAttendeeAddresses(eventId, attendeeCount);
+    const attendees = await loadExportAttendees(eventId, addresses);
+    const depositFormatted = serializeUsdc(eventDetails.depositAmount);
+    const generatedAt = new Date().toISOString();
+    const format = new URL(request.url).searchParams.get("format")?.toLowerCase();
 
-    let rows: ReservationRow[] = [];
-    let filteredCount = attendeeCount;
-    let page = requestedPage;
-    let totalPages = calculateTotalPages(attendeeCount);
-
-    if (!search && statusFilter.status === null) {
-      page = Math.min(requestedPage, totalPages);
-      const offset = BigInt((page - 1) * PAGE_SIZE);
-      const addresses =
-        offset < attendeeCount
-          ? await readAttendeeAddresses(eventId, offset, BigInt(PAGE_SIZE))
-          : [];
-
-      rows = await loadReservationRows(eventId, addresses);
-    } else {
-      const allAddresses = await readAllAttendeeAddresses(
-        eventId,
-        attendeeCount,
+    if (format === "json") {
+      return NextResponse.json(
+        {
+          generatedAt,
+          event: {
+            id: eventId.toString(),
+            title: eventDetails.title,
+            organizer: eventDetails.organizer,
+            deposit: {
+              amount: eventDetails.depositAmount.toString(),
+              formatted: depositFormatted,
+            },
+            timing: {
+              eventStart: eventDetails.eventStart.toString(),
+              eventEnd: eventDetails.eventEnd.toString(),
+              resolutionDeadline: eventDetails.resolutionDeadline.toString(),
+            },
+          },
+          attendeeCount: attendeeCount.toString(),
+          attendees,
+        },
+        {
+          status: 200,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        },
       );
-      const searchedAddresses = search
-        ? allAddresses.filter((address) =>
-            address.toLowerCase().includes(search),
-          )
-        : allAddresses;
-      const searchedRows = await loadReservationRows(
-        eventId,
-        searchedAddresses,
-      );
-      const filteredRows =
-        statusFilter.status === null
-          ? searchedRows
-          : searchedRows.filter((row) => row.status === statusFilter.status);
-
-      filteredCount = BigInt(filteredRows.length);
-      totalPages = calculateTotalPages(filteredCount);
-      page = Math.min(requestedPage, totalPages);
-
-      const startIndex = (page - 1) * PAGE_SIZE;
-      rows = filteredRows.slice(startIndex, startIndex + PAGE_SIZE);
     }
 
-    const now = BigInt(Math.floor(Date.now() / 1000));
-    const attendanceWindowOpen =
-      !eventDetails.cancelled &&
-      now >= eventDetails.eventStart &&
-      now <= eventDetails.resolutionDeadline;
+    const csv = createCsv({
+      eventId: eventId.toString(),
+      eventTitle: eventDetails.title,
+      organizer: eventDetails.organizer,
+      depositFormatted,
+      attendees,
+    });
+    const datePart = generatedAt.slice(0, 10);
+    const filename = `showup-event-${eventId.toString()}-attendees-${datePart}.csv`;
 
-    return NextResponse.json(
-      {
-        eventId: eventId.toString(),
-        organizer: eventDetails.organizer,
-        deposit: {
-          amount: eventDetails.depositAmount.toString(),
-          formatted: serializeUsdc(eventDetails.depositAmount),
-        },
-        timing: {
-          eventStart: eventDetails.eventStart.toString(),
-          eventEnd: eventDetails.eventEnd.toString(),
-          resolutionDeadline: eventDetails.resolutionDeadline.toString(),
-          attendanceWindowOpen,
-        },
-        attendeeCount: attendeeCount.toString(),
-        filteredCount: filteredCount.toString(),
-        page,
-        pageSize: PAGE_SIZE,
-        totalPages,
-        hasPrevious: page > 1,
-        hasNext: page < totalPages,
-        search,
-        status: statusFilter.key,
-        attendees: rows,
+    return new Response(csv, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
       },
-      {
-        status: 200,
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      },
-    );
+    });
   } catch (error) {
     const status = error instanceof ShowUpApiError ? error.status : 500;
 
-    console.error("ShowUp paginated attendee list failed:", error);
+    console.error("ShowUp attendee export failed:", error);
 
     return NextResponse.json(
       {
         error:
           error instanceof Error
             ? error.message
-            : "Unable to load event attendees.",
+            : "Unable to export event attendees.",
       },
       {
         status,
