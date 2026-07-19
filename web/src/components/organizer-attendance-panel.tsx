@@ -805,8 +805,8 @@ export default function OrganizerAttendancePanel({
         )}
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_210px]">
-        <label className="block">
+      <div className="mt-4 flex flex-wrap gap-3">
+        <label className="min-w-[220px] flex-1">
           <span className="sr-only">Search wallet address</span>
           <input
             type="search"
@@ -821,7 +821,7 @@ export default function OrganizerAttendancePanel({
           />
         </label>
 
-        <label className="block">
+        <label className="w-full sm:w-[210px] sm:flex-none">
           <span className="sr-only">Filter attendance status</span>
           <select
             value={statusFilter}
