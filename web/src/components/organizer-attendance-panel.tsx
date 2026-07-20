@@ -47,6 +47,7 @@ type AttendeesResponse = {
     eventEnd: string;
     resolutionDeadline: string;
     attendanceWindowOpen: boolean;
+    noShowWindowOpen: boolean;
   };
   attendeeCount?: string;
   filteredCount?: string;
@@ -443,8 +444,10 @@ export default function OrganizerAttendancePanel({
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [busyAttendee, setBusyAttendee] = useState("");
+  const [busyAction, setBusyAction] = useState<"attendance" | "no-show" | "">("");
   const [attendees, setAttendees] = useState<AttendeeDetails[]>([]);
   const [attendanceWindowOpen, setAttendanceWindowOpen] = useState(false);
+  const [noShowWindowOpen, setNoShowWindowOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
@@ -470,6 +473,7 @@ export default function OrganizerAttendancePanel({
 
       setAttendees(data.attendees ?? []);
       setAttendanceWindowOpen(Boolean(data.timing?.attendanceWindowOpen));
+      setNoShowWindowOpen(Boolean(data.timing?.noShowWindowOpen));
       setAttendeeCount(Number(data.attendeeCount ?? "0"));
       setFilteredCount(Number(data.filteredCount ?? data.attendeeCount ?? "0"));
       setTotalPages(Math.max(1, data.totalPages ?? 1));
@@ -511,7 +515,10 @@ export default function OrganizerAttendancePanel({
 
       if (!organizerConnected) {
         setAttendees([]);
+        setAttendanceWindowOpen(false);
+        setNoShowWindowOpen(false);
         setBusyAttendee("");
+        setBusyAction("");
         setPage(1);
         setTotalPages(1);
         setAttendeeCount(0);
@@ -561,6 +568,7 @@ export default function OrganizerAttendancePanel({
     }
 
     setBusyAttendee(attendee);
+    setBusyAction("attendance");
     setError("");
     setMessage("Creating a secure Circle session...");
 
@@ -645,6 +653,105 @@ export default function OrganizerAttendancePanel({
       setMessage("");
     } finally {
       setBusyAttendee("");
+      setBusyAction("");
+    }
+  }
+
+  async function handleSettleNoShow(attendee: string) {
+    if (busyAttendee) {
+      return;
+    }
+
+    setBusyAttendee(attendee);
+    setBusyAction("no-show");
+    setError("");
+    setMessage("Creating a secure Circle session...");
+
+    try {
+      const connectedWallet = getConnectedOrganizerWallet(organizer);
+      const session = await requestCircleSession(connectedWallet.circleUserId);
+
+      setMessage("Preparing no-show settlement...");
+
+      const response = await fetch(
+        "/api/circle/events/settle-no-show",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+          body: JSON.stringify({
+            userToken: session.userToken,
+            walletId: connectedWallet.walletId,
+            eventId,
+            attendee,
+          }),
+        },
+      );
+
+      const data = (await response.json()) as ChallengeResponse;
+
+      if (!response.ok || !data.challengeId) {
+        throw new Error(
+          data.error ?? "Unable to prepare no-show settlement.",
+        );
+      }
+
+      setMessage(
+        `Enter your Circle PIN to mark ${shortenAddress(attendee)} as a no-show. Their ${depositFormatted} USDC deposit will be transferred to the organizer.`,
+      );
+
+      await executeCircleChallenge(
+        data.challengeId,
+        session.userToken,
+        session.encryptionKey,
+      );
+
+      setMessage("Waiting for no-show settlement on Arc Testnet...");
+
+      let settled = false;
+
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        const currentData = await requestAttendees({
+          eventId,
+          organizer,
+          page: 1,
+          search: attendee,
+          status: "all",
+        });
+
+        const updatedAttendee = currentData.attendees?.find(
+          (item) =>
+            item.attendee.toLowerCase() === attendee.toLowerCase(),
+        );
+
+        if (updatedAttendee?.status === 4) {
+          settled = true;
+          break;
+        }
+
+        await wait(2000);
+      }
+
+      if (!settled) {
+        throw new Error(
+          "The transaction was submitted but the no-show settlement is not confirmed yet. Refresh shortly.",
+        );
+      }
+
+      setMessage(
+        `${shortenAddress(attendee)} was marked as a no-show. ${depositFormatted} USDC was transferred to the organizer.`,
+      );
+
+      await loadAttendees();
+    } catch (settleError) {
+      console.error("ShowUp no-show settlement failed:", settleError);
+      setError(getErrorMessage(settleError));
+      setMessage("");
+    } finally {
+      setBusyAttendee("");
+      setBusyAction("");
     }
   }
 
@@ -911,18 +1018,37 @@ export default function OrganizerAttendancePanel({
                 </div>
 
                 {attendee.active ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleConfirmAttendance(attendee.attendee);
-                    }}
-                    disabled={
-                      !attendanceWindowOpen || Boolean(busyAttendee)
-                    }
-                    className="shrink-0 rounded-xl bg-[#74f2c2] px-4 py-2.5 text-xs font-semibold text-[#07110f] transition hover:bg-[#8ff6cf] disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {processing ? "Confirming..." : "Confirm attendance"}
-                  </button>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleConfirmAttendance(attendee.attendee);
+                      }}
+                      disabled={
+                        !attendanceWindowOpen || Boolean(busyAttendee)
+                      }
+                      className="rounded-xl bg-[#74f2c2] px-4 py-2.5 text-xs font-semibold text-[#07110f] transition hover:bg-[#8ff6cf] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {processing && busyAction === "attendance"
+                        ? "Confirming..."
+                        : "Confirm attendance"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleSettleNoShow(attendee.attendee);
+                      }}
+                      disabled={
+                        !noShowWindowOpen || Boolean(busyAttendee)
+                      }
+                      className="rounded-xl border border-red-300/25 bg-red-300/10 px-4 py-2.5 text-xs font-semibold text-red-100 transition hover:border-red-300/40 hover:bg-red-300/15 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {processing && busyAction === "no-show"
+                        ? "Settling..."
+                        : "Mark as no-show"}
+                    </button>
+                  </div>
                 ) : null}
               </div>
             </div>

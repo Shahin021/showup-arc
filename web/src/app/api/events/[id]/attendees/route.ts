@@ -291,6 +291,11 @@ export async function POST(request: Request, context: RouteContext) {
       now >= eventDetails.eventStart &&
       now <= eventDetails.resolutionDeadline;
 
+    const noShowWindowOpen =
+      !eventDetails.cancelled &&
+      now >= eventDetails.eventEnd &&
+      now <= eventDetails.resolutionDeadline;
+
     return NextResponse.json(
       {
         eventId: eventId.toString(),
@@ -304,6 +309,7 @@ export async function POST(request: Request, context: RouteContext) {
           eventEnd: eventDetails.eventEnd.toString(),
           resolutionDeadline: eventDetails.resolutionDeadline.toString(),
           attendanceWindowOpen,
+          noShowWindowOpen,
         },
         attendeeCount: attendeeCount.toString(),
         filteredCount: filteredCount.toString(),

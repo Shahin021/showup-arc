@@ -88,6 +88,7 @@ describe("ShowUp", function () {
           [
             "Arc Builders Workshop",
             "A practical workshop for builders using Arc and USDC.",
+            "https://showup.example/metadata/arc-builders-workshop.json",
             DEPOSIT_AMOUNT,
             capacity,
             cancellationDeadline,

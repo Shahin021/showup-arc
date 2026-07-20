@@ -98,6 +98,7 @@ describe("ShowUp security and edge cases", function () {
               "Arc Builders Workshop",
             options?.description ??
               "A practical workshop using Arc and USDC.",
+            "https://showup.example/metadata/security-test.json",
             DEPOSIT_AMOUNT,
             options?.capacity ?? 30n,
             cancellationDeadline,
@@ -432,6 +433,7 @@ describe("ShowUp security and edge cases", function () {
         [
           "Long Resolution Event",
           "This event attempts to lock deposits for too long.",
+          "https://showup.example/metadata/long-resolution.json",
           DEPOSIT_AMOUNT,
           30n,
           cancellationDeadline,
@@ -469,6 +471,7 @@ describe("ShowUp security and edge cases", function () {
         [
           "A".repeat(321),
           "Description",
+          "https://showup.example/metadata/long-title.json",
           DEPOSIT_AMOUNT,
           30n,
           now + 3_600n,
@@ -506,6 +509,7 @@ describe("ShowUp security and edge cases", function () {
         [
           "Valid title",
           "D".repeat(961),
+          "https://showup.example/metadata/long-description.json",
           DEPOSIT_AMOUNT,
           30n,
           now + 3_600n,
