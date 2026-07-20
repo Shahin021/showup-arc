@@ -82,6 +82,16 @@ export async function GET(
       now <
         eventDetails.eventStart;
 
+    const canClaimCancelledEventRefund =
+      eventDetails.cancelled &&
+      status === 1;
+
+    const canClaimFallbackRefund =
+      !eventDetails.cancelled &&
+      status === 1 &&
+      now >
+        eventDetails.resolutionDeadline;
+
     const enoughBalance =
       accountState.balance >=
       eventDetails.depositAmount;
@@ -150,6 +160,12 @@ export async function GET(
             eventDetails.reservedSeats.toString(),
           eventStart:
             eventDetails.eventStart.toString(),
+          eventEnd:
+            eventDetails.eventEnd.toString(),
+          resolutionDeadline:
+            eventDetails.resolutionDeadline.toString(),
+          canClaimCancelledEventRefund,
+          canClaimFallbackRefund,
         },
 
         canReserve:

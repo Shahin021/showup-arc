@@ -59,6 +59,11 @@ type ReservationStatusResponse = {
     cancelled: boolean;
     capacityAvailable: boolean;
     reservedSeats: string;
+    eventStart: string;
+    eventEnd: string;
+    resolutionDeadline: string;
+    canClaimCancelledEventRefund: boolean;
+    canClaimFallbackRefund: boolean;
   };
 
   canReserve?: boolean;
@@ -318,6 +323,21 @@ export default function ReserveSeatButton({
   const [reserved, setReserved] =
     useState(false);
 
+  const [
+    reservationStatus,
+    setReservationStatus,
+  ] = useState(0);
+
+  const [
+    canClaimCancelledEventRefund,
+    setCanClaimCancelledEventRefund,
+  ] = useState(false);
+
+  const [
+    canClaimFallbackRefund,
+    setCanClaimFallbackRefund,
+  ] = useState(false);
+
   const [message, setMessage] =
     useState(
       "Connect your Circle wallet to reserve this seat.",
@@ -353,6 +373,19 @@ export default function ReserveSeatButton({
         }
 
         setError("");
+        setReservationStatus(
+          status.reservation?.status ?? 0,
+        );
+        setCanClaimCancelledEventRefund(
+          Boolean(
+            status.event?.canClaimCancelledEventRefund,
+          ),
+        );
+        setCanClaimFallbackRefund(
+          Boolean(
+            status.event?.canClaimFallbackRefund,
+          ),
+        );
 
         if (
           status.reservation?.active
@@ -426,6 +459,9 @@ export default function ReserveSeatButton({
         ) ?? "";
 
       setReserved(false);
+      setReservationStatus(0);
+      setCanClaimCancelledEventRefund(false);
+      setCanClaimFallbackRefund(false);
       setError("");
 
       if (
@@ -760,28 +796,226 @@ export default function ReserveSeatButton({
     }
   }
 
+  async function handleClaimRefund(
+    refundType: "cancelled" | "fallback",
+  ) {
+    if (busy) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+
+    try {
+      const circleUserId =
+        window.localStorage.getItem(
+          CIRCLE_USER_ID_KEY,
+        ) ?? "";
+
+      const walletReady =
+        window.localStorage.getItem(
+          CIRCLE_WALLET_READY_KEY,
+        ) === "true";
+
+      const walletAddress =
+        window.localStorage.getItem(
+          CIRCLE_WALLET_ADDRESS_KEY,
+        ) ?? "";
+
+      const walletId =
+        window.localStorage.getItem(
+          CIRCLE_WALLET_ID_KEY,
+        ) ?? "";
+
+      if (
+        !circleUserId ||
+        !walletReady ||
+        !walletAddress ||
+        !walletId
+      ) {
+        throw new Error(
+          "Connect the Circle wallet that made this reservation.",
+        );
+      }
+
+      setMessage(
+        "Creating a secure Circle session...",
+      );
+
+      const session =
+        await requestCircleSession(
+          circleUserId,
+        );
+
+      const endpoint =
+        refundType === "cancelled"
+          ? "/api/circle/events/claim-cancelled-refund"
+          : "/api/circle/events/claim-fallback-refund";
+
+      setMessage(
+        refundType === "cancelled"
+          ? "Preparing your cancelled-event refund..."
+          : "Preparing your fallback refund...",
+      );
+
+      const response =
+        await fetch(
+          endpoint,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            cache: "no-store",
+            body: JSON.stringify({
+              userToken:
+                session.userToken,
+              walletId,
+              eventId,
+            }),
+          },
+        );
+
+      const data =
+        (await response.json()) as ChallengeResponse;
+
+      if (
+        !response.ok ||
+        !data.challengeId
+      ) {
+        throw new Error(
+          data.error ??
+            "Unable to prepare the refund transaction.",
+        );
+      }
+
+      setMessage(
+        `Enter your Circle PIN to claim the ${depositFormatted} USDC refund.`,
+      );
+
+      await executeCircleChallenge(
+        data.challengeId,
+        session.userToken,
+        session.encryptionKey,
+      );
+
+      setMessage(
+        "Waiting for the refund to be confirmed on Arc Testnet...",
+      );
+
+      const expectedStatus =
+        refundType === "cancelled"
+          ? 6
+          : 5;
+
+      await waitForStatus(
+        eventId,
+        walletAddress,
+        (currentStatus) =>
+          currentStatus
+            .reservation
+            ?.status === expectedStatus,
+        "The refund was submitted but has not been confirmed yet. Refresh shortly.",
+      );
+
+      setReserved(false);
+      setReservationStatus(
+        expectedStatus,
+      );
+      setCanClaimCancelledEventRefund(
+        false,
+      );
+      setCanClaimFallbackRefund(
+        false,
+      );
+
+      setMessage(
+        `${depositFormatted} USDC was returned to this wallet successfully.`,
+      );
+    } catch (refundError) {
+      console.error(
+        "ShowUp attendee refund failed:",
+        refundError,
+      );
+
+      setError(
+        getErrorMessage(
+          refundError,
+        ),
+      );
+
+      setMessage(
+        "The refund was not completed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="mt-6">
-      <button
-        type="button"
-        onClick={handleReserve}
-        disabled={
-          busy || reserved
-        }
-        className={`w-full rounded-2xl py-4 font-semibold transition ${
-          reserved
-            ? "cursor-default border border-[#74f2c2]/25 bg-[#74f2c2]/10 text-[#b7ffe3]"
+      {canClaimCancelledEventRefund ? (
+        <button
+          type="button"
+          onClick={() => {
+            void handleClaimRefund(
+              "cancelled",
+            );
+          }}
+          disabled={busy}
+          className="w-full rounded-2xl border border-[#74f2c2]/30 bg-[#74f2c2] py-4 font-semibold text-[#07110f] transition hover:bg-[#8ff6cf] disabled:cursor-wait disabled:opacity-60"
+        >
+          {busy
+            ? "Processing refund..."
+            : `Claim cancelled-event refund — ${depositFormatted} USDC`}
+        </button>
+      ) : canClaimFallbackRefund ? (
+        <button
+          type="button"
+          onClick={() => {
+            void handleClaimRefund(
+              "fallback",
+            );
+          }}
+          disabled={busy}
+          className="w-full rounded-2xl border border-[#74f2c2]/30 bg-[#74f2c2] py-4 font-semibold text-[#07110f] transition hover:bg-[#8ff6cf] disabled:cursor-wait disabled:opacity-60"
+        >
+          {busy
+            ? "Processing refund..."
+            : `Claim fallback refund — ${depositFormatted} USDC`}
+        </button>
+      ) : reservationStatus === 5 ||
+        reservationStatus === 6 ? (
+        <button
+          type="button"
+          disabled
+          className="w-full cursor-default rounded-2xl border border-[#74f2c2]/25 bg-[#74f2c2]/10 py-4 font-semibold text-[#b7ffe3]"
+        >
+          Refund claimed
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={handleReserve}
+          disabled={
+            busy || reserved
+          }
+          className={`w-full rounded-2xl py-4 font-semibold transition ${
+            reserved
+              ? "cursor-default border border-[#74f2c2]/25 bg-[#74f2c2]/10 text-[#b7ffe3]"
+              : busy
+                ? "cursor-wait bg-[#74f2c2] text-[#07110f] opacity-65"
+                : "bg-[#74f2c2] text-[#07110f] hover:bg-[#8ff6cf]"
+          }`}
+        >
+          {reserved
+            ? "Seat reserved"
             : busy
-              ? "cursor-wait bg-[#74f2c2] text-[#07110f] opacity-65"
-              : "bg-[#74f2c2] text-[#07110f] hover:bg-[#8ff6cf]"
-        }`}
-      >
-        {reserved
-          ? "Seat reserved"
-          : busy
-            ? "Processing reservation..."
-            : `Reserve seat — ${depositFormatted} USDC`}
-      </button>
+              ? "Processing reservation..."
+              : `Reserve seat — ${depositFormatted} USDC`}
+        </button>
+      )}
 
       <p
         aria-live="polite"
