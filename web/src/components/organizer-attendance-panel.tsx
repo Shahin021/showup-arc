@@ -993,7 +993,7 @@ export default function OrganizerAttendancePanel({
               key={attendee.attendee}
               className="rounded-2xl border border-white/10 bg-black/10 p-4"
             >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -1018,7 +1018,7 @@ export default function OrganizerAttendancePanel({
                 </div>
 
                 {attendee.active ? (
-                  <div className="flex shrink-0 flex-wrap gap-2">
+                  <div className="grid w-full grid-cols-1 gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -1027,7 +1027,7 @@ export default function OrganizerAttendancePanel({
                       disabled={
                         !attendanceWindowOpen || Boolean(busyAttendee)
                       }
-                      className="rounded-xl bg-[#74f2c2] px-4 py-2.5 text-xs font-semibold text-[#07110f] transition hover:bg-[#8ff6cf] disabled:cursor-not-allowed disabled:opacity-40"
+                      className="w-full rounded-xl bg-[#74f2c2] px-4 py-2.5 text-xs font-semibold text-[#07110f] transition hover:bg-[#8ff6cf] disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {processing && busyAction === "attendance"
                         ? "Confirming..."
@@ -1042,7 +1042,7 @@ export default function OrganizerAttendancePanel({
                       disabled={
                         !noShowWindowOpen || Boolean(busyAttendee)
                       }
-                      className="rounded-xl border border-red-300/25 bg-red-300/10 px-4 py-2.5 text-xs font-semibold text-red-100 transition hover:border-red-300/40 hover:bg-red-300/15 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="w-full rounded-xl border border-red-300/25 bg-red-300/10 px-4 py-2.5 text-xs font-semibold text-red-100 transition hover:border-red-300/40 hover:bg-red-300/15 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {processing && busyAction === "no-show"
                         ? "Settling..."
