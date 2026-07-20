@@ -65,7 +65,7 @@ export async function POST(request: Request) {
       abiFunctionSignature: "claimFallbackRefund(uint256)",
       abiParameters: [eventId.toString()],
       refPrefix:
-        `showup-claim-fallback-refund-${eventId.toString()}-${wallet.address.toLowerCase()}`,
+        `showup-fallback-${eventId.toString()}`,
     });
 
     return NextResponse.json(

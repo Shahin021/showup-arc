@@ -122,7 +122,7 @@ export async function POST(
           attendee,
         ],
         refPrefix:
-          `showup-confirm-attendance-${eventId.toString()}-${attendee.toLowerCase()}`,
+          `showup-confirm-${eventId.toString()}`,
       });
 
     return NextResponse.json(

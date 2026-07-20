@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       abiFunctionSignature: "claimCancelledEventRefund(uint256)",
       abiParameters: [eventId.toString()],
       refPrefix:
-        `showup-claim-cancelled-refund-${eventId.toString()}-${wallet.address.toLowerCase()}`,
+        `showup-cancelrefund-${eventId.toString()}`,
     });
 
     return NextResponse.json(

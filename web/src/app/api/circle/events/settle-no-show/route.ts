@@ -122,7 +122,7 @@ export async function POST(
           attendee,
         ],
         refPrefix:
-          `showup-settle-no-show-${eventId.toString()}-${attendee.toLowerCase()}`,
+          `showup-noshow-${eventId.toString()}`,
       });
 
     return NextResponse.json(
