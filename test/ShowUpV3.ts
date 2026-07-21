@@ -1003,5 +1003,105 @@ describe("ShowUpV3", function () {
       0n,
     );
   });
-});
+  it("marks a paid attendee as payment defaulted after the payment deadline", async function () {
+    const {
+      organizer,
+      attendeeOne,
+      mockUsdc,
+      showUp,
+      waitForTransaction,
+      createPaidEvent,
+      reserveSeat,
+    } = await networkHelpers.loadFixture(
+      deployShowUpFixture,
+    );
 
+    const {
+      eventId,
+      eventStart,
+    } = await createPaidEvent();
+
+    await reserveSeat(eventId, attendeeOne);
+
+    await networkHelpers.time.increaseTo(
+      eventStart,
+    );
+
+    await waitForTransaction(
+      showUp.write.confirmAttendance(
+        [
+          eventId,
+          attendeeOne.account.address,
+        ],
+        {
+          account: organizer.account,
+        },
+      ),
+    );
+
+    const reservationBeforeDefault =
+      await showUp.read.getReservation([
+        eventId,
+        attendeeOne.account.address,
+      ]);
+
+    assert.equal(
+      Number(reservationBeforeDefault.status),
+      7,
+    );
+
+    await networkHelpers.time.increaseTo(
+      reservationBeforeDefault.paymentDeadline + 1n,
+    );
+
+    await waitForTransaction(
+      showUp.write.markPaymentDefault(
+        [
+          eventId,
+          attendeeOne.account.address,
+        ],
+        {
+          account: organizer.account,
+        },
+      ),
+    );
+
+    assert.equal(
+      await mockUsdc.read.balanceOf([
+        attendeeOne.account.address,
+      ]),
+      INITIAL_BALANCE - UPFRONT_AMOUNT,
+    );
+
+    assert.equal(
+      await mockUsdc.read.balanceOf([
+        organizer.account.address,
+      ]),
+      UPFRONT_AMOUNT,
+    );
+
+    assert.equal(
+      await mockUsdc.read.balanceOf([
+        showUp.address,
+      ]),
+      0n,
+    );
+
+    const reservationAfterDefault =
+      await showUp.read.getReservation([
+        eventId,
+        attendeeOne.account.address,
+      ]);
+
+    assert.equal(
+      Number(reservationAfterDefault.status),
+      9,
+    );
+
+    assert.equal(
+      await showUp.read.totalEscrowed(),
+      0n,
+    );
+  });
+
+});
