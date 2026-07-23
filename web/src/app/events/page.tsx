@@ -13,8 +13,16 @@ type OnchainEvent = {
   organizer: string;
   title: string;
   description: string;
+
+  eventType: number;
+  eventTypeLabel: string;
+
   deposit: string;
   depositAmount: string;
+
+  totalPrice: string;
+  totalPriceAmount: string;
+
   capacity: string;
   reservedSeats: string;
   escrowedAmount: string;
@@ -499,16 +507,36 @@ export default function EventsPage() {
                       </div>
                     </div>
 
-                    <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div
+                      className={`mt-5 grid gap-3 ${
+                        event.eventType === 1
+                          ? "grid-cols-1 sm:grid-cols-3"
+                          : "grid-cols-2"
+                      }`}
+                    >
                       <div className="rounded-2xl bg-white/[0.04] p-4">
                         <p className="text-xs leading-5 text-white/35">
-                          Refundable deposit
+                          {event.eventType === 1
+                            ? "Upfront payment"
+                            : "Refundable deposit"}
                         </p>
 
                         <p className="mt-2 text-lg font-semibold">
                           {event.deposit} USDC
                         </p>
                       </div>
+
+                      {event.eventType === 1 ? (
+                        <div className="rounded-2xl bg-white/[0.04] p-4">
+                          <p className="text-xs leading-5 text-white/35">
+                            Total price
+                          </p>
+
+                          <p className="mt-2 text-lg font-semibold">
+                            {event.totalPrice} USDC
+                          </p>
+                        </div>
+                      ) : null}
 
                       <div className="rounded-2xl bg-white/[0.04] p-4">
                         <p className="text-xs leading-5 text-white/35">
