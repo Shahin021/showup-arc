@@ -19,6 +19,19 @@ type RouteContext = {
   }>;
 };
 
+function hasLockedReservation(
+  status: number,
+) {
+  return (
+    status === 1 ||
+    status === 3 ||
+    status === 4 ||
+    status === 7 ||
+    status === 8 ||
+    status === 9
+  );
+}
+
 export async function GET(
   request: Request,
   context: RouteContext,
@@ -45,11 +58,15 @@ export async function GET(
       reservation,
       accountState,
     ] = await Promise.all([
-      getEventDetails(eventId),
+      getEventDetails(
+        eventId,
+      ),
+
       getReservation(
         eventId,
         attendee,
       ),
+
       getUsdcAccountState(
         attendee,
       ),
@@ -59,6 +76,14 @@ export async function GET(
       Number(
         reservation.status,
       );
+
+    const eventType =
+      Number(
+        eventDetails.eventType,
+      );
+
+    const isPaidEvent =
+      eventType === 1;
 
     const now =
       BigInt(
@@ -92,79 +117,253 @@ export async function GET(
       now >
         eventDetails.resolutionDeadline;
 
-    const enoughBalance =
+    /*
+     * Reservation deposit / upfront-payment state.
+     * This remains dedicated to the initial reserve flow.
+     */
+    const enoughDepositBalance =
       accountState.balance >=
       eventDetails.depositAmount;
 
-    const enoughAllowance =
+    const enoughDepositAllowance =
       accountState.allowance >=
       eventDetails.depositAmount;
+
+    /*
+     * Paid-event remaining balance.
+     */
+    const remainingBalance =
+      isPaidEvent &&
+      eventDetails.totalPrice >
+        eventDetails.depositAmount
+        ? eventDetails.totalPrice -
+          eventDetails.depositAmount
+        : BigInt(0);
+
+    const paymentDeadline =
+      reservation.paymentDeadline;
+
+    const paymentWindowOpen =
+      isPaidEvent &&
+      status === 7 &&
+      !eventDetails.cancelled &&
+      paymentDeadline >
+        BigInt(0) &&
+      now <= paymentDeadline;
+
+    const paymentDeadlinePassed =
+      isPaidEvent &&
+      status === 7 &&
+      paymentDeadline >
+        BigInt(0) &&
+      now > paymentDeadline;
+
+    const enoughRemainingBalance =
+      accountState.balance >=
+      remainingBalance;
+
+    const enoughRemainingAllowance =
+      accountState.allowance >=
+      remainingBalance;
+
+    const canPayRemainingBalance =
+      paymentWindowOpen &&
+      remainingBalance >
+        BigInt(0) &&
+      enoughRemainingBalance;
 
     return NextResponse.json(
       {
         eventId:
           eventId.toString(),
+
         attendee,
+
+        eventType,
+
+        eventTypeLabel:
+          isPaidEvent
+            ? "Paid"
+            : "Free",
 
         reservation: {
           status,
+
           label:
             getReservationStatusLabel(
               status,
             ),
+
           reservedAt:
             reservation.reservedAt.toString(),
+
           updatedAt:
             reservation.updatedAt.toString(),
+
+          paymentDeadline:
+            paymentDeadline.toString(),
+
           active:
-            status === 1,
+            hasLockedReservation(
+              status,
+            ),
+
+          paymentDue:
+            status === 7,
+
+          completed:
+            status === 8,
+
+          paymentDefaulted:
+            status === 9,
         },
 
         deposit: {
           amount:
             eventDetails.depositAmount.toString(),
+
           formatted:
             serializeUsdc(
               eventDetails.depositAmount,
             ),
         },
 
+        totalPrice: {
+          amount:
+            eventDetails.totalPrice.toString(),
+
+          formatted:
+            serializeUsdc(
+              eventDetails.totalPrice,
+            ),
+        },
+
+        remainingBalance: {
+          amount:
+            remainingBalance.toString(),
+
+          formatted:
+            serializeUsdc(
+              remainingBalance,
+            ),
+        },
+
+        /*
+         * Used by ReserveSeatButton for the initial deposit
+         * or paid-event upfront payment.
+         */
         usdc: {
           balance:
             accountState.balance.toString(),
+
           balanceFormatted:
             serializeUsdc(
               accountState.balance,
             ),
+
           allowance:
             accountState.allowance.toString(),
+
           allowanceFormatted:
             serializeUsdc(
               accountState.allowance,
             ),
-          enoughBalance,
-          enoughAllowance,
+
+          enoughBalance:
+            enoughDepositBalance,
+
+          enoughAllowance:
+            enoughDepositAllowance,
+
           needsApproval:
-            !enoughAllowance,
+            eventDetails.depositAmount >
+              BigInt(0) &&
+            !enoughDepositAllowance,
+        },
+
+        /*
+         * Used only by the paid-event remaining-payment flow.
+         */
+        remainingPayment: {
+          amount:
+            remainingBalance.toString(),
+
+          formatted:
+            serializeUsdc(
+              remainingBalance,
+            ),
+
+          paymentDeadline:
+            paymentDeadline.toString(),
+
+          paymentWindowOpen,
+
+          paymentDeadlinePassed,
+
+          balance:
+            accountState.balance.toString(),
+
+          balanceFormatted:
+            serializeUsdc(
+              accountState.balance,
+            ),
+
+          allowance:
+            accountState.allowance.toString(),
+
+          allowanceFormatted:
+            serializeUsdc(
+              accountState.allowance,
+            ),
+
+          enoughBalance:
+            enoughRemainingBalance,
+
+          enoughAllowance:
+            enoughRemainingAllowance,
+
+          needsApproval:
+            remainingBalance >
+              BigInt(0) &&
+            !enoughRemainingAllowance,
+
+          canPay:
+            canPayRemainingBalance,
         },
 
         event: {
           open:
             eventOpen,
+
           cancelled:
             eventDetails.cancelled,
+
+          eventType,
+
+          eventTypeLabel:
+            isPaidEvent
+              ? "Paid"
+              : "Free",
+
           capacityAvailable,
+
           capacity:
             eventDetails.capacity.toString(),
+
           reservedSeats:
             eventDetails.reservedSeats.toString(),
+
           eventStart:
             eventDetails.eventStart.toString(),
+
           eventEnd:
             eventDetails.eventEnd.toString(),
+
           resolutionDeadline:
             eventDetails.resolutionDeadline.toString(),
+
           canClaimCancelledEventRefund,
+
           canClaimFallbackRefund,
         },
 
@@ -172,7 +371,7 @@ export async function GET(
           eventOpen &&
           capacityAvailable &&
           reservationReusable &&
-          enoughBalance,
+          enoughDepositBalance,
       },
       {
         status: 200,
@@ -187,6 +386,11 @@ export async function GET(
       error instanceof ShowUpApiError
         ? error.status
         : 500;
+
+    console.error(
+      "ShowUp reservation-status request failed:",
+      error,
+    );
 
     return NextResponse.json(
       {

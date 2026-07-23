@@ -31,8 +31,12 @@ type ReservationRow = {
   label: string;
   reservedAt: string;
   updatedAt: string;
+  paymentDeadline: string;
   active: boolean;
   attended: boolean;
+  paymentDue: boolean;
+  completed: boolean;
+  paymentDefaulted: boolean;
 };
 
 const ATTENDEE_READ_ABI = [
@@ -92,7 +96,26 @@ const STATUS_FILTERS: Record<string, number | null> = {
   "no-show": 4,
   "fallback-refunded": 5,
   "event-cancelled-refunded": 6,
+  "payment-due": 7,
+  completed: 8,
+  "payment-defaulted": 9,
 };
+
+function isAttendanceConfirmed(status: number) {
+  return (
+    status === 3 ||
+    status === 7 ||
+    status === 8 ||
+    status === 9
+  );
+}
+
+function isActiveReservation(status: number) {
+  return (
+    status === 1 ||
+    status === 7
+  );
+}
 
 function parsePage(value: string | null) {
   if (!value) {
@@ -100,27 +123,38 @@ function parsePage(value: string | null) {
   }
 
   if (!/^\d+$/.test(value)) {
-    throw new ShowUpApiError("Page number is invalid.");
+    throw new ShowUpApiError(
+      "Page number is invalid.",
+    );
   }
 
-  return Math.max(1, Number.parseInt(value, 10));
+  return Math.max(
+    1,
+    Number.parseInt(value, 10),
+  );
 }
 
 function parseSearch(value: string | null) {
-  const normalized = value?.trim().toLowerCase() ?? "";
+  const normalized =
+    value?.trim().toLowerCase() ?? "";
 
   if (normalized.length > 42) {
-    throw new ShowUpApiError("Wallet search is too long.");
+    throw new ShowUpApiError(
+      "Wallet search is too long.",
+    );
   }
 
   return normalized;
 }
 
 function parseStatusFilter(value: string | null) {
-  const normalized = value?.trim().toLowerCase() || "all";
+  const normalized =
+    value?.trim().toLowerCase() || "all";
 
   if (!(normalized in STATUS_FILTERS)) {
-    throw new ShowUpApiError("Attendance status filter is invalid.");
+    throw new ShowUpApiError(
+      "Attendance status filter is invalid.",
+    );
   }
 
   return {
@@ -138,21 +172,46 @@ async function readAttendeeAddresses(
     address: getShowUpAddress(),
     abi: ATTENDEE_READ_ABI,
     functionName: "getAttendees",
-    args: [eventId, offset, limit],
+    args: [
+      eventId,
+      offset,
+      limit,
+    ],
   })) as `0x${string}`[];
 }
 
-async function readAllAttendeeAddresses(eventId: bigint, attendeeCount: bigint) {
+async function readAllAttendeeAddresses(
+  eventId: bigint,
+  attendeeCount: bigint,
+) {
   const addresses: `0x${string}`[] = [];
 
-  for (let offset = BigInt(0); offset < attendeeCount; offset += ADDRESS_BATCH_SIZE) {
-    const remaining = attendeeCount - offset;
-    const limit = remaining < ADDRESS_BATCH_SIZE ? remaining : ADDRESS_BATCH_SIZE;
-    const batch = await readAttendeeAddresses(eventId, offset, limit);
+  for (
+    let offset = BigInt(0);
+    offset < attendeeCount;
+    offset += ADDRESS_BATCH_SIZE
+  ) {
+    const remaining =
+      attendeeCount - offset;
+
+    const limit =
+      remaining < ADDRESS_BATCH_SIZE
+        ? remaining
+        : ADDRESS_BATCH_SIZE;
+
+    const batch =
+      await readAttendeeAddresses(
+        eventId,
+        offset,
+        limit,
+      );
 
     addresses.push(...batch);
 
-    if (batch.length < Number(limit)) {
+    if (
+      batch.length <
+      Number(limit)
+    ) {
       break;
     }
   }
@@ -160,67 +219,153 @@ async function readAllAttendeeAddresses(eventId: bigint, attendeeCount: bigint) 
   return addresses;
 }
 
-async function mapWithConcurrency<TInput, TOutput>(
+async function mapWithConcurrency<
+  TInput,
+  TOutput,
+>(
   items: TInput[],
   concurrency: number,
-  mapper: (item: TInput) => Promise<TOutput>,
+  mapper: (
+    item: TInput,
+  ) => Promise<TOutput>,
 ) {
-  const results = new Array<TOutput>(items.length);
+  const results =
+    new Array<TOutput>(items.length);
+
   let nextIndex = 0;
 
   async function worker() {
-    while (nextIndex < items.length) {
-      const currentIndex = nextIndex;
+    while (
+      nextIndex < items.length
+    ) {
+      const currentIndex =
+        nextIndex;
+
       nextIndex += 1;
-      results[currentIndex] = await mapper(items[currentIndex]);
+
+      results[currentIndex] =
+        await mapper(
+          items[currentIndex],
+        );
     }
   }
 
-  const workerCount = Math.min(concurrency, items.length);
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  const workerCount =
+    Math.min(
+      concurrency,
+      items.length,
+    );
+
+  await Promise.all(
+    Array.from(
+      {
+        length: workerCount,
+      },
+      () => worker(),
+    ),
+  );
 
   return results;
 }
 
-async function loadReservationRows(eventId: bigint, addresses: `0x${string}`[]) {
+async function loadReservationRows(
+  eventId: bigint,
+  addresses: `0x${string}`[],
+) {
   return mapWithConcurrency(
     addresses,
     RESERVATION_CONCURRENCY,
-    async (attendee): Promise<ReservationRow> => {
-      const reservation = await getReservation(eventId, attendee);
-      const status = Number(reservation.status);
+    async (
+      attendee,
+    ): Promise<ReservationRow> => {
+      const reservation =
+        await getReservation(
+          eventId,
+          attendee,
+        );
+
+      const status =
+        Number(
+          reservation.status,
+        );
 
       return {
         attendee,
         status,
-        label: getReservationStatusLabel(status),
-        reservedAt: reservation.reservedAt.toString(),
-        updatedAt: reservation.updatedAt.toString(),
-        active: status === 1,
-        attended: status === 3,
+        label:
+          getReservationStatusLabel(
+            status,
+          ),
+        reservedAt:
+          reservation.reservedAt.toString(),
+        updatedAt:
+          reservation.updatedAt.toString(),
+        paymentDeadline:
+          reservation.paymentDeadline.toString(),
+        active:
+          isActiveReservation(
+            status,
+          ),
+        attended:
+          isAttendanceConfirmed(
+            status,
+          ),
+        paymentDue:
+          status === 7,
+        completed:
+          status === 8,
+        paymentDefaulted:
+          status === 9,
       };
     },
   );
 }
 
-function calculateTotalPages(total: bigint) {
+function calculateTotalPages(
+  total: bigint,
+) {
   if (total === BigInt(0)) {
     return 1;
   }
 
-  return Number((total + BigInt(PAGE_SIZE - 1)) / BigInt(PAGE_SIZE));
+  return Number(
+    (
+      total +
+      BigInt(PAGE_SIZE - 1)
+    ) /
+      BigInt(PAGE_SIZE),
+  );
 }
 
-export async function POST(request: Request, context: RouteContext) {
+export async function POST(
+  request: Request,
+  context: RouteContext,
+) {
   try {
-    const { id } = await context.params;
-    const eventId = parseEventId(id);
-    const eventDetails = await getEventDetails(eventId);
-    const body = (await request.json().catch(() => ({}))) as AuthBody;
-    const verifiedWallet = await verifyCircleArcWallet(
-      body.userToken,
-      body.walletId,
-    );
+    const {
+      id,
+    } = await context.params;
+
+    const eventId =
+      parseEventId(id);
+
+    const eventDetails =
+      await getEventDetails(
+        eventId,
+      );
+
+    const body =
+      (await request
+        .json()
+        .catch(
+          () => ({}),
+        )) as AuthBody;
+
+    const verifiedWallet =
+      await verifyCircleArcWallet(
+        body.userToken,
+        body.walletId,
+      );
 
     if (
       verifiedWallet.address.toLowerCase() !==
@@ -232,107 +377,261 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    const url = new URL(request.url);
-    const requestedPage = parsePage(url.searchParams.get("page"));
-    const search = parseSearch(url.searchParams.get("search"));
-    const statusFilter = parseStatusFilter(url.searchParams.get("status"));
+    const url =
+      new URL(request.url);
 
-    const attendeeCount = await arcPublicClient.readContract({
-      address: getShowUpAddress(),
-      abi: ATTENDEE_READ_ABI,
-      functionName: "getAttendeeCount",
-      args: [eventId],
-    });
+    const requestedPage =
+      parsePage(
+        url.searchParams.get(
+          "page",
+        ),
+      );
 
-    let rows: ReservationRow[] = [];
-    let filteredCount = attendeeCount;
-    let page = requestedPage;
-    let totalPages = calculateTotalPages(attendeeCount);
+    const search =
+      parseSearch(
+        url.searchParams.get(
+          "search",
+        ),
+      );
 
-    if (!search && statusFilter.status === null) {
-      page = Math.min(requestedPage, totalPages);
-      const offset = BigInt((page - 1) * PAGE_SIZE);
-      const addresses =
-        offset < attendeeCount
-          ? await readAttendeeAddresses(eventId, offset, BigInt(PAGE_SIZE))
-          : [];
+    const statusFilter =
+      parseStatusFilter(
+        url.searchParams.get(
+          "status",
+        ),
+      );
 
-      rows = await loadReservationRows(eventId, addresses);
-    } else {
-      const allAddresses = await readAllAttendeeAddresses(
-        eventId,
+    const attendeeCount =
+      await arcPublicClient.readContract({
+        address:
+          getShowUpAddress(),
+        abi:
+          ATTENDEE_READ_ABI,
+        functionName:
+          "getAttendeeCount",
+        args: [
+          eventId,
+        ],
+      });
+
+    let rows:
+      ReservationRow[] = [];
+
+    let filteredCount =
+      attendeeCount;
+
+    let page =
+      requestedPage;
+
+    let totalPages =
+      calculateTotalPages(
         attendeeCount,
       );
-      const searchedAddresses = search
-        ? allAddresses.filter((address) =>
-            address.toLowerCase().includes(search),
-          )
-        : allAddresses;
-      const searchedRows = await loadReservationRows(
-        eventId,
-        searchedAddresses,
-      );
+
+    if (
+      !search &&
+      statusFilter.status === null
+    ) {
+      page =
+        Math.min(
+          requestedPage,
+          totalPages,
+        );
+
+      const offset =
+        BigInt(
+          (page - 1) *
+            PAGE_SIZE,
+        );
+
+      const addresses =
+        offset < attendeeCount
+          ? await readAttendeeAddresses(
+              eventId,
+              offset,
+              BigInt(
+                PAGE_SIZE,
+              ),
+            )
+          : [];
+
+      rows =
+        await loadReservationRows(
+          eventId,
+          addresses,
+        );
+    } else {
+      const allAddresses =
+        await readAllAttendeeAddresses(
+          eventId,
+          attendeeCount,
+        );
+
+      const searchedAddresses =
+        search
+          ? allAddresses.filter(
+              (address) =>
+                address
+                  .toLowerCase()
+                  .includes(
+                    search,
+                  ),
+            )
+          : allAddresses;
+
+      const searchedRows =
+        await loadReservationRows(
+          eventId,
+          searchedAddresses,
+        );
+
       const filteredRows =
         statusFilter.status === null
           ? searchedRows
-          : searchedRows.filter((row) => row.status === statusFilter.status);
+          : searchedRows.filter(
+              (row) =>
+                row.status ===
+                statusFilter.status,
+            );
 
-      filteredCount = BigInt(filteredRows.length);
-      totalPages = calculateTotalPages(filteredCount);
-      page = Math.min(requestedPage, totalPages);
+      filteredCount =
+        BigInt(
+          filteredRows.length,
+        );
 
-      const startIndex = (page - 1) * PAGE_SIZE;
-      rows = filteredRows.slice(startIndex, startIndex + PAGE_SIZE);
+      totalPages =
+        calculateTotalPages(
+          filteredCount,
+        );
+
+      page =
+        Math.min(
+          requestedPage,
+          totalPages,
+        );
+
+      const startIndex =
+        (page - 1) *
+        PAGE_SIZE;
+
+      rows =
+        filteredRows.slice(
+          startIndex,
+          startIndex +
+            PAGE_SIZE,
+        );
     }
 
-    const now = BigInt(Math.floor(Date.now() / 1000));
+    const now =
+      BigInt(
+        Math.floor(
+          Date.now() /
+            1000,
+        ),
+      );
+
     const attendanceWindowOpen =
       !eventDetails.cancelled &&
-      now >= eventDetails.eventStart &&
-      now <= eventDetails.resolutionDeadline;
+      now >=
+        eventDetails.eventStart &&
+      now <=
+        eventDetails.resolutionDeadline;
 
     const noShowWindowOpen =
       !eventDetails.cancelled &&
-      now >= eventDetails.eventEnd &&
-      now <= eventDetails.resolutionDeadline;
+      now >=
+        eventDetails.eventEnd &&
+      now <=
+        eventDetails.resolutionDeadline;
+
+    const eventType =
+      Number(
+        eventDetails.eventType,
+      );
 
     return NextResponse.json(
       {
-        eventId: eventId.toString(),
-        organizer: eventDetails.organizer,
+        eventId:
+          eventId.toString(),
+
+        organizer:
+          eventDetails.organizer,
+
+        eventType,
+
+        eventTypeLabel:
+          eventType === 1
+            ? "Paid"
+            : "Free",
+
         deposit: {
-          amount: eventDetails.depositAmount.toString(),
-          formatted: serializeUsdc(eventDetails.depositAmount),
+          amount:
+            eventDetails.depositAmount.toString(),
+          formatted:
+            serializeUsdc(
+              eventDetails.depositAmount,
+            ),
         },
+
+        totalPrice: {
+          amount:
+            eventDetails.totalPrice.toString(),
+          formatted:
+            serializeUsdc(
+              eventDetails.totalPrice,
+            ),
+        },
+
         timing: {
-          eventStart: eventDetails.eventStart.toString(),
-          eventEnd: eventDetails.eventEnd.toString(),
-          resolutionDeadline: eventDetails.resolutionDeadline.toString(),
+          eventStart:
+            eventDetails.eventStart.toString(),
+          eventEnd:
+            eventDetails.eventEnd.toString(),
+          resolutionDeadline:
+            eventDetails.resolutionDeadline.toString(),
           attendanceWindowOpen,
           noShowWindowOpen,
         },
-        attendeeCount: attendeeCount.toString(),
-        filteredCount: filteredCount.toString(),
+
+        attendeeCount:
+          attendeeCount.toString(),
+
+        filteredCount:
+          filteredCount.toString(),
+
         page,
-        pageSize: PAGE_SIZE,
+        pageSize:
+          PAGE_SIZE,
         totalPages,
-        hasPrevious: page > 1,
-        hasNext: page < totalPages,
+        hasPrevious:
+          page > 1,
+        hasNext:
+          page < totalPages,
         search,
-        status: statusFilter.key,
-        attendees: rows,
+        status:
+          statusFilter.key,
+        attendees:
+          rows,
       },
       {
         status: 200,
         headers: {
-          "Cache-Control": "no-store",
+          "Cache-Control":
+            "no-store",
         },
       },
     );
   } catch (error) {
-    const status = error instanceof ShowUpApiError ? error.status : 500;
+    const status =
+      error instanceof
+      ShowUpApiError
+        ? error.status
+        : 500;
 
-    console.error("ShowUp paginated attendee list failed:", error);
+    console.error(
+      "ShowUp paginated attendee list failed:",
+      error,
+    );
 
     return NextResponse.json(
       {
@@ -344,7 +643,8 @@ export async function POST(request: Request, context: RouteContext) {
       {
         status,
         headers: {
-          "Cache-Control": "no-store",
+          "Cache-Control":
+            "no-store",
         },
       },
     );

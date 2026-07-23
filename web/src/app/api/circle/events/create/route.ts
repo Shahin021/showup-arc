@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CREATE_EVENT_SIGNATURE =
-  "createEvent(string,string,string,uint256,uint256,uint64,uint64,uint64,uint64)";
+  "createEvent(string,string,string,uint8,uint256,uint256,uint256,uint64,uint64,uint64,uint64)";
 
 const MAX_TITLE_BYTES = 320;
 const MAX_DESCRIPTION_BYTES = 960;
@@ -18,7 +18,9 @@ type CreateEventRequest = {
   title?: unknown;
   description?: unknown;
   metadataURI?: unknown;
+  eventType?: unknown;
   deposit?: unknown;
+  totalPrice?: unknown;
   capacity?: unknown;
   eventStart?: unknown;
   eventEnd?: unknown;
@@ -35,7 +37,8 @@ type CircleChallengeResponse = {
 };
 
 function getCircleApiKey() {
-  const apiKey = process.env.CIRCLE_API_KEY;
+  const apiKey =
+    process.env.CIRCLE_API_KEY;
 
   if (!apiKey) {
     throw new Error(
@@ -46,10 +49,42 @@ function getCircleApiKey() {
   return apiKey;
 }
 
-function readString(value: unknown) {
+function readString(
+  value: unknown,
+) {
   return typeof value === "string"
     ? value.trim()
     : "";
+}
+
+function parseEventType(
+  value: unknown,
+) {
+  const normalized =
+    typeof value === "string" ||
+    typeof value === "number"
+      ? String(value)
+          .trim()
+          .toLowerCase()
+      : "";
+
+  if (
+    normalized === "0" ||
+    normalized === "free"
+  ) {
+    return 0;
+  }
+
+  if (
+    normalized === "1" ||
+    normalized === "paid"
+  ) {
+    return 1;
+  }
+
+  throw new Error(
+    "Event type must be Free or Paid.",
+  );
 }
 
 function parsePositiveInteger(
@@ -69,7 +104,8 @@ function parsePositiveInteger(
     );
   }
 
-  const parsed = BigInt(normalized);
+  const parsed =
+    BigInt(normalized);
 
   if (
     allowZero
@@ -86,32 +122,51 @@ function parsePositiveInteger(
   return parsed;
 }
 
-function parseUsdcUnits(value: unknown) {
+function parseUsdcUnits(
+  value: unknown,
+  fieldName: string,
+  allowZero: boolean,
+) {
   const normalized =
     typeof value === "number" ||
     typeof value === "string"
       ? String(value).trim()
       : "";
 
-  if (!/^\d+(?:\.\d{1,6})?$/.test(normalized)) {
+  if (
+    !/^\d+(?:\.\d{1,6})?$/.test(
+      normalized,
+    )
+  ) {
     throw new Error(
-      "Deposit must be a valid USDC amount with up to 6 decimal places.",
+      `${fieldName} must be a valid USDC amount with up to 6 decimal places.`,
     );
   }
 
-  const [whole, fraction = ""] =
-    normalized.split(".");
+  const [
+    whole,
+    fraction = "",
+  ] = normalized.split(".");
 
   const paddedFraction =
-    `${fraction}000000`.slice(0, 6);
+    `${fraction}000000`.slice(
+      0,
+      6,
+    );
 
   const units =
     BigInt(whole) * BigInt(1_000_000) +
     BigInt(paddedFraction);
 
-  if (units <= BigInt(0)) {
+  if (
+    allowZero
+      ? units < BigInt(0)
+      : units <= BigInt(0)
+  ) {
     throw new Error(
-      "Deposit must be greater than zero.",
+      allowZero
+        ? `${fieldName} cannot be negative.`
+        : `${fieldName} must be greater than zero.`,
     );
   }
 
@@ -130,7 +185,9 @@ function parseHours(
       : Number.NaN;
 
   if (
-    !Number.isSafeInteger(normalized) ||
+    !Number.isSafeInteger(
+      normalized,
+    ) ||
     normalized <= 0
   ) {
     throw new Error(
@@ -154,8 +211,11 @@ function parseTimestamp(
   value: unknown,
   fieldName: string,
 ) {
-  const normalized = readString(value);
-  const milliseconds = Date.parse(normalized);
+  const normalized =
+    readString(value);
+
+  const milliseconds =
+    Date.parse(normalized);
 
   if (
     !normalized ||
@@ -166,11 +226,16 @@ function parseTimestamp(
     );
   }
 
-  return Math.floor(milliseconds / 1000);
+  return Math.floor(
+    milliseconds / 1000,
+  );
 }
 
-function validateMetadataURI(value: unknown) {
-  const metadataURI = readString(value);
+function validateMetadataURI(
+  value: unknown,
+) {
+  const metadataURI =
+    readString(value);
 
   if (!metadataURI) {
     throw new Error(
@@ -192,14 +257,17 @@ function validateMetadataURI(value: unknown) {
   let parsedURL: URL;
 
   try {
-    parsedURL = new URL(metadataURI);
+    parsedURL =
+      new URL(metadataURI);
   } catch {
     throw new Error(
       "Event metadata URL is invalid.",
     );
   }
 
-  if (parsedURL.protocol !== "https:") {
+  if (
+    parsedURL.protocol !== "https:"
+  ) {
     throw new Error(
       "Event metadata URL must use HTTPS.",
     );
@@ -218,7 +286,9 @@ function validateMetadataURI(value: unknown) {
   return metadataURI;
 }
 
-function getErrorMessage(error: unknown) {
+function getErrorMessage(
+  error: unknown,
+) {
   if (
     error instanceof Error &&
     error.message
@@ -233,7 +303,8 @@ export async function POST(
   request: Request,
 ) {
   try {
-    const apiKey = getCircleApiKey();
+    const apiKey =
+      getCircleApiKey();
 
     const contractAddress =
       process.env
@@ -254,7 +325,9 @@ export async function POST(
     const body =
       (await request
         .json()
-        .catch(() => ({}))) as CreateEventRequest;
+        .catch(
+          () => ({}),
+        )) as CreateEventRequest;
 
     const userToken =
       readString(body.userToken);
@@ -266,7 +339,9 @@ export async function POST(
       readString(body.title);
 
     const description =
-      readString(body.description);
+      readString(
+        body.description,
+      );
 
     const metadataURI =
       validateMetadataURI(
@@ -282,7 +357,8 @@ export async function POST(
         {
           status: 400,
           headers: {
-            "Cache-Control": "no-store",
+            "Cache-Control":
+              "no-store",
           },
         },
       );
@@ -297,7 +373,8 @@ export async function POST(
         {
           status: 400,
           headers: {
-            "Cache-Control": "no-store",
+            "Cache-Control":
+              "no-store",
           },
         },
       );
@@ -312,7 +389,8 @@ export async function POST(
         {
           status: 400,
           headers: {
-            "Cache-Control": "no-store",
+            "Cache-Control":
+              "no-store",
           },
         },
       );
@@ -332,7 +410,8 @@ export async function POST(
         {
           status: 400,
           headers: {
-            "Cache-Control": "no-store",
+            "Cache-Control":
+              "no-store",
           },
         },
       );
@@ -352,14 +431,58 @@ export async function POST(
         {
           status: 400,
           headers: {
-            "Cache-Control": "no-store",
+            "Cache-Control":
+              "no-store",
           },
         },
       );
     }
 
+    const eventType =
+      parseEventType(
+        body.eventType,
+      );
+
     const depositUnits =
-      parseUsdcUnits(body.deposit);
+      parseUsdcUnits(
+        body.deposit ??
+          (eventType === 0
+            ? "0"
+            : ""),
+        eventType === 0
+          ? "Commitment deposit"
+          : "Upfront payment",
+        eventType === 0,
+      );
+
+    const totalPriceUnits =
+      parseUsdcUnits(
+        body.totalPrice ??
+          (eventType === 0
+            ? "0"
+            : ""),
+        "Total price",
+        eventType === 0,
+      );
+
+    if (
+      eventType === 0 &&
+      totalPriceUnits !== BigInt(0)
+    ) {
+      throw new Error(
+        "Total price must be zero for a Free event.",
+      );
+    }
+
+    if (
+      eventType === 1 &&
+      depositUnits >=
+        totalPriceUnits
+    ) {
+      throw new Error(
+        "Upfront payment must be lower than the total price.",
+      );
+    }
 
     const capacity =
       parsePositiveInteger(
@@ -395,16 +518,24 @@ export async function POST(
 
     const cancellationDeadline =
       eventStart -
-      cancellationHours * 60 * 60;
+      cancellationHours *
+        60 *
+        60;
 
     const resolutionDeadline =
       eventEnd +
-      resolutionHours * 60 * 60;
+      resolutionHours *
+        60 *
+        60;
 
     const now =
-      Math.floor(Date.now() / 1000);
+      Math.floor(
+        Date.now() / 1000,
+      );
 
-    if (eventEnd <= eventStart) {
+    if (
+      eventEnd <= eventStart
+    ) {
       return NextResponse.json(
         {
           error:
@@ -413,14 +544,16 @@ export async function POST(
         {
           status: 400,
           headers: {
-            "Cache-Control": "no-store",
+            "Cache-Control":
+              "no-store",
           },
         },
       );
     }
 
     if (
-      cancellationDeadline <= now
+      cancellationDeadline <=
+      now
     ) {
       return NextResponse.json(
         {
@@ -430,7 +563,8 @@ export async function POST(
         {
           status: 400,
           headers: {
-            "Cache-Control": "no-store",
+            "Cache-Control":
+              "no-store",
           },
         },
       );
@@ -440,7 +574,8 @@ export async function POST(
       !(
         cancellationDeadline <
           eventStart &&
-        eventStart < eventEnd &&
+        eventStart <
+          eventEnd &&
         eventEnd <
           resolutionDeadline
       )
@@ -453,7 +588,8 @@ export async function POST(
         {
           status: 400,
           headers: {
-            "Cache-Control": "no-store",
+            "Cache-Control":
+              "no-store",
           },
         },
       );
@@ -498,7 +634,9 @@ export async function POST(
               title,
               description,
               metadataURI,
+              String(eventType),
               depositUnits.toString(),
+              totalPriceUnits.toString(),
               capacity.toString(),
               String(
                 cancellationDeadline,
@@ -553,7 +691,8 @@ export async function POST(
     }
 
     const challengeId =
-      circleData.data?.challengeId;
+      circleData.data
+        ?.challengeId;
 
     if (!challengeId) {
       throw new Error(

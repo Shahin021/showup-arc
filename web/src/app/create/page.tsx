@@ -39,6 +39,10 @@ type VideoMode =
   | "upload"
   | "external";
 
+type EventType =
+  | "free"
+  | "paid";
+
 type SessionResponse = {
   userId?: string;
   userToken?: string;
@@ -63,7 +67,9 @@ type StoredSubmission = {
   title: string;
   description: string;
   metadataURI: string;
+  eventType: EventType;
   deposit: string;
+  totalPrice: string;
   capacity: string;
   unlimited: boolean;
   eventStart: string;
@@ -365,8 +371,12 @@ export default function CreateEventPage() {
     setVideoUploadProgress,
   ] = useState(0);
 
+  const [eventType, setEventType] =
+    useState<EventType>("free");
   const [deposit, setDeposit] =
     useState("2");
+  const [totalPrice, setTotalPrice] =
+    useState("10");
   const [capacity, setCapacity] =
     useState("30");
   const [
@@ -495,6 +505,8 @@ export default function CreateEventPage() {
         !normalizedFullDescription ||
         !normalizedOrganizerName ||
         !deposit ||
+        (eventType === "paid" &&
+          !totalPrice) ||
         !eventStart ||
         !eventEnd
       ) {
@@ -513,10 +525,43 @@ export default function CreateEventPage() {
         );
       }
 
-      if (Number(deposit) <= 0) {
+      if (Number(deposit) < 0) {
         throw new Error(
-          "Commitment deposit must be greater than zero.",
+          "Commitment deposit cannot be negative.",
         );
+      }
+
+      if (eventType === "paid") {
+        if (
+          !/^\d+(?:\.\d{1,6})?$/.test(
+            totalPrice,
+          )
+        ) {
+          throw new Error(
+            "Total price must be a valid USDC amount with up to 6 decimal places.",
+          );
+        }
+
+        if (Number(deposit) <= 0) {
+          throw new Error(
+            "Upfront payment must be greater than zero.",
+          );
+        }
+
+        if (Number(totalPrice) <= 0) {
+          throw new Error(
+            "Total price must be greater than zero.",
+          );
+        }
+
+        if (
+          Number(deposit) >=
+          Number(totalPrice)
+        ) {
+          throw new Error(
+            "Upfront payment must be lower than the total price.",
+          );
+        }
       }
 
       const normalizedCapacity =
@@ -890,7 +935,12 @@ export default function CreateEventPage() {
                 normalizedDescription,
               metadataURI:
                 metadataData.metadataURI,
+              eventType,
               deposit,
+              totalPrice:
+                eventType === "paid"
+                  ? totalPrice
+                  : "0",
               capacity:
                 normalizedCapacity,
               eventStart:
@@ -941,7 +991,12 @@ export default function CreateEventPage() {
           normalizedDescription,
         metadataURI:
           metadataData.metadataURI,
+        eventType,
         deposit,
+        totalPrice:
+          eventType === "paid"
+            ? totalPrice
+            : "0",
         capacity:
           normalizedCapacity,
         unlimited:
@@ -1024,7 +1079,7 @@ export default function CreateEventPage() {
           </h1>
 
           <p className="mt-4 max-w-2xl text-base leading-7 text-white/45">
-            Publish transparent attendance rules and a refundable USDC commitment deposit directly on Arc.
+            Create free commitment-based events or paid events with transparent USDC pricing directly on Arc.
           </p>
         </div>
 
@@ -1426,12 +1481,64 @@ export default function CreateEventPage() {
 
             <section className="mt-9 border-t border-white/10 pt-8">
               <h2 className="text-xl font-semibold">
-                Deposit and capacity
+                Pricing and capacity
               </h2>
+
+              <div className="mt-6">
+                <p className="text-sm font-medium text-white/75">
+                  Event type
+                </p>
+
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    disabled={formDisabled}
+                    onClick={() =>
+                      setEventType("free")
+                    }
+                    className={`rounded-2xl border px-4 py-4 text-left transition ${
+                      eventType === "free"
+                        ? "border-[#74f2c2]/60 bg-[#74f2c2]/10 text-white"
+                        : "border-white/10 bg-white/[0.035] text-white/45 hover:border-white/20"
+                    } disabled:cursor-not-allowed disabled:opacity-40`}
+                  >
+                    <span className="block text-sm font-semibold">
+                      Free event
+                    </span>
+
+                    <span className="mt-1 block text-xs leading-5 opacity-70">
+                      Optional refundable commitment deposit
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={formDisabled}
+                    onClick={() =>
+                      setEventType("paid")
+                    }
+                    className={`rounded-2xl border px-4 py-4 text-left transition ${
+                      eventType === "paid"
+                        ? "border-[#74f2c2]/60 bg-[#74f2c2]/10 text-white"
+                        : "border-white/10 bg-white/[0.035] text-white/45 hover:border-white/20"
+                    } disabled:cursor-not-allowed disabled:opacity-40`}
+                  >
+                    <span className="block text-sm font-semibold">
+                      Paid event
+                    </span>
+
+                    <span className="mt-1 block text-xs leading-5 opacity-70">
+                      Upfront payment plus remaining balance
+                    </span>
+                  </button>
+                </div>
+              </div>
 
               <div className="mt-6 grid gap-5 sm:grid-cols-2">
                 <label className={labelClassName}>
-                  Commitment deposit
+                  {eventType === "paid"
+                    ? "Upfront payment"
+                    : "Commitment deposit"}
                   <span className="ml-1 text-[#74f2c2]">
                     *
                   </span>
@@ -1439,7 +1546,11 @@ export default function CreateEventPage() {
                   <div className="relative">
                     <input
                       type="number"
-                      min="0.000001"
+                      min={
+                        eventType === "paid"
+                          ? "0.000001"
+                          : "0"
+                      }
                       step="0.000001"
                       value={deposit}
                       disabled={formDisabled}
@@ -1457,7 +1568,46 @@ export default function CreateEventPage() {
                   </div>
                 </label>
 
-                <div>
+                {eventType === "paid" ? (
+                  <label className={labelClassName}>
+                    Total price
+                    <span className="ml-1 text-[#74f2c2]">
+                      *
+                    </span>
+
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0.000001"
+                        step="0.000001"
+                        value={totalPrice}
+                        disabled={formDisabled}
+                        onChange={(event) =>
+                          setTotalPrice(
+                            event.target.value,
+                          )
+                        }
+                        className={`${inputClassName} pr-20`}
+                      />
+
+                      <span className="pointer-events-none absolute bottom-3.5 right-4 text-sm font-medium text-[#74f2c2]">
+                        USDC
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-xs leading-5 text-white/30">
+                      Must be greater than the upfront payment.
+                    </p>
+                  </label>
+                ) : null}
+
+                <div
+                  className={
+                    eventType === "paid"
+                      ? "sm:col-span-2"
+                      : ""
+                  }
+                >
                   <label className={labelClassName}>
                     Event capacity
                     <span className="ml-1 text-[#74f2c2]">
@@ -1747,7 +1897,9 @@ export default function CreateEventPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="rounded-2xl bg-white/[0.04] p-4">
                       <p className="text-xs leading-5 text-white/35">
-                        Commitment deposit
+                        {eventType === "paid"
+                          ? "Upfront payment"
+                          : "Commitment deposit"}
                       </p>
 
                       <p className="mt-2 text-xl font-semibold">
@@ -1755,15 +1907,39 @@ export default function CreateEventPage() {
                       </p>
                     </div>
 
-                    <div className="rounded-2xl bg-white/[0.04] p-4">
-                      <p className="text-xs leading-5 text-white/35">
-                        Available seats
-                      </p>
+                    {eventType === "paid" ? (
+                      <div className="rounded-2xl bg-white/[0.04] p-4">
+                        <p className="text-xs leading-5 text-white/35">
+                          Total price
+                        </p>
 
-                      <p className="mt-2 break-words text-xl font-semibold">
-                        {availableSeats}
-                      </p>
-                    </div>
+                        <p className="mt-2 text-xl font-semibold">
+                          {totalPrice || "0"} USDC
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl bg-white/[0.04] p-4">
+                        <p className="text-xs leading-5 text-white/35">
+                          Available seats
+                        </p>
+
+                        <p className="mt-2 break-words text-xl font-semibold">
+                          {availableSeats}
+                        </p>
+                      </div>
+                    )}
+
+                    {eventType === "paid" ? (
+                      <div className="col-span-2 rounded-2xl bg-white/[0.04] p-4">
+                        <p className="text-xs leading-5 text-white/35">
+                          Available seats
+                        </p>
+
+                        <p className="mt-2 break-words text-xl font-semibold">
+                          {availableSeats}
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="mt-4 space-y-3 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
@@ -1792,17 +1968,19 @@ export default function CreateEventPage() {
 
                   <div className="mt-4 rounded-2xl border border-[#74f2c2]/20 bg-[#74f2c2]/10 p-4">
                     <p className="text-sm font-medium leading-6 text-[#b7ffe3]">
-                      Attend or cancel on time and the full commitment deposit returns.
+                      {eventType === "paid"
+                        ? "The upfront payment secures the reservation. After attendance is confirmed, the remaining balance becomes due."
+                        : "Attend or cancel on time and the full commitment deposit returns."}
                     </p>
                   </div>
 
                   <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3">
                     <p className="text-xs text-white/30">
-                      ShowUp V2 contract
+                      ShowUp V3 contract
                     </p>
 
                     <p className="mt-1 break-all font-mono text-xs leading-5 text-white/55">
-                      0x26Df9d3c1272745508A700E005f1892Ef10d7B84
+                      0xf41385007335A02535F20947780a685A62f6D5F3
                     </p>
                   </div>
                 </div>

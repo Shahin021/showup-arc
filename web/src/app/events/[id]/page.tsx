@@ -7,8 +7,10 @@ import {
   useMemo,
   useState,
 } from "react";
+import { formatUnits } from "viem";
 import CircleWalletButton from "@/components/circle-wallet-button";
 import ReserveSeatButton from "@/components/reserve-seat-button";
+import PayRemainingBalanceButton from "@/components/pay-remaining-balance-button";
 import OrganizerAttendancePanel from "@/components/organizer-attendance-panel";
 
 type OnchainEvent = {
@@ -17,15 +19,25 @@ type OnchainEvent = {
   title: string;
   description: string;
   metadataURI: string;
+
+  eventType: number;
+  eventTypeLabel: string;
+
   deposit: string;
   depositAmount: string;
+
+  totalPrice: string;
+  totalPriceAmount: string;
+
   capacity: string;
   reservedSeats: string;
   escrowedAmount: string;
+
   cancellationDeadline: string;
   eventStart: string;
   eventEnd: string;
   resolutionDeadline: string;
+
   cancelled: boolean;
 };
 
@@ -50,7 +62,10 @@ type EventMetadata = {
   } | null;
 
   video?: {
-    source?: "upload" | "external" | string;
+    source?:
+      | "upload"
+      | "external"
+      | string;
     url?: string | null;
   } | null;
 
@@ -58,15 +73,25 @@ type EventMetadata = {
   createdAt?: string | null;
 };
 
-function shortenAddress(address: string) {
-  if (!address || address.length < 12) {
+function shortenAddress(
+  address: string,
+) {
+  if (
+    !address ||
+    address.length < 12
+  ) {
     return address || "Unknown";
   }
 
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  return `${address.slice(
+    0,
+    6,
+  )}...${address.slice(-4)}`;
 }
 
-function formatTimestamp(timestamp: string) {
+function formatTimestamp(
+  timestamp: string,
+) {
   const seconds = Number(timestamp);
 
   if (
@@ -84,7 +109,22 @@ function formatTimestamp(timestamp: string) {
   });
 }
 
-function getEventStatus(event: OnchainEvent) {
+function formatUsdcAmount(
+  value: string,
+) {
+  try {
+    return formatUnits(
+      BigInt(value),
+      6,
+    );
+  } catch {
+    return "0";
+  }
+}
+
+function getEventStatus(
+  event: OnchainEvent,
+) {
   if (event.cancelled) {
     return {
       label: "Cancelled",
@@ -93,9 +133,14 @@ function getEventStatus(event: OnchainEvent) {
     };
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  const start = Number(event.eventStart);
-  const end = Number(event.eventEnd);
+  const now =
+    Math.floor(Date.now() / 1000);
+
+  const start =
+    Number(event.eventStart);
+
+  const end =
+    Number(event.eventEnd);
 
   if (now < start) {
     return {
@@ -120,27 +165,38 @@ function getEventStatus(event: OnchainEvent) {
   };
 }
 
-function getXProfileUrl(value: string) {
-  const normalized = value.trim();
+function getXProfileUrl(
+  value: string,
+) {
+  const normalized =
+    value.trim();
 
   if (!normalized) {
     return "";
   }
 
   if (
-    normalized.startsWith("https://") ||
-    normalized.startsWith("http://")
+    normalized.startsWith(
+      "https://",
+    ) ||
+    normalized.startsWith(
+      "http://",
+    )
   ) {
     return normalized;
   }
 
-  return `https://x.com/${normalized.replace(/^@/, "")}`;
+  return `https://x.com/${normalized.replace(
+    /^@/,
+    "",
+  )}`;
 }
 
 function getVideoPresentation(
   video: EventMetadata["video"],
 ) {
-  const url = video?.url?.trim() ?? "";
+  const url =
+    video?.url?.trim() ?? "";
 
   if (!url) {
     return {
@@ -160,13 +216,16 @@ function getVideoPresentation(
     };
   }
 
-  const host = parsed.hostname
-    .toLowerCase()
-    .replace(/^www\./, "");
+  const host =
+    parsed.hostname
+      .toLowerCase()
+      .replace(/^www\./, "");
 
   if (
     video?.source === "upload" ||
-    /\.(mp4|webm)$/i.test(parsed.pathname)
+    /\.(mp4|webm)$/i.test(
+      parsed.pathname,
+    )
   ) {
     return {
       type: "video" as const,
@@ -180,37 +239,53 @@ function getVideoPresentation(
   ) {
     let videoId = "";
 
-    if (parsed.pathname === "/watch") {
-      videoId =
-        parsed.searchParams.get("v") ?? "";
-    } else if (
-      parsed.pathname.startsWith("/shorts/")
+    if (
+      parsed.pathname === "/watch"
     ) {
       videoId =
-        parsed.pathname.split("/")[2] ?? "";
+        parsed.searchParams.get(
+          "v",
+        ) ?? "";
     } else if (
-      parsed.pathname.startsWith("/embed/")
+      parsed.pathname.startsWith(
+        "/shorts/",
+      )
     ) {
       videoId =
-        parsed.pathname.split("/")[2] ?? "";
+        parsed.pathname.split(
+          "/",
+        )[2] ?? "";
+    } else if (
+      parsed.pathname.startsWith(
+        "/embed/",
+      )
+    ) {
+      videoId =
+        parsed.pathname.split(
+          "/",
+        )[2] ?? "";
     }
 
     if (videoId) {
       return {
         type: "embed" as const,
-        url: `https://www.youtube.com/embed/${videoId}`,
+        url:
+          `https://www.youtube.com/embed/${videoId}`,
       };
     }
   }
 
   if (host === "youtu.be") {
     const videoId =
-      parsed.pathname.split("/")[1] ?? "";
+      parsed.pathname.split(
+        "/",
+      )[1] ?? "";
 
     if (videoId) {
       return {
         type: "embed" as const,
-        url: `https://www.youtube.com/embed/${videoId}`,
+        url:
+          `https://www.youtube.com/embed/${videoId}`,
       };
     }
   }
@@ -219,15 +294,19 @@ function getVideoPresentation(
     host === "vimeo.com" ||
     host === "player.vimeo.com"
   ) {
-    const videoId = parsed.pathname
-      .split("/")
-      .filter(Boolean)
-      .find((part) => /^\d+$/.test(part));
+    const videoId =
+      parsed.pathname
+        .split("/")
+        .filter(Boolean)
+        .find((part) =>
+          /^\d+$/.test(part),
+        );
 
     if (videoId) {
       return {
         type: "embed" as const,
-        url: `https://player.vimeo.com/video/${videoId}`,
+        url:
+          `https://player.vimeo.com/video/${videoId}`,
       };
     }
   }
@@ -242,24 +321,41 @@ export default function EventDetailsPage() {
   const params = useParams();
   const rawEventId = params?.id;
 
-  const eventId = Array.isArray(rawEventId)
-    ? rawEventId[0]
-    : rawEventId;
+  const eventId =
+    Array.isArray(rawEventId)
+      ? rawEventId[0]
+      : rawEventId;
 
-  const [event, setEvent] =
-    useState<OnchainEvent | null>(null);
+  const [
+    event,
+    setEvent,
+  ] =
+    useState<OnchainEvent | null>(
+      null,
+    );
 
-  const [metadata, setMetadata] =
-    useState<EventMetadata | null>(null);
+  const [
+    metadata,
+    setMetadata,
+  ] =
+    useState<EventMetadata | null>(
+      null,
+    );
 
-  const [contractAddress, setContractAddress] =
-    useState("");
+  const [
+    contractAddress,
+    setContractAddress,
+  ] = useState("");
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const [error, setError] =
-    useState("");
+  const [
+    error,
+    setError,
+  ] = useState("");
 
   useEffect(() => {
     if (!eventId) {
@@ -272,15 +368,18 @@ export default function EventDetailsPage() {
     async function loadEvent() {
       setLoading(true);
       setError("");
+      setMetadata(null);
 
       try {
-        const eventsResponse = await fetch(
-          "/api/events",
-          {
-            cache: "no-store",
-            signal: controller.signal,
-          },
-        );
+        const eventsResponse =
+          await fetch(
+            "/api/events",
+            {
+              cache: "no-store",
+              signal:
+                controller.signal,
+            },
+          );
 
         const eventsData =
           (await eventsResponse.json()) as EventsResponse;
@@ -294,7 +393,8 @@ export default function EventDetailsPage() {
 
         const selectedEvent =
           eventsData.events?.find(
-            (item) => item.id === eventId,
+            (item) =>
+              item.id === eventId,
           );
 
         if (!selectedEvent) {
@@ -304,36 +404,60 @@ export default function EventDetailsPage() {
         }
 
         setEvent(selectedEvent);
+
         setContractAddress(
-          eventsData.contractAddress ?? "",
+          eventsData.contractAddress ??
+            "",
         );
 
-        if (selectedEvent.metadataURI) {
-          const metadataResponse =
-            await fetch(
-              selectedEvent.metadataURI,
-              {
-                cache: "no-store",
-                signal:
-                  controller.signal,
-              },
-            );
+        if (
+          selectedEvent.metadataURI
+        ) {
+          try {
+            const metadataResponse =
+              await fetch(
+                selectedEvent.metadataURI,
+                {
+                  cache: "no-store",
+                  signal:
+                    controller.signal,
+                },
+              );
 
-          if (!metadataResponse.ok) {
-            throw new Error(
-              "The event was found, but its public metadata could not be loaded.",
+            if (
+              metadataResponse.ok
+            ) {
+              const metadataData =
+                (await metadataResponse.json()) as EventMetadata;
+
+              setMetadata(
+                metadataData,
+              );
+            }
+          } catch (
+            metadataError
+          ) {
+            if (
+              metadataError instanceof
+                DOMException &&
+              metadataError.name ===
+                "AbortError"
+            ) {
+              return;
+            }
+
+            console.warn(
+              "Event metadata could not be loaded:",
+              metadataError,
             );
           }
-
-          const metadataData =
-            (await metadataResponse.json()) as EventMetadata;
-
-          setMetadata(metadataData);
         }
       } catch (loadError) {
         if (
-          loadError instanceof DOMException &&
-          loadError.name === "AbortError"
+          loadError instanceof
+            DOMException &&
+          loadError.name ===
+            "AbortError"
         ) {
           return;
         }
@@ -344,7 +468,10 @@ export default function EventDetailsPage() {
             : "Unable to load this event.",
         );
       } finally {
-        if (!controller.signal.aborted) {
+        if (
+          !controller.signal
+            .aborted
+        ) {
           setLoading(false);
         }
       }
@@ -357,57 +484,117 @@ export default function EventDetailsPage() {
     };
   }, [eventId]);
 
-  const capacityDetails = useMemo(() => {
-    if (!event) {
+  const capacityDetails =
+    useMemo(() => {
+      if (!event) {
+        return {
+          unlimited: false,
+          reserved: "0",
+          remaining: "0",
+          progress: 0,
+        };
+      }
+
+      const capacity =
+        BigInt(event.capacity);
+
+      const reserved =
+        BigInt(
+          event.reservedSeats,
+        );
+
+      if (
+        capacity === BigInt(0)
+      ) {
+        return {
+          unlimited: true,
+          reserved:
+            reserved.toString(),
+          remaining:
+            "Unlimited",
+          progress: 0,
+        };
+      }
+
+      const remaining =
+        capacity > reserved
+          ? capacity - reserved
+          : BigInt(0);
+
+      const progress =
+        capacity > BigInt(0)
+          ? Number(
+              (
+                reserved *
+                BigInt(100)
+              ) / capacity,
+            )
+          : 0;
+
       return {
         unlimited: false,
-        reserved: "0",
-        remaining: "0",
-        progress: 0,
-      };
-    }
-
-    const capacity =
-      BigInt(event.capacity);
-    const reserved =
-      BigInt(event.reservedSeats);
-
-    if (capacity === BigInt(0)) {
-      return {
-        unlimited: true,
         reserved:
           reserved.toString(),
-        remaining: "Unlimited",
-        progress: 0,
-      };
-    }
-
-    const remaining =
-      capacity > reserved
-        ? capacity - reserved
-        : BigInt(0);
-
-    const progress =
-      capacity > BigInt(0)
-        ? Number(
-            (reserved * BigInt(100)) /
-              capacity,
-          )
-        : 0;
-
-    return {
-      unlimited: false,
-      reserved:
-        reserved.toString(),
-      remaining:
-        remaining.toString(),
-      progress:
-        Math.min(
+        remaining:
+          remaining.toString(),
+        progress: Math.min(
           100,
-          Math.max(0, progress),
+          Math.max(
+            0,
+            progress,
+          ),
         ),
-    };
-  }, [event]);
+      };
+    }, [event]);
+
+  const paymentDetails =
+    useMemo(() => {
+      if (!event) {
+        return {
+          isPaid: false,
+          depositAmount:
+            BigInt(0),
+          totalPriceAmount:
+            BigInt(0),
+          remainingAmount:
+            BigInt(0),
+          remainingFormatted:
+            "0",
+        };
+      }
+
+      const depositAmount =
+        BigInt(
+          event.depositAmount,
+        );
+
+      const totalPriceAmount =
+        BigInt(
+          event.totalPriceAmount,
+        );
+
+      const isPaid =
+        event.eventType === 1;
+
+      const remainingAmount =
+        isPaid &&
+        totalPriceAmount >
+          depositAmount
+          ? totalPriceAmount -
+            depositAmount
+          : BigInt(0);
+
+      return {
+        isPaid,
+        depositAmount,
+        totalPriceAmount,
+        remainingAmount,
+        remainingFormatted:
+          formatUsdcAmount(
+            remainingAmount.toString(),
+          ),
+      };
+    }, [event]);
 
   const videoPresentation =
     useMemo(
@@ -418,9 +605,10 @@ export default function EventDetailsPage() {
       [metadata?.video],
     );
 
-  const status = event
-    ? getEventStatus(event)
-    : null;
+  const status =
+    event
+      ? getEventStatus(event)
+      : null;
 
   const organizerName =
     metadata?.organizer?.name?.trim() ||
@@ -428,7 +616,8 @@ export default function EventDetailsPage() {
 
   const organizerXUrl =
     getXProfileUrl(
-      metadata?.organizer?.x ?? "",
+      metadata?.organizer?.x ??
+        "",
     );
 
   return (
@@ -493,7 +682,9 @@ export default function EventDetailsPage() {
           </div>
         ) : null}
 
-        {!loading && !error && event ? (
+        {!loading &&
+        !error &&
+        event ? (
           <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
             <div className="space-y-7">
               <article className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.035]">
@@ -501,12 +692,14 @@ export default function EventDetailsPage() {
                   <div
                     className="h-64 bg-cover bg-center sm:h-96"
                     style={{
-                      backgroundImage: `url("${metadata.eventImage}")`,
+                      backgroundImage:
+                        `url("${metadata.eventImage}")`,
                     }}
                   />
                 ) : (
                   <div className="grid h-56 place-items-center bg-gradient-to-br from-[#74f2c2]/15 to-transparent text-sm text-white/30">
-                    ShowUp Event #{event.id}
+                    ShowUp Event #
+                    {event.id}
                   </div>
                 )}
 
@@ -514,6 +707,18 @@ export default function EventDetailsPage() {
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/50">
                       Event #{event.id}
+                    </span>
+
+                    <span
+                      className={
+                        paymentDetails.isPaid
+                          ? "rounded-full border border-violet-300/25 bg-violet-300/10 px-3 py-1 text-xs font-medium text-violet-100"
+                          : "rounded-full border border-sky-300/25 bg-sky-300/10 px-3 py-1 text-xs font-medium text-sky-100"
+                      }
+                    >
+                      {paymentDetails.isPaid
+                        ? "Paid event"
+                        : "Free event"}
                     </span>
 
                     {status ? (
@@ -535,13 +740,18 @@ export default function EventDetailsPage() {
 
                   {event.description ? (
                     <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-                      {event.description}
+                      {
+                        event.description
+                      }
                     </p>
                   ) : null}
 
                   {metadata?.location ? (
                     <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-white/55">
-                      📍 {metadata.location}
+                      📍{" "}
+                      {
+                        metadata.location
+                      }
                     </div>
                   ) : null}
                 </div>
@@ -558,6 +768,81 @@ export default function EventDetailsPage() {
                     "No extended event description was provided."}
                 </p>
               </section>
+
+              {paymentDetails.isPaid ? (
+                <section className="rounded-[30px] border border-violet-300/15 bg-violet-300/[0.045] p-6 sm:p-8">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-violet-200/70">
+                        Paid event
+                      </p>
+
+                      <h2 className="mt-2 text-2xl font-semibold">
+                        Payment details
+                      </h2>
+                    </div>
+
+                    <span className="rounded-full border border-violet-300/20 bg-violet-300/10 px-3 py-1 text-xs text-violet-100">
+                      USDC on Arc
+                    </span>
+                  </div>
+
+                  <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                      <p className="text-xs text-white/35">
+                        Upfront payment
+                      </p>
+
+                      <p className="mt-2 text-xl font-semibold">
+                        {event.deposit}{" "}
+                        <span className="text-sm text-white/35">
+                          USDC
+                        </span>
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                      <p className="text-xs text-white/35">
+                        Remaining balance
+                      </p>
+
+                      <p className="mt-2 text-xl font-semibold">
+                        {
+                          paymentDetails.remainingFormatted
+                        }{" "}
+                        <span className="text-sm text-white/35">
+                          USDC
+                        </span>
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                      <p className="text-xs text-white/35">
+                        Total price
+                      </p>
+
+                      <p className="mt-2 text-xl font-semibold">
+                        {
+                          event.totalPrice
+                        }{" "}
+                        <span className="text-sm text-white/35">
+                          USDC
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-5 text-sm leading-6 text-white/45">
+                    The upfront payment
+                    secures the seat and is
+                    held by the ShowUp
+                    contract. The remaining
+                    balance is handled through
+                    the paid-event payment
+                    flow.
+                  </p>
+                </section>
+              ) : null}
 
               {videoPresentation.type !==
               "none" ? (
@@ -601,7 +886,8 @@ export default function EventDetailsPage() {
                       rel="noreferrer"
                       className="mt-6 inline-flex rounded-2xl border border-[#74f2c2]/25 bg-[#74f2c2]/10 px-5 py-3 text-sm font-medium text-[#b7ffe3] transition hover:bg-[#74f2c2]/15"
                     >
-                      Watch promotional video ↗
+                      Watch promotional
+                      video ↗
                     </a>
                   ) : null}
                 </section>
@@ -625,11 +911,13 @@ export default function EventDetailsPage() {
                 </h2>
 
                 <div className="mt-6 flex items-start gap-4">
-                  {metadata?.organizer?.avatar ? (
+                  {metadata?.organizer
+                    ?.avatar ? (
                     <div
                       className="h-16 w-16 shrink-0 rounded-full bg-cover bg-center"
                       style={{
-                        backgroundImage: `url("${metadata.organizer.avatar}")`,
+                        backgroundImage:
+                          `url("${metadata.organizer.avatar}")`,
                       }}
                     />
                   ) : (
@@ -649,11 +937,12 @@ export default function EventDetailsPage() {
                       {event.organizer}
                     </p>
 
-                    {metadata?.organizer?.bio ? (
+                    {metadata?.organizer
+                      ?.bio ? (
                       <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-white/50">
                         {
-                          metadata.organizer
-                            .bio
+                          metadata
+                            .organizer.bio
                         }
                       </p>
                     ) : null}
@@ -663,7 +952,8 @@ export default function EventDetailsPage() {
                         ?.website ? (
                         <a
                           href={
-                            metadata.organizer
+                            metadata
+                              .organizer
                               .website
                           }
                           target="_blank"
@@ -676,7 +966,9 @@ export default function EventDetailsPage() {
 
                       {organizerXUrl ? (
                         <a
-                          href={organizerXUrl}
+                          href={
+                            organizerXUrl
+                          }
                           target="_blank"
                           rel="noreferrer"
                           className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white/55 transition hover:border-white/20 hover:text-white"
@@ -693,26 +985,68 @@ export default function EventDetailsPage() {
             <aside className="space-y-5 lg:sticky lg:top-8">
               <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/25">
                 <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#74f2c2]">
-                  Commitment deposit
+                  {paymentDetails.isPaid
+                    ? "Upfront payment"
+                    : "Commitment deposit"}
                 </p>
 
                 <p className="mt-3 text-4xl font-semibold">
                   {event.deposit}
+
                   <span className="ml-2 text-lg text-white/40">
                     USDC
                   </span>
                 </p>
 
                 <p className="mt-3 text-sm leading-6 text-white/40">
-                  Attend or cancel before the deadline to receive the full deposit back.
+                  {paymentDetails.isPaid
+                    ? `Pay ${event.deposit} USDC now to secure the seat. The remaining ${paymentDetails.remainingFormatted} USDC is paid later.`
+                    : paymentDetails.depositAmount ===
+                        BigInt(0)
+                      ? "No upfront deposit is required to reserve this seat."
+                      : "Attend or cancel before the deadline to receive the full deposit back."}
                 </p>
+
+                {paymentDetails.isPaid ? (
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl bg-white/[0.04] p-4">
+                      <p className="text-xs text-white/35">
+                        Total price
+                      </p>
+
+                      <p className="mt-2 text-lg font-semibold">
+                        {
+                          event.totalPrice
+                        }{" "}
+                        <span className="text-xs text-white/35">
+                          USDC
+                        </span>
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-white/[0.04] p-4">
+                      <p className="text-xs text-white/35">
+                        Pay later
+                      </p>
+
+                      <p className="mt-2 text-lg font-semibold">
+                        {
+                          paymentDetails.remainingFormatted
+                        }{" "}
+                        <span className="text-xs text-white/35">
+                          USDC
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="my-6 h-px bg-white/10" />
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl bg-white/[0.04] p-4">
                     <p className="text-xs text-white/35">
-                      Remaining
+                      Remaining seats
                     </p>
 
                     <p className="mt-2 text-xl font-semibold">
@@ -754,7 +1088,8 @@ export default function EventDetailsPage() {
                       <div
                         className="h-full rounded-full bg-[#74f2c2]"
                         style={{
-                          width: `${capacityDetails.progress}%`,
+                          width:
+                            `${capacityDetails.progress}%`,
                         }}
                       />
                     </div>
@@ -763,7 +1098,9 @@ export default function EventDetailsPage() {
 
                 <ReserveSeatButton
                   eventId={event.id}
-                  depositFormatted={event.deposit}
+                  depositFormatted={
+                    event.deposit
+                  }
                   onReservationConfirmed={(
                     reservedSeats,
                   ) => {
@@ -808,17 +1145,13 @@ export default function EventDetailsPage() {
                   }}
                 />
 
-                <OrganizerAttendancePanel
+                <PayRemainingBalanceButton
                   eventId={event.id}
-                  organizer={event.organizer}
-                  depositFormatted={event.deposit}
-                  eventStart={event.eventStart}
-                  resolutionDeadline={
-                    event.resolutionDeadline
-                  }
-                  onAttendanceConfirmed={() => {
+                  onPaymentCompleted={() => {
                     setEvent(
-                      (currentEvent) => {
+                      (
+                        currentEvent,
+                      ) => {
                         if (
                           !currentEvent
                         ) {
@@ -831,20 +1164,81 @@ export default function EventDetailsPage() {
                               .escrowedAmount,
                           );
 
-                        const depositAmount =
+                        const upfrontPayment =
                           BigInt(
                             currentEvent
                               .depositAmount,
                           );
 
+                        const nextEscrow =
+                          currentEscrow >
+                          upfrontPayment
+                            ? currentEscrow -
+                              upfrontPayment
+                            : BigInt(0);
+
+                        return {
+                          ...currentEvent,
+
+                          escrowedAmount:
+                            nextEscrow.toString(),
+                        };
+                      },
+                    );
+                  }}
+                />
+
+                <OrganizerAttendancePanel
+                  eventId={event.id}
+                  organizer={
+                    event.organizer
+                  }
+                  depositFormatted={
+                    event.deposit
+                  }
+                  eventStart={
+                    event.eventStart
+                  }
+                  resolutionDeadline={
+                    event.resolutionDeadline
+                  }
+                  onAttendanceConfirmed={() => {
+                    setEvent(
+                      (
+                        currentEvent,
+                      ) => {
+                        if (
+                          !currentEvent
+                        ) {
+                          return currentEvent;
+                        }
+
+                        const currentEscrow =
+                          BigInt(
+                            currentEvent
+                              .escrowedAmount,
+                          );
+
+                        const releaseAmount =
+                          currentEvent.eventType ===
+                          1
+                            ? BigInt(
+                                currentEvent
+                                  .totalPriceAmount,
+                              )
+                            : BigInt(
+                                currentEvent
+                                  .depositAmount,
+                              );
+
                         return {
                           ...currentEvent,
                           escrowedAmount:
                             currentEscrow >=
-                            depositAmount
+                            releaseAmount
                               ? (
                                   currentEscrow -
-                                  depositAmount
+                                  releaseAmount
                                 ).toString()
                               : "0",
                         };
@@ -862,7 +1256,8 @@ export default function EventDetailsPage() {
                 <div className="mt-5 space-y-4">
                   <div>
                     <p className="text-xs text-white/30">
-                      Free cancellation closes
+                      Free cancellation
+                      closes
                     </p>
 
                     <p className="mt-1 text-sm text-white/65">
@@ -932,23 +1327,30 @@ export default function EventDetailsPage() {
                     <div className="my-4 h-px bg-white/10" />
 
                     <p className="text-xs text-white/30">
-                      ShowUp V2 contract
+                      ShowUp V3 contract
                     </p>
 
                     <p className="mt-2 break-all font-mono text-xs leading-5 text-white/50">
-                      {contractAddress}
+                      {
+                        contractAddress
+                      }
                     </p>
                   </>
                 ) : null}
 
-                <a
-                  href={event.metadataURI}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-5 inline-flex text-xs text-[#74f2c2] transition hover:text-[#b7ffe3]"
-                >
-                  View public metadata ↗
-                </a>
+                {event.metadataURI ? (
+                  <a
+                    href={
+                      event.metadataURI
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-5 inline-flex text-xs text-[#74f2c2] transition hover:text-[#b7ffe3]"
+                  >
+                    View public metadata
+                    ↗
+                  </a>
+                ) : null}
               </div>
             </aside>
           </div>
