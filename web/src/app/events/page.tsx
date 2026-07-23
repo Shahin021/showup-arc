@@ -515,7 +515,7 @@ export default function EventsPage() {
                       }`}
                     >
                       <div className="rounded-2xl bg-white/[0.04] p-4">
-                        <p className="text-xs leading-5 text-white/35">
+                        <p className="min-h-10 text-xs leading-5 text-white/35">
                           {event.eventType === 1
                             ? "Upfront payment"
                             : "Refundable deposit"}
@@ -528,7 +528,7 @@ export default function EventsPage() {
 
                       {event.eventType === 1 ? (
                         <div className="rounded-2xl bg-white/[0.04] p-4">
-                          <p className="text-xs leading-5 text-white/35">
+                          <p className="min-h-10 text-xs leading-5 text-white/35">
                             Total price
                           </p>
 
@@ -539,7 +539,7 @@ export default function EventsPage() {
                       ) : null}
 
                       <div className="rounded-2xl bg-white/[0.04] p-4">
-                        <p className="text-xs leading-5 text-white/35">
+                        <p className="min-h-10 text-xs leading-5 text-white/35">
                           Seats remaining
                         </p>
 
