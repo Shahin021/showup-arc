@@ -107,6 +107,11 @@ export async function GET(
       now <
         eventDetails.eventStart;
 
+    const baseReservationAvailable =
+      eventOpen &&
+      capacityAvailable &&
+      reservationReusable;
+
     const canClaimCancelledEventRefund =
       eventDetails.cancelled &&
       status === 1;
@@ -117,10 +122,6 @@ export async function GET(
       now >
         eventDetails.resolutionDeadline;
 
-    /*
-     * Reservation deposit / upfront-payment state.
-     * This remains dedicated to the initial reserve flow.
-     */
     const enoughDepositBalance =
       accountState.balance >=
       eventDetails.depositAmount;
@@ -129,9 +130,40 @@ export async function GET(
       accountState.allowance >=
       eventDetails.depositAmount;
 
-    /*
-     * Paid-event remaining balance.
-     */
+    const upfrontReservationsOpen =
+      !isPaidEvent ||
+      (
+        eventDetails.paymentDeadline >
+          BigInt(0) &&
+        now <=
+          eventDetails.paymentDeadline
+      );
+
+    const canReserveUpfront =
+      baseReservationAvailable &&
+      upfrontReservationsOpen &&
+      enoughDepositBalance;
+
+    const fullPaymentAmount =
+      isPaidEvent
+        ? eventDetails.totalPrice
+        : BigInt(0);
+
+    const enoughFullPaymentBalance =
+      accountState.balance >=
+      fullPaymentAmount;
+
+    const enoughFullPaymentAllowance =
+      accountState.allowance >=
+      fullPaymentAmount;
+
+    const canReserveFullPayment =
+      baseReservationAvailable &&
+      isPaidEvent &&
+      fullPaymentAmount >
+        BigInt(0) &&
+      enoughFullPaymentBalance;
+
     const remainingBalance =
       isPaidEvent &&
       eventDetails.totalPrice >
@@ -248,10 +280,6 @@ export async function GET(
             ),
         },
 
-        /*
-         * Used by ReserveSeatButton for the initial deposit
-         * or paid-event upfront payment.
-         */
         usdc: {
           balance:
             accountState.balance.toString(),
@@ -281,9 +309,46 @@ export async function GET(
             !enoughDepositAllowance,
         },
 
-        /*
-         * Used only by the paid-event remaining-payment flow.
-         */
+        fullPayment: {
+          amount:
+            fullPaymentAmount.toString(),
+
+          formatted:
+            serializeUsdc(
+              fullPaymentAmount,
+            ),
+
+          balance:
+            accountState.balance.toString(),
+
+          balanceFormatted:
+            serializeUsdc(
+              accountState.balance,
+            ),
+
+          allowance:
+            accountState.allowance.toString(),
+
+          allowanceFormatted:
+            serializeUsdc(
+              accountState.allowance,
+            ),
+
+          enoughBalance:
+            enoughFullPaymentBalance,
+
+          enoughAllowance:
+            enoughFullPaymentAllowance,
+
+          needsApproval:
+            fullPaymentAmount >
+              BigInt(0) &&
+            !enoughFullPaymentAllowance,
+
+          canReserve:
+            canReserveFullPayment,
+        },
+
         remainingPayment: {
           amount:
             remainingBalance.toString(),
@@ -362,16 +427,25 @@ export async function GET(
           resolutionDeadline:
             eventDetails.resolutionDeadline.toString(),
 
+          paymentDeadline:
+            eventDetails.paymentDeadline.toString(),
+
+          upfrontReservationsOpen,
+
           canClaimCancelledEventRefund,
 
           canClaimFallbackRefund,
         },
 
+        canReserveUpfront,
+
+        canReserveFullPayment,
+
         canReserve:
-          eventOpen &&
-          capacityAvailable &&
-          reservationReusable &&
-          enoughDepositBalance,
+          isPaidEvent
+            ? canReserveUpfront ||
+              canReserveFullPayment
+            : canReserveUpfront,
       },
       {
         status: 200,

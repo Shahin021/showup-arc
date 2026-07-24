@@ -32,6 +32,10 @@ type ChallengeResponse = {
   error?: string;
 };
 
+type ReservationMode =
+  | "upfront"
+  | "full";
+
 type ReservationStatusResponse = {
   eventType?: number;
   eventTypeLabel?: string;
@@ -73,6 +77,19 @@ type ReservationStatusResponse = {
     needsApproval: boolean;
   };
 
+  fullPayment?: {
+    amount: string;
+    formatted: string;
+    balance: string;
+    balanceFormatted: string;
+    allowance: string;
+    allowanceFormatted: string;
+    enoughBalance: boolean;
+    enoughAllowance: boolean;
+    needsApproval: boolean;
+    canReserve: boolean;
+  };
+
   event?: {
     open: boolean;
     cancelled: boolean;
@@ -84,10 +101,14 @@ type ReservationStatusResponse = {
     eventStart: string;
     eventEnd: string;
     resolutionDeadline: string;
+    paymentDeadline?: string;
+    upfrontReservationsOpen?: boolean;
     canClaimCancelledEventRefund: boolean;
     canClaimFallbackRefund: boolean;
   };
 
+  canReserveUpfront?: boolean;
+  canReserveFullPayment?: boolean;
   canReserve?: boolean;
   error?: string;
 };
@@ -422,6 +443,33 @@ export default function ReserveSeatButton({
   );
 
   const [
+    displayedTotalPrice,
+    setDisplayedTotalPrice,
+  ] = useState("0");
+
+  const [
+    upfrontReservationsOpen,
+    setUpfrontReservationsOpen,
+  ] = useState(false);
+
+  const [
+    canReserveUpfront,
+    setCanReserveUpfront,
+  ] = useState(false);
+
+  const [
+    canReserveFullPayment,
+    setCanReserveFullPayment,
+  ] = useState(false);
+
+  const [
+    processingMode,
+    setProcessingMode,
+  ] = useState<ReservationMode | null>(
+    null,
+  );
+
+  const [
     eventOpen,
     setEventOpen,
   ] = useState(false);
@@ -524,6 +572,26 @@ export default function ReserveSeatButton({
             currentDepositAmount,
           );
 
+        const currentTotalPriceFormatted =
+          status.totalPrice
+            ?.formatted ?? "0";
+
+        const currentUpfrontReservationsOpen =
+          Boolean(
+            status.event
+              ?.upfrontReservationsOpen,
+          );
+
+        const currentCanReserveUpfront =
+          Boolean(
+            status.canReserveUpfront,
+          );
+
+        const currentCanReserveFullPayment =
+          Boolean(
+            status.canReserveFullPayment,
+          );
+
         setError("");
 
         setReservationStatus(
@@ -540,6 +608,22 @@ export default function ReserveSeatButton({
 
         setDisplayedDeposit(
           currentDepositFormatted,
+        );
+
+        setDisplayedTotalPrice(
+          currentTotalPriceFormatted,
+        );
+
+        setUpfrontReservationsOpen(
+          currentUpfrontReservationsOpen,
+        );
+
+        setCanReserveUpfront(
+          currentCanReserveUpfront,
+        );
+
+        setCanReserveFullPayment(
+          currentCanReserveFullPayment,
         );
 
         setEventOpen(
@@ -642,23 +726,73 @@ export default function ReserveSeatButton({
           return;
         }
 
+        if (currentIsPaidEvent) {
+          const currentBalance =
+            status.fullPayment
+              ?.balanceFormatted ??
+            status.usdc
+              ?.balanceFormatted ??
+            "0";
+
+          if (
+            !currentUpfrontReservationsOpen
+          ) {
+            setMessage(
+              currentCanReserveFullPayment
+                ? `Upfront reservations are closed. You can still pay ${currentTotalPriceFormatted} USDC in full until the event starts.`
+                : `Upfront reservations are closed. Full payment requires ${currentTotalPriceFormatted} USDC. Current balance: ${currentBalance} USDC.`,
+            );
+
+            return;
+          }
+
+          if (
+            currentCanReserveUpfront &&
+            currentCanReserveFullPayment
+          ) {
+            setMessage(
+              `Choose ${currentDepositFormatted} USDC upfront or pay ${currentTotalPriceFormatted} USDC in full.`,
+            );
+
+            return;
+          }
+
+          if (currentCanReserveUpfront) {
+            setMessage(
+              `You can reserve with ${currentDepositFormatted} USDC upfront. Full payment requires ${currentTotalPriceFormatted} USDC.`,
+            );
+
+            return;
+          }
+
+          if (
+            currentCanReserveFullPayment
+          ) {
+            setMessage(
+              `Ready to reserve by paying ${currentTotalPriceFormatted} USDC in full.`,
+            );
+
+            return;
+          }
+
+          setMessage(
+            `Insufficient USDC balance. Upfront requires ${currentDepositFormatted} USDC and full payment requires ${currentTotalPriceFormatted} USDC. Current balance: ${currentBalance} USDC.`,
+          );
+
+          return;
+        }
+
         if (
           status.usdc
             ?.enoughBalance ===
           false
         ) {
           setMessage(
-            currentIsPaidEvent
-              ? `This paid reservation requires ${currentDepositFormatted} USDC upfront. Current balance: ${
-                  status.usdc
-                    ?.balanceFormatted ??
-                  "0"
-                } USDC.`
-              : `This reservation requires a ${currentDepositFormatted} USDC refundable deposit. Current balance: ${
-                  status.usdc
-                    ?.balanceFormatted ??
-                  "0"
-                } USDC.`,
+            `This reservation requires a ${currentDepositFormatted} USDC refundable deposit. Current balance: ${
+              status.usdc
+                ?.balanceFormatted ??
+              "0"
+            } USDC.`,
           );
 
           return;
@@ -670,17 +804,13 @@ export default function ReserveSeatButton({
             ?.needsApproval
         ) {
           setMessage(
-            currentIsPaidEvent
-              ? `Circle will first approve the ${currentDepositFormatted} USDC upfront payment, then reserve the seat.`
-              : `Circle will first approve the ${currentDepositFormatted} USDC refundable deposit, then reserve the seat.`,
+            `Circle will first approve the ${currentDepositFormatted} USDC refundable deposit, then reserve the seat.`,
           );
 
           return;
         }
 
-        if (
-          !currentHasDeposit
-        ) {
+        if (!currentHasDeposit) {
           setMessage(
             "Ready to reserve. No USDC deposit is required.",
           );
@@ -689,9 +819,7 @@ export default function ReserveSeatButton({
         }
 
         setMessage(
-          currentIsPaidEvent
-            ? `Ready to reserve with an upfront payment of ${currentDepositFormatted} USDC.`
-            : `Ready to reserve with a refundable commitment deposit of ${currentDepositFormatted} USDC.`,
+          `Ready to reserve with a refundable commitment deposit of ${currentDepositFormatted} USDC.`,
         );
       } catch {
         const currentWalletAddress =
@@ -734,6 +862,12 @@ export default function ReserveSeatButton({
       setDisplayedDeposit(
         depositFormatted,
       );
+
+      setDisplayedTotalPrice("0");
+      setUpfrontReservationsOpen(false);
+      setCanReserveUpfront(false);
+      setCanReserveFullPayment(false);
+      setProcessingMode(null);
       setEventOpen(false);
       setEventCancelled(false);
       setCanReserve(false);
@@ -789,7 +923,9 @@ export default function ReserveSeatButton({
     depositFormatted,
   ]);
 
-  async function handleReserve() {
+  async function handleReserve(
+    mode: ReservationMode,
+  ) {
     if (
       busy ||
       reserved ||
@@ -800,6 +936,7 @@ export default function ReserveSeatButton({
     }
 
     setBusy(true);
+    setProcessingMode(mode);
     setError("");
 
     try {
@@ -874,6 +1011,11 @@ export default function ReserveSeatButton({
           ?.formatted ??
         displayedDeposit;
 
+      const currentTotalPriceFormatted =
+        status.totalPrice
+          ?.formatted ??
+        displayedTotalPrice;
+
       const currentHasDeposit =
         hasPositiveAmount(
           currentDepositAmount,
@@ -893,6 +1035,29 @@ export default function ReserveSeatButton({
 
       setDisplayedDeposit(
         currentDepositFormatted,
+      );
+
+      setDisplayedTotalPrice(
+        currentTotalPriceFormatted,
+      );
+
+      setUpfrontReservationsOpen(
+        Boolean(
+          status.event
+            ?.upfrontReservationsOpen,
+        ),
+      );
+
+      setCanReserveUpfront(
+        Boolean(
+          status.canReserveUpfront,
+        ),
+      );
+
+      setCanReserveFullPayment(
+        Boolean(
+          status.canReserveFullPayment,
+        ),
       );
 
       setEventOpen(
@@ -943,9 +1108,7 @@ export default function ReserveSeatButton({
         );
       }
 
-      if (
-        !status.event?.open
-      ) {
+      if (!status.event?.open) {
         throw new Error(
           "Reservations are closed for this event.",
         );
@@ -960,6 +1123,203 @@ export default function ReserveSeatButton({
         );
       }
 
+      if (mode === "full") {
+        if (!currentIsPaidEvent) {
+          throw new Error(
+            "Full payment only applies to paid events.",
+          );
+        }
+
+        if (
+          status.fullPayment
+            ?.enoughBalance ===
+          false
+        ) {
+          throw new Error(
+            `Insufficient USDC balance. Full payment requires ${currentTotalPriceFormatted} USDC.`,
+          );
+        }
+
+        if (
+          status.fullPayment
+            ?.needsApproval
+        ) {
+          setMessage(
+            `Preparing approval for the ${currentTotalPriceFormatted} USDC full payment...`,
+          );
+
+          const approvalResponse =
+            await fetch(
+              "/api/circle/usdc/approve-full-payment",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                cache: "no-store",
+                body: JSON.stringify({
+                  userToken:
+                    session.userToken,
+                  walletId,
+                  eventId,
+                }),
+              },
+            );
+
+          const approvalData =
+            (await approvalResponse.json()) as ChallengeResponse;
+
+          if (!approvalResponse.ok) {
+            throw new Error(
+              approvalData.error ??
+                "Unable to prepare the full-payment approval.",
+            );
+          }
+
+          if (
+            !approvalData
+              .alreadyApproved
+          ) {
+            if (
+              !approvalData.challengeId
+            ) {
+              throw new Error(
+                "Circle did not return an approval challenge.",
+              );
+            }
+
+            setMessage(
+              `Enter your Circle PIN to approve ${currentTotalPriceFormatted} USDC for full payment.`,
+            );
+
+            await executeCircleChallenge(
+              approvalData.challengeId,
+              session.userToken,
+              session.encryptionKey,
+            );
+          }
+
+          setMessage(
+            "Waiting for the full-payment approval to be confirmed on Arc Testnet...",
+          );
+
+          status =
+            await waitForStatus(
+              eventId,
+              walletAddress,
+              (
+                currentStatusResponse,
+              ) =>
+                Boolean(
+                  currentStatusResponse
+                    .fullPayment
+                    ?.enoughAllowance,
+                ),
+              "The full-payment approval was submitted but has not been confirmed yet. Please try again shortly.",
+            );
+        }
+
+        if (
+          !status.fullPayment
+            ?.enoughAllowance
+        ) {
+          throw new Error(
+            "The full-payment USDC approval has not been confirmed yet.",
+          );
+        }
+
+        setMessage(
+          "Preparing the full-payment reservation...",
+        );
+
+        const reserveResponse =
+          await fetch(
+            "/api/circle/events/reserve-full",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              cache: "no-store",
+              body: JSON.stringify({
+                userToken:
+                  session.userToken,
+                walletId,
+                eventId,
+              }),
+            },
+          );
+
+        const reserveData =
+          (await reserveResponse.json()) as ChallengeResponse;
+
+        if (
+          !reserveResponse.ok ||
+          !reserveData.challengeId
+        ) {
+          throw new Error(
+            reserveData.error ??
+              "Unable to prepare the full-payment reservation.",
+          );
+        }
+
+        setMessage(
+          `Enter your Circle PIN to pay ${currentTotalPriceFormatted} USDC in full and reserve your seat.`,
+        );
+
+        await executeCircleChallenge(
+          reserveData.challengeId,
+          session.userToken,
+          session.encryptionKey,
+        );
+
+        setMessage(
+          "Waiting for the full-payment reservation to be confirmed on Arc Testnet...",
+        );
+
+        const confirmedStatus =
+          await waitForStatus(
+            eventId,
+            walletAddress,
+            (
+              currentStatusResponse,
+            ) =>
+              currentStatusResponse
+                .reservation
+                ?.status === 8,
+            "The full-payment reservation was submitted but has not been confirmed yet. Please refresh shortly.",
+          );
+
+        setReservationStatus(8);
+        setReserved(true);
+        setCanReserve(false);
+        setCanReserveUpfront(false);
+        setCanReserveFullPayment(false);
+
+        onReservationConfirmed?.(
+          confirmedStatus.event
+            ?.reservedSeats ?? "",
+        );
+
+        setMessage(
+          "Seat reserved successfully. The full ticket price is now secured by ShowUp.",
+        );
+
+        return;
+      }
+
+      if (
+        currentIsPaidEvent &&
+        !status.event
+          ?.upfrontReservationsOpen
+      ) {
+        throw new Error(
+          "Upfront reservations are closed. Use full payment to reserve this seat.",
+        );
+      }
+
       if (
         status.usdc
           ?.enoughBalance ===
@@ -967,7 +1327,7 @@ export default function ReserveSeatButton({
       ) {
         throw new Error(
           currentIsPaidEvent
-            ? `Insufficient USDC balance. This paid reservation requires ${currentDepositFormatted} USDC upfront.`
+            ? `Insufficient USDC balance. The upfront payment is ${currentDepositFormatted} USDC.`
             : `Insufficient USDC balance. This reservation requires a ${currentDepositFormatted} USDC deposit.`,
         );
       }
@@ -1005,9 +1365,7 @@ export default function ReserveSeatButton({
         const approvalData =
           (await approvalResponse.json()) as ChallengeResponse;
 
-        if (
-          !approvalResponse.ok
-        ) {
+        if (!approvalResponse.ok) {
           throw new Error(
             approvalData.error ??
               "Unable to prepare USDC approval.",
@@ -1138,11 +1496,15 @@ export default function ReserveSeatButton({
           (
             currentStatusResponse,
           ) =>
-            Boolean(
-              currentStatusResponse
-                .reservation
-                ?.active,
-            ),
+            currentIsPaidEvent
+              ? currentStatusResponse
+                  .reservation
+                  ?.status === 7
+              : Boolean(
+                  currentStatusResponse
+                    .reservation
+                    ?.active,
+                ),
           "The reservation was submitted but has not been confirmed yet. Please refresh shortly.",
         );
 
@@ -1157,6 +1519,8 @@ export default function ReserveSeatButton({
 
       setReserved(true);
       setCanReserve(false);
+      setCanReserveUpfront(false);
+      setCanReserveFullPayment(false);
 
       onReservationConfirmed?.(
         confirmedStatus.event
@@ -1195,6 +1559,7 @@ export default function ReserveSeatButton({
         "The reservation was not completed.",
       );
     } finally {
+      setProcessingMode(null);
       setBusy(false);
     }
   }
@@ -1436,6 +1801,20 @@ export default function ReserveSeatButton({
     return `Reserve seat — ${displayedDeposit} USDC deposit`;
   }
 
+  const upfrontButtonDisabled =
+    busy ||
+    reserved ||
+    !walletConnected ||
+    !eventOpen ||
+    !canReserveUpfront;
+
+  const fullPaymentButtonDisabled =
+    busy ||
+    reserved ||
+    !walletConnected ||
+    !eventOpen ||
+    !canReserveFullPayment;
+
   const mainButtonDisabled =
     busy ||
     reserved ||
@@ -1497,11 +1876,80 @@ export default function ReserveSeatButton({
         >
           Refund claimed
         </button>
+      ) : isPaidEvent &&
+        !reserved &&
+        (
+          reservationStatus === 0 ||
+          reservationStatus === 2
+        ) ? (
+        <div className="space-y-3">
+          {upfrontReservationsOpen ? (
+            <button
+              type="button"
+              onClick={() => {
+                void handleReserve(
+                  "upfront",
+                );
+              }}
+              disabled={
+                upfrontButtonDisabled
+              }
+              className={`w-full rounded-2xl py-4 font-semibold transition ${
+                busy &&
+                processingMode ===
+                  "upfront"
+                  ? "cursor-wait bg-[#74f2c2] text-[#07110f] opacity-65"
+                  : upfrontButtonDisabled
+                    ? "cursor-not-allowed border border-white/10 bg-white/[0.04] text-white/35"
+                    : "bg-[#74f2c2] text-[#07110f] hover:bg-[#8ff6cf]"
+              }`}
+            >
+              {busy &&
+              processingMode ===
+                "upfront"
+                ? "Processing upfront reservation..."
+                : `Reserve with ${displayedDeposit} USDC upfront`}
+            </button>
+          ) : (
+            <p className="rounded-xl border border-amber-300/15 bg-amber-300/[0.06] px-4 py-3 text-center text-xs leading-5 text-amber-100/75">
+              Upfront reservations are closed. Full payment remains available until the event starts.
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              void handleReserve(
+                "full",
+              );
+            }}
+            disabled={
+              fullPaymentButtonDisabled
+            }
+            className={`w-full rounded-2xl border py-4 font-semibold transition ${
+              busy &&
+              processingMode ===
+                "full"
+                ? "cursor-wait border-[#74f2c2]/40 bg-[#74f2c2]/15 text-[#b7ffe3] opacity-65"
+                : fullPaymentButtonDisabled
+                  ? "cursor-not-allowed border-white/10 bg-white/[0.04] text-white/35"
+                  : "border-[#74f2c2]/35 bg-[#74f2c2]/10 text-[#b7ffe3] hover:bg-[#74f2c2]/15"
+            }`}
+          >
+            {busy &&
+            processingMode ===
+              "full"
+              ? "Processing full payment..."
+              : `Pay ${displayedTotalPrice} USDC in full`}
+          </button>
+        </div>
       ) : (
         <button
           type="button"
           onClick={() => {
-            void handleReserve();
+            void handleReserve(
+              "upfront",
+            );
           }}
           disabled={
             mainButtonDisabled
