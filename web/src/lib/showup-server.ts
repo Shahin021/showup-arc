@@ -6,8 +6,8 @@ import {
 } from "viem";
 import { arcPublicClient } from "@/lib/arc-public-client";
 
-export const SHOWUP_V2_ADDRESS =
-  "0x26Df9d3c1272745508A700E005f1892Ef10d7B84";
+export const SHOWUP_V3_ADDRESS =
+  "0x81a14301ADb2c8DA38dbd7d8Fa05eF940115FfBD";
 
 export const ARC_TESTNET_USDC_ADDRESS =
   "0x3600000000000000000000000000000000000000";
@@ -45,7 +45,15 @@ export const SHOWUP_EVENT_ABI = [
             type: "string",
           },
           {
+            name: "eventType",
+            type: "uint8",
+          },
+          {
             name: "depositAmount",
+            type: "uint256",
+          },
+          {
+            name: "totalPrice",
             type: "uint256",
           },
           {
@@ -80,6 +88,10 @@ export const SHOWUP_EVENT_ABI = [
             name: "cancelled",
             type: "bool",
           },
+          {
+            name: "paymentDeadline",
+            type: "uint64",
+          },
         ],
       },
     ],
@@ -113,6 +125,10 @@ export const SHOWUP_EVENT_ABI = [
           },
           {
             name: "updatedAt",
+            type: "uint64",
+          },
+          {
+            name: "paymentDeadline",
             type: "uint64",
           },
         ],
@@ -167,7 +183,9 @@ export type ShowUpEventDetails = {
   title: string;
   description: string;
   metadataURI: string;
+  eventType: number | bigint;
   depositAmount: bigint;
+  totalPrice: bigint;
   capacity: bigint;
   reservedSeats: bigint;
   escrowedAmount: bigint;
@@ -176,12 +194,14 @@ export type ShowUpEventDetails = {
   eventEnd: bigint;
   resolutionDeadline: bigint;
   cancelled: boolean;
+  paymentDeadline: bigint;
 };
 
 export type ShowUpReservation = {
   status: number | bigint;
   reservedAt: bigint;
   updatedAt: bigint;
+  paymentDeadline: bigint;
 };
 
 type CircleWallet = {
@@ -225,7 +245,7 @@ export function getShowUpAddress() {
     process.env
       .NEXT_PUBLIC_SHOWUP_CONTRACT_ADDRESS
       ?.trim() ||
-    SHOWUP_V2_ADDRESS;
+    SHOWUP_V3_ADDRESS;
 
   if (!isAddress(configured)) {
     throw new ShowUpApiError(
@@ -563,6 +583,9 @@ export function getReservationStatusLabel(
     "No-show",
     "Fallback refunded",
     "Event cancelled refunded",
+    "Payment due",
+    "Completed",
+    "Payment defaulted",
   ];
 
   return labels[status] ??

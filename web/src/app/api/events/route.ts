@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const FALLBACK_CONTRACT_ADDRESS =
-  "0x26Df9d3c1272745508A700E005f1892Ef10d7B84";
+  "0x81a14301ADb2c8DA38dbd7d8Fa05eF940115FfBD";
 
 const SHOWUP_ABI = [
   {
@@ -53,7 +53,15 @@ const SHOWUP_ABI = [
             type: "string",
           },
           {
+            name: "eventType",
+            type: "uint8",
+          },
+          {
             name: "depositAmount",
+            type: "uint256",
+          },
+          {
+            name: "totalPrice",
             type: "uint256",
           },
           {
@@ -88,6 +96,10 @@ const SHOWUP_ABI = [
             name: "cancelled",
             type: "bool",
           },
+          {
+            name: "paymentDeadline",
+            type: "uint64",
+          },
         ],
       },
     ],
@@ -99,7 +111,9 @@ type ContractEvent = {
   title: string;
   description: string;
   metadataURI: string;
+  eventType: number;
   depositAmount: bigint;
+  totalPrice: bigint;
   capacity: bigint;
   reservedSeats: bigint;
   escrowedAmount: bigint;
@@ -108,6 +122,7 @@ type ContractEvent = {
   eventEnd: bigint;
   resolutionDeadline: bigint;
   cancelled: boolean;
+  paymentDeadline: bigint;
 };
 
 function getContractAddress() {
@@ -139,10 +154,16 @@ function isRateLimitError(
       : String(error).toLowerCase();
 
   return (
-    message.includes("request limit reached") ||
+    message.includes(
+      "request limit reached",
+    ) ||
     message.includes("rate limit") ||
-    message.includes("limit exceeded") ||
-    message.includes("too many requests") ||
+    message.includes(
+      "limit exceeded",
+    ) ||
+    message.includes(
+      "too many requests",
+    ) ||
     message.includes("429") ||
     message.includes("-32614")
   );
@@ -160,7 +181,8 @@ export async function GET() {
         functionName: "eventCount",
       });
 
-    const count = Number(eventCount);
+    const count =
+      Number(eventCount);
 
     if (
       !Number.isSafeInteger(count) ||
@@ -187,19 +209,22 @@ export async function GET() {
       );
     }
 
-    const eventCalls = Array.from(
-      {
-        length: count,
-      },
-      (_, index) => ({
-        address: contractAddress,
-        abi: SHOWUP_ABI,
-        functionName: "getEvent" as const,
-        args: [
-          BigInt(index + 1),
-        ] as const,
-      }),
-    );
+    const eventCalls =
+      Array.from(
+        {
+          length: count,
+        },
+        (_, index) => ({
+          address:
+            contractAddress,
+          abi: SHOWUP_ABI,
+          functionName:
+            "getEvent" as const,
+          args: [
+            BigInt(index + 1),
+          ] as const,
+        }),
+      );
 
     const eventDetails =
       (await arcPublicClient.multicall({
@@ -208,46 +233,73 @@ export async function GET() {
         batchSize: 16_384,
       })) as readonly ContractEvent[];
 
-    const events = eventDetails
-      .map((details, index) => {
-        const eventId =
-          BigInt(index + 1);
+    const events =
+      eventDetails
+        .map(
+          (
+            details,
+            index,
+          ) => {
+            const eventId =
+              BigInt(index + 1);
 
-        return {
-          id: eventId.toString(),
-          organizer:
-            details.organizer,
-          title:
-            details.title,
-          description:
-            details.description,
-          metadataURI:
-            details.metadataURI,
-          deposit: formatUnits(
-            details.depositAmount,
-            6,
-          ),
-          depositAmount:
-            details.depositAmount.toString(),
-          capacity:
-            details.capacity.toString(),
-          reservedSeats:
-            details.reservedSeats.toString(),
-          escrowedAmount:
-            details.escrowedAmount.toString(),
-          cancellationDeadline:
-            details.cancellationDeadline.toString(),
-          eventStart:
-            details.eventStart.toString(),
-          eventEnd:
-            details.eventEnd.toString(),
-          resolutionDeadline:
-            details.resolutionDeadline.toString(),
-          cancelled:
-            details.cancelled,
-        };
-      })
-      .reverse();
+            const eventType =
+              Number(
+                details.eventType,
+              );
+
+            return {
+              id:
+                eventId.toString(),
+              organizer:
+                details.organizer,
+              title:
+                details.title,
+              description:
+                details.description,
+              metadataURI:
+                details.metadataURI,
+              eventType,
+              eventTypeLabel:
+                eventType === 1
+                  ? "Paid"
+                  : "Free",
+              deposit:
+                formatUnits(
+                  details.depositAmount,
+                  6,
+                ),
+              depositAmount:
+                details.depositAmount.toString(),
+              totalPrice:
+                formatUnits(
+                  details.totalPrice,
+                  6,
+                ),
+              totalPriceAmount:
+                details.totalPrice.toString(),
+              capacity:
+                details.capacity.toString(),
+              reservedSeats:
+                details.reservedSeats.toString(),
+              escrowedAmount:
+                details.escrowedAmount.toString(),
+              cancellationDeadline:
+                details.cancellationDeadline.toString(),
+              eventStart:
+                details.eventStart.toString(),
+              eventEnd:
+                details.eventEnd.toString(),
+              resolutionDeadline:
+                details.resolutionDeadline.toString(),
+              cancelled:
+                details.cancelled,
+                paymentDeadline:
+                  details.paymentDeadline.toString(),
+            };
+          },
+        )
+        .reverse();
 
     return NextResponse.json(
       {
