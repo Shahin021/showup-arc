@@ -10,13 +10,10 @@ contract ShowUpV3 is ReentrancyGuard {
 
     uint256 public constant MAX_PAGE_SIZE = 50;
     uint256 public constant MAX_BATCH_SIZE = 100;
-
     uint256 public constant MAX_TITLE_BYTES = 320;
     uint256 public constant MAX_DESCRIPTION_BYTES = 960;
     uint256 public constant MAX_METADATA_URI_BYTES = 2048;
-
     uint256 public constant MAX_RESOLUTION_PERIOD = 7 days;
-    uint256 public constant PAYMENT_GRACE_PERIOD = 3 days;
 
     IERC20 public immutable usdc;
 
@@ -43,32 +40,26 @@ contract ShowUpV3 is ReentrancyGuard {
 
     struct EventDetails {
         address organizer;
-
         string title;
         string description;
         string metadataURI;
-
         EventType eventType;
-
         // Free event: refundable commitment deposit.
         // Paid event: upfront payment applied to totalPrice.
         uint256 depositAmount;
-
         // Must be zero for free events.
         uint256 totalPrice;
-
         // capacity == 0 means unlimited capacity.
         uint256 capacity;
-
         uint256 reservedSeats;
         uint256 escrowedAmount;
-
         uint64 cancellationDeadline;
         uint64 eventStart;
         uint64 eventEnd;
         uint64 resolutionDeadline;
-
         bool cancelled;
+        // Paid events only. Deposit reservations must be fully paid by this time.
+        uint64 paymentDeadline;
     }
 
     struct Reservation {
@@ -79,50 +70,41 @@ contract ShowUpV3 is ReentrancyGuard {
     }
 
     mapping(uint256 => EventDetails) private _events;
-
-    mapping(uint256 => mapping(address => Reservation))
-        private _reservations;
-
+    mapping(uint256 => mapping(address => Reservation)) private _reservations;
     mapping(uint256 => address[]) private _attendees;
-
-    mapping(uint256 => mapping(address => bool))
-        private _attendeeListed;
+    mapping(uint256 => mapping(address => bool)) private _attendeeListed;
 
     error ZeroAddress();
     error EventNotFound();
     error NotOrganizer();
     error EventIsCancelled();
     error EventIsNotCancelled();
-
     error InvalidTitle();
     error TitleTooLong();
     error DescriptionTooLong();
     error InvalidMetadataURI();
     error MetadataURITooLong();
-
     error InvalidFreeEventPricing();
     error InvalidPaidEventPricing();
+    error InvalidPaymentDeadline();
     error InvalidTimeline();
     error ResolutionPeriodTooLong();
-
     error EventHasStarted();
     error ReservationsClosed();
+    error DepositReservationsClosed();
     error EventAtCapacity();
-
     error ReservationNotAvailable();
     error ReservationNotActive();
     error CancellationDeadlinePassed();
-
     error AttendanceWindowClosed();
     error NoShowWindowClosed();
     error ResolutionDeadlineNotReached();
-
     error PaymentNotDue();
     error PaymentWindowClosed();
     error PaymentDefaultWindowClosed();
-
     error InvalidPageLimit();
     error InvalidBatchSize();
+    error PaidEventRequired();
 
     event EventCreated(
         uint256 indexed eventId,
@@ -132,7 +114,8 @@ contract ShowUpV3 is ReentrancyGuard {
         string metadataURI,
         uint256 depositAmount,
         uint256 totalPrice,
-        uint256 capacity
+        uint256 capacity,
+        uint64 paymentDeadline
     );
 
     event EventContentUpdated(
@@ -146,8 +129,9 @@ contract ShowUpV3 is ReentrancyGuard {
         uint256 indexed eventId,
         address indexed attendee,
         EventType eventType,
-        uint256 depositAmount,
-        uint256 totalPrice
+        uint256 amountPaid,
+        uint256 totalPrice,
+        ReservationStatus newStatus
     );
 
     event ReservationCancelled(
@@ -168,7 +152,6 @@ contract ShowUpV3 is ReentrancyGuard {
     event RemainingBalancePaid(
         uint256 indexed eventId,
         address indexed attendee,
-        address indexed organizer,
         uint256 amount
     );
 
@@ -182,6 +165,7 @@ contract ShowUpV3 is ReentrancyGuard {
     event PaymentDefaulted(
         uint256 indexed eventId,
         address indexed attendee,
+        uint256 forfeitedDeposit,
         uint256 unpaidAmount
     );
 
@@ -206,7 +190,6 @@ contract ShowUpV3 is ReentrancyGuard {
         if (_events[eventId].organizer == address(0)) {
             revert EventNotFound();
         }
-
         _;
     }
 
@@ -214,7 +197,6 @@ contract ShowUpV3 is ReentrancyGuard {
         if (_events[eventId].organizer != msg.sender) {
             revert NotOrganizer();
         }
-
         _;
     }
 
@@ -222,7 +204,6 @@ contract ShowUpV3 is ReentrancyGuard {
         if (_events[eventId].cancelled) {
             revert EventIsCancelled();
         }
-
         _;
     }
 
@@ -230,7 +211,6 @@ contract ShowUpV3 is ReentrancyGuard {
         if (usdcAddress == address(0)) {
             revert ZeroAddress();
         }
-
         usdc = IERC20(usdcAddress);
     }
 
@@ -245,19 +225,19 @@ contract ShowUpV3 is ReentrancyGuard {
         uint64 cancellationDeadline,
         uint64 eventStart,
         uint64 eventEnd,
-        uint64 resolutionDeadline
+        uint64 resolutionDeadline,
+        uint64 paymentDeadline
     ) external returns (uint256 eventId) {
-        _validateEventContent(
-            title,
-            description,
-            metadataURI
-        );
+        _validateEventContent(title, description, metadataURI);
+        _validatePricing(eventType, depositAmount, totalPrice);
+        _validatePaymentDeadline(eventType, paymentDeadline, eventStart);
 
-        _validatePricing(
-            eventType,
-            depositAmount,
-            totalPrice
-        );
+        if (
+            eventType == EventType.Paid &&
+            cancellationDeadline > paymentDeadline
+        ) {
+            revert InvalidTimeline();
+        }
 
         bool validTimeline =
             block.timestamp < cancellationDeadline &&
@@ -269,11 +249,7 @@ contract ShowUpV3 is ReentrancyGuard {
             revert InvalidTimeline();
         }
 
-        if (
-            uint256(resolutionDeadline) -
-                uint256(eventEnd) >
-            MAX_RESOLUTION_PERIOD
-        ) {
+        if (uint256(resolutionDeadline) - uint256(eventEnd) > MAX_RESOLUTION_PERIOD) {
             revert ResolutionPeriodTooLong();
         }
 
@@ -294,7 +270,8 @@ contract ShowUpV3 is ReentrancyGuard {
             eventStart: eventStart,
             eventEnd: eventEnd,
             resolutionDeadline: resolutionDeadline,
-            cancelled: false
+            cancelled: false,
+            paymentDeadline: paymentDeadline
         });
 
         emit EventCreated(
@@ -305,7 +282,8 @@ contract ShowUpV3 is ReentrancyGuard {
             metadataURI,
             depositAmount,
             totalPrice,
-            capacity
+            capacity,
+            paymentDeadline
         );
     }
 
@@ -320,92 +298,53 @@ contract ShowUpV3 is ReentrancyGuard {
         onlyOrganizer(eventId)
         eventActive(eventId)
     {
-        EventDetails storage eventDetails =
-            _events[eventId];
+        EventDetails storage eventDetails = _events[eventId];
 
         if (block.timestamp >= eventDetails.eventStart) {
             revert EventHasStarted();
         }
 
-        _validateEventContent(
-            title,
-            description,
-            metadataURI
-        );
+        _validateEventContent(title, description, metadataURI);
 
         eventDetails.title = title;
         eventDetails.description = description;
         eventDetails.metadataURI = metadataURI;
 
-        emit EventContentUpdated(
-            eventId,
-            msg.sender,
-            title,
-            metadataURI
-        );
+        emit EventContentUpdated(eventId, msg.sender, title, metadataURI);
     }
 
-    function reserveSeat(
-        uint256 eventId
-    )
+    function reserveSeat(uint256 eventId)
         external
         nonReentrant
         eventExists(eventId)
         eventActive(eventId)
     {
-        EventDetails storage eventDetails =
-            _events[eventId];
+        EventDetails storage eventDetails = _events[eventId];
+        _requireReservationAvailable(eventId, msg.sender, eventDetails);
 
-        if (block.timestamp >= eventDetails.eventStart) {
-            revert ReservationsClosed();
+        ReservationStatus newStatus = ReservationStatus.Reserved;
+        uint64 paymentDeadline;
+
+        if (eventDetails.eventType == EventType.Paid) {
+            if (block.timestamp > eventDetails.paymentDeadline) {
+                revert DepositReservationsClosed();
+            }
+            newStatus = ReservationStatus.PaymentDue;
+            paymentDeadline = eventDetails.paymentDeadline;
         }
 
-        if (
-            eventDetails.capacity != 0 &&
-            eventDetails.reservedSeats >=
-                eventDetails.capacity
-        ) {
-            revert EventAtCapacity();
-        }
-
-        Reservation storage reservation =
-            _reservations[eventId][msg.sender];
-
-        if (
-            reservation.status != ReservationStatus.None &&
-            reservation.status !=
-                ReservationStatus.Cancelled
-        ) {
-            revert ReservationNotAvailable();
-        }
-
-        reservation.status =
-            ReservationStatus.Reserved;
-
-        reservation.reservedAt =
-            uint64(block.timestamp);
-
-        reservation.updatedAt =
-            uint64(block.timestamp);
-
-        reservation.paymentDeadline = 0;
+        Reservation storage reservation = _reservations[eventId][msg.sender];
+        reservation.status = newStatus;
+        reservation.reservedAt = uint64(block.timestamp);
+        reservation.updatedAt = uint64(block.timestamp);
+        reservation.paymentDeadline = paymentDeadline;
 
         eventDetails.reservedSeats += 1;
 
-        if (eventDetails.depositAmount != 0) {
-            eventDetails.escrowedAmount +=
-                eventDetails.depositAmount;
-
-            totalEscrowed +=
-                eventDetails.depositAmount;
-        }
-
-        if (!_attendeeListed[eventId][msg.sender]) {
-            _attendeeListed[eventId][msg.sender] = true;
-            _attendees[eventId].push(msg.sender);
-        }
+        _listAttendee(eventId, msg.sender);
 
         if (eventDetails.depositAmount != 0) {
+            _addEscrow(eventDetails, eventDetails.depositAmount);
             usdc.safeTransferFrom(
                 msg.sender,
                 address(this),
@@ -418,82 +357,142 @@ contract ShowUpV3 is ReentrancyGuard {
             msg.sender,
             eventDetails.eventType,
             eventDetails.depositAmount,
-            eventDetails.totalPrice
+            eventDetails.totalPrice,
+            newStatus
         );
     }
 
-    function cancelReservation(
-        uint256 eventId
-    )
+    function reserveSeatAndPayFull(uint256 eventId)
         external
         nonReentrant
         eventExists(eventId)
         eventActive(eventId)
     {
-        EventDetails storage eventDetails =
-            _events[eventId];
+        EventDetails storage eventDetails = _events[eventId];
 
-        if (
-            block.timestamp >
-            eventDetails.cancellationDeadline
-        ) {
-            revert CancellationDeadlinePassed();
+        if (eventDetails.eventType != EventType.Paid) {
+            revert PaidEventRequired();
         }
 
-        Reservation storage reservation =
-            _reservations[eventId][msg.sender];
+        _requireReservationAvailable(eventId, msg.sender, eventDetails);
 
-        if (
-            reservation.status !=
-            ReservationStatus.Reserved
-        ) {
-            revert ReservationNotActive();
-        }
+        Reservation storage reservation = _reservations[eventId][msg.sender];
+        reservation.status = ReservationStatus.Completed;
+        reservation.reservedAt = uint64(block.timestamp);
+        reservation.updatedAt = uint64(block.timestamp);
+        reservation.paymentDeadline = 0;
 
-        reservation.status =
-            ReservationStatus.Cancelled;
+        eventDetails.reservedSeats += 1;
 
-        reservation.updatedAt =
-            uint64(block.timestamp);
+        _listAttendee(eventId, msg.sender);
+        _addEscrow(eventDetails, eventDetails.totalPrice);
 
-        eventDetails.reservedSeats -= 1;
+        usdc.safeTransferFrom(
+            msg.sender,
+            address(this),
+            eventDetails.totalPrice
+        );
 
-        if (eventDetails.depositAmount != 0) {
-            _consumeEscrow(eventDetails);
-
-            usdc.safeTransfer(
-                msg.sender,
-                eventDetails.depositAmount
-            );
-        }
-
-        emit ReservationCancelled(
+        emit SeatReserved(
             eventId,
             msg.sender,
-            eventDetails.depositAmount
+            eventDetails.eventType,
+            eventDetails.totalPrice,
+            eventDetails.totalPrice,
+            ReservationStatus.Completed
         );
     }
 
-    function confirmAttendance(
-        uint256 eventId,
-        address attendee
-    )
+    function payRemainingBalance(uint256 eventId)
+        external
+        nonReentrant
+        eventExists(eventId)
+        eventActive(eventId)
+    {
+        EventDetails storage eventDetails = _events[eventId];
+        Reservation storage reservation = _reservations[eventId][msg.sender];
+
+        if (reservation.status != ReservationStatus.PaymentDue) {
+            revert PaymentNotDue();
+        }
+
+        if (block.timestamp > eventDetails.paymentDeadline) {
+            revert PaymentWindowClosed();
+        }
+
+        uint256 remainingBalance =
+            eventDetails.totalPrice - eventDetails.depositAmount;
+
+        reservation.status = ReservationStatus.Completed;
+        reservation.updatedAt = uint64(block.timestamp);
+        reservation.paymentDeadline = 0;
+
+        _addEscrow(eventDetails, remainingBalance);
+
+        usdc.safeTransferFrom(
+            msg.sender,
+            address(this),
+            remainingBalance
+        );
+
+        emit RemainingBalancePaid(eventId, msg.sender, remainingBalance);
+    }
+
+    function cancelReservation(uint256 eventId)
+        external
+        nonReentrant
+        eventExists(eventId)
+        eventActive(eventId)
+    {
+        EventDetails storage eventDetails = _events[eventId];
+
+        if (block.timestamp > eventDetails.cancellationDeadline) {
+            revert CancellationDeadlinePassed();
+        }
+
+        Reservation storage reservation = _reservations[eventId][msg.sender];
+        uint256 refundAmount = _activeReservationEscrow(
+            eventDetails,
+            reservation.status
+        );
+
+        if (refundAmount == type(uint256).max) {
+            revert ReservationNotActive();
+        }
+
+        reservation.status = ReservationStatus.Cancelled;
+        reservation.updatedAt = uint64(block.timestamp);
+        reservation.paymentDeadline = 0;
+
+        eventDetails.reservedSeats -= 1;
+
+        if (refundAmount != 0) {
+            _consumeEscrow(eventDetails, refundAmount);
+            usdc.safeTransfer(msg.sender, refundAmount);
+        }
+
+        emit ReservationCancelled(eventId, msg.sender, refundAmount);
+    }
+
+    function confirmAttendance(uint256 eventId, address attendee)
         external
         nonReentrant
         eventExists(eventId)
         onlyOrganizer(eventId)
         eventActive(eventId)
     {
-        EventDetails storage eventDetails =
-            _events[eventId];
-
+        EventDetails storage eventDetails = _events[eventId];
         _requireAttendanceWindow(eventDetails);
 
-        _confirmAttendance(
+        uint256 organizerPayment = _confirmAttendance(
             eventId,
             attendee,
             eventDetails
         );
+
+        if (organizerPayment != 0) {
+            usdc.safeTransfer(eventDetails.organizer, organizerPayment);
+        }
     }
 
     function batchConfirmAttendance(
@@ -508,109 +507,38 @@ contract ShowUpV3 is ReentrancyGuard {
     {
         _validateBatchSize(attendees.length);
 
-        EventDetails storage eventDetails =
-            _events[eventId];
-
+        EventDetails storage eventDetails = _events[eventId];
         _requireAttendanceWindow(eventDetails);
 
-        for (
-            uint256 index = 0;
-            index < attendees.length;
-            index++
-        ) {
-            _confirmAttendance(
+        uint256 organizerPayment;
+
+        for (uint256 index = 0; index < attendees.length; index++) {
+            organizerPayment += _confirmAttendance(
                 eventId,
                 attendees[index],
                 eventDetails
             );
         }
+
+        if (organizerPayment != 0) {
+            usdc.safeTransfer(eventDetails.organizer, organizerPayment);
+        }
     }
 
-    function payRemainingBalance(
-        uint256 eventId
-    )
-        external
-        nonReentrant
-        eventExists(eventId)
-        eventActive(eventId)
-    {
-        EventDetails storage eventDetails =
-            _events[eventId];
-
-        Reservation storage reservation =
-            _reservations[eventId][msg.sender];
-
-        if (
-            reservation.status !=
-            ReservationStatus.PaymentDue
-        ) {
-            revert PaymentNotDue();
-        }
-
-        if (
-            block.timestamp >
-            reservation.paymentDeadline
-        ) {
-            revert PaymentWindowClosed();
-        }
-
-        uint256 remainingBalance =
-            eventDetails.totalPrice -
-            eventDetails.depositAmount;
-
-        reservation.status =
-            ReservationStatus.Completed;
-
-        reservation.updatedAt =
-            uint64(block.timestamp);
-
-        usdc.safeTransferFrom(
-            msg.sender,
-            address(this),
-            remainingBalance
-        );
-
-        _consumeEscrow(eventDetails);
-
-        usdc.safeTransfer(
-            eventDetails.organizer,
-            eventDetails.totalPrice
-        );
-
-        emit RemainingBalancePaid(
-            eventId,
-            msg.sender,
-            eventDetails.organizer,
-            remainingBalance
-        );
-    }
-
-    function settleNoShow(
-        uint256 eventId,
-        address attendee
-    )
+    function settleNoShow(uint256 eventId, address attendee)
         external
         nonReentrant
         eventExists(eventId)
         onlyOrganizer(eventId)
         eventActive(eventId)
     {
-        EventDetails storage eventDetails =
-            _events[eventId];
-
+        EventDetails storage eventDetails = _events[eventId];
         _requireNoShowWindow(eventDetails);
 
-        uint256 amount = _markNoShow(
-            eventId,
-            attendee,
-            eventDetails
-        );
+        uint256 amount = _markNoShow(eventId, attendee, eventDetails);
 
         if (amount != 0) {
-            usdc.safeTransfer(
-                eventDetails.organizer,
-                amount
-            );
+            usdc.safeTransfer(eventDetails.organizer, amount);
         }
     }
 
@@ -626,18 +554,12 @@ contract ShowUpV3 is ReentrancyGuard {
     {
         _validateBatchSize(attendees.length);
 
-        EventDetails storage eventDetails =
-            _events[eventId];
-
+        EventDetails storage eventDetails = _events[eventId];
         _requireNoShowWindow(eventDetails);
 
         uint256 totalAmount;
 
-        for (
-            uint256 index = 0;
-            index < attendees.length;
-            index++
-        ) {
+        for (uint256 index = 0; index < attendees.length; index++) {
             totalAmount += _markNoShow(
                 eventId,
                 attendees[index],
@@ -646,124 +568,89 @@ contract ShowUpV3 is ReentrancyGuard {
         }
 
         if (totalAmount != 0) {
-            usdc.safeTransfer(
-                eventDetails.organizer,
-                totalAmount
-            );
+            usdc.safeTransfer(eventDetails.organizer, totalAmount);
         }
     }
 
-    function markPaymentDefault(
-        uint256 eventId,
-        address attendee
-    )
+    function markPaymentDefault(uint256 eventId, address attendee)
         external
         nonReentrant
         eventExists(eventId)
-        onlyOrganizer(eventId)
         eventActive(eventId)
     {
-        EventDetails storage eventDetails =
-            _events[eventId];
+        EventDetails storage eventDetails = _events[eventId];
+        Reservation storage reservation = _reservations[eventId][attendee];
 
-        Reservation storage reservation =
-            _reservations[eventId][attendee];
-
-        if (
-            reservation.status !=
-            ReservationStatus.PaymentDue
-        ) {
+        if (reservation.status != ReservationStatus.PaymentDue) {
             revert PaymentNotDue();
         }
 
-        if (
-            block.timestamp <=
-            reservation.paymentDeadline
-        ) {
+        if (block.timestamp <= eventDetails.paymentDeadline) {
             revert PaymentDefaultWindowClosed();
         }
 
-        reservation.status =
-            ReservationStatus.PaymentDefaulted;
+        reservation.status = ReservationStatus.PaymentDefaulted;
+        reservation.updatedAt = uint64(block.timestamp);
+        reservation.paymentDeadline = 0;
 
-        reservation.updatedAt =
-            uint64(block.timestamp);
+        eventDetails.reservedSeats -= 1;
 
-        _consumeEscrow(eventDetails);
+        uint256 forfeitedDeposit = eventDetails.depositAmount;
 
-        usdc.safeTransfer(
-            eventDetails.organizer,
-            eventDetails.depositAmount
-        );
+        if (forfeitedDeposit != 0) {
+            _consumeEscrow(eventDetails, forfeitedDeposit);
+            usdc.safeTransfer(eventDetails.organizer, forfeitedDeposit);
+        }
 
         emit PaymentDefaulted(
             eventId,
             attendee,
-            eventDetails.totalPrice -
-                eventDetails.depositAmount
+            forfeitedDeposit,
+            eventDetails.totalPrice - eventDetails.depositAmount
         );
     }
 
-    function claimFallbackRefund(
-        uint256 eventId
-    )
+    function claimFallbackRefund(uint256 eventId)
         external
         nonReentrant
         eventExists(eventId)
         eventActive(eventId)
     {
-        EventDetails storage eventDetails =
-            _events[eventId];
+        EventDetails storage eventDetails = _events[eventId];
 
-        if (
-            block.timestamp <=
-            eventDetails.resolutionDeadline
-        ) {
+        if (block.timestamp <= eventDetails.resolutionDeadline) {
             revert ResolutionDeadlineNotReached();
         }
 
-        Reservation storage reservation =
-            _reservations[eventId][msg.sender];
+        Reservation storage reservation = _reservations[eventId][msg.sender];
+        uint256 refundAmount = _activeReservationEscrow(
+            eventDetails,
+            reservation.status
+        );
 
-        if (
-            reservation.status !=
-            ReservationStatus.Reserved
-        ) {
+        if (refundAmount == type(uint256).max) {
             revert ReservationNotActive();
         }
 
-        reservation.status =
-            ReservationStatus.FallbackRefunded;
+        reservation.status = ReservationStatus.FallbackRefunded;
+        reservation.updatedAt = uint64(block.timestamp);
+        reservation.paymentDeadline = 0;
 
-        reservation.updatedAt =
-            uint64(block.timestamp);
-
-        if (eventDetails.depositAmount != 0) {
-            _consumeEscrow(eventDetails);
-
-            usdc.safeTransfer(
-                msg.sender,
-                eventDetails.depositAmount
-            );
+        if (refundAmount != 0) {
+            _consumeEscrow(eventDetails, refundAmount);
+            usdc.safeTransfer(msg.sender, refundAmount);
         }
 
-        emit FallbackRefundClaimed(
-            eventId,
-            msg.sender,
-            eventDetails.depositAmount
-        );
+        emit FallbackRefundClaimed(eventId, msg.sender, refundAmount);
     }
 
-    function cancelEvent(
-        uint256 eventId
-    )
+    function cancelEvent(uint256 eventId)
         external
         eventExists(eventId)
         onlyOrganizer(eventId)
         eventActive(eventId)
     {
-        EventDetails storage eventDetails =
-            _events[eventId];
+        EventDetails storage eventDetails = _events[eventId];
 
         if (block.timestamp >= eventDetails.eventStart) {
             revert EventHasStarted();
@@ -771,61 +658,47 @@ contract ShowUpV3 is ReentrancyGuard {
 
         eventDetails.cancelled = true;
 
-        emit EventCancelled(
-            eventId,
-            msg.sender
-        );
+        emit EventCancelled(eventId, msg.sender);
     }
 
-    function claimCancelledEventRefund(
-        uint256 eventId
-    )
+    function claimCancelledEventRefund(uint256 eventId)
         external
         nonReentrant
         eventExists(eventId)
     {
-        EventDetails storage eventDetails =
-            _events[eventId];
+        EventDetails storage eventDetails = _events[eventId];
 
         if (!eventDetails.cancelled) {
             revert EventIsNotCancelled();
         }
 
-        Reservation storage reservation =
-            _reservations[eventId][msg.sender];
+        Reservation storage reservation = _reservations[eventId][msg.sender];
+        uint256 refundAmount = _activeReservationEscrow(
+            eventDetails,
+            reservation.status
+        );
 
-        if (
-            reservation.status !=
-            ReservationStatus.Reserved
-        ) {
+        if (refundAmount == type(uint256).max) {
             revert ReservationNotActive();
         }
 
-        reservation.status =
-            ReservationStatus.EventCancelledRefunded;
+        reservation.status = ReservationStatus.EventCancelledRefunded;
+        reservation.updatedAt = uint64(block.timestamp);
+        reservation.paymentDeadline = 0;
 
-        reservation.updatedAt =
-            uint64(block.timestamp);
-
-        if (eventDetails.depositAmount != 0) {
-            _consumeEscrow(eventDetails);
-
-            usdc.safeTransfer(
-                msg.sender,
-                eventDetails.depositAmount
-            );
+        if (refundAmount != 0) {
+            _consumeEscrow(eventDetails, refundAmount);
+            usdc.safeTransfer(msg.sender, refundAmount);
         }
 
         emit CancelledEventRefundClaimed(
             eventId,
             msg.sender,
-            eventDetails.depositAmount
+            refundAmount
         );
     }
 
-    function getEvent(
-        uint256 eventId
-    )
+    function getEvent(uint256 eventId)
         external
         view
         eventExists(eventId)
@@ -834,9 +707,7 @@ contract ShowUpV3 is ReentrancyGuard {
         return _events[eventId];
     }
 
-    function getEventMetadataURI(
-        uint256 eventId
-    )
+    function getEventMetadataURI(uint256 eventId)
         external
         view
         eventExists(eventId)
@@ -845,10 +716,7 @@ contract ShowUpV3 is ReentrancyGuard {
         return _events[eventId].metadataURI;
     }
 
-    function getReservation(
-        uint256 eventId,
-        address attendee
-    )
+    function getReservation(uint256 eventId, address attendee)
         external
         view
         eventExists(eventId)
@@ -857,32 +725,22 @@ contract ShowUpV3 is ReentrancyGuard {
         return _reservations[eventId][attendee];
     }
 
-    function getRemainingBalance(
-        uint256 eventId
-    )
+    function getRemainingBalance(uint256 eventId)
         external
         view
         eventExists(eventId)
         returns (uint256)
     {
-        EventDetails storage eventDetails =
-            _events[eventId];
+        EventDetails storage eventDetails = _events[eventId];
 
-        if (
-            eventDetails.eventType ==
-            EventType.Free
-        ) {
+        if (eventDetails.eventType == EventType.Free) {
             return 0;
         }
 
-        return
-            eventDetails.totalPrice -
-            eventDetails.depositAmount;
+        return eventDetails.totalPrice - eventDetails.depositAmount;
     }
 
-    function getAttendeeCount(
-        uint256 eventId
-    )
+    function getAttendeeCount(uint256 eventId)
         external
         view
         eventExists(eventId)
@@ -891,19 +749,13 @@ contract ShowUpV3 is ReentrancyGuard {
         return _attendees[eventId].length;
     }
 
-    function getCapacityState(
-        uint256 eventId
-    )
+    function getCapacityState(uint256 eventId)
         external
         view
         eventExists(eventId)
-        returns (
-            bool unlimited,
-            uint256 remaining
-        )
+        returns (bool unlimited, uint256 remaining)
     {
-        EventDetails storage eventDetails =
-            _events[eventId];
+        EventDetails storage eventDetails = _events[eventId];
 
         unlimited = eventDetails.capacity == 0;
 
@@ -911,9 +763,7 @@ contract ShowUpV3 is ReentrancyGuard {
             return (true, 0);
         }
 
-        remaining =
-            eventDetails.capacity -
-            eventDetails.reservedSeats;
+        remaining = eventDetails.capacity - eventDetails.reservedSeats;
     }
 
     function getAttendees(
@@ -926,15 +776,11 @@ contract ShowUpV3 is ReentrancyGuard {
         eventExists(eventId)
         returns (address[] memory attendees)
     {
-        if (
-            limit == 0 ||
-            limit > MAX_PAGE_SIZE
-        ) {
+        if (limit == 0 || limit > MAX_PAGE_SIZE) {
             revert InvalidPageLimit();
         }
 
-        uint256 totalAttendees =
-            _attendees[eventId].length;
+        uint256 totalAttendees = _attendees[eventId].length;
 
         if (offset >= totalAttendees) {
             return new address[](0);
@@ -946,16 +792,10 @@ contract ShowUpV3 is ReentrancyGuard {
             end = totalAttendees;
         }
 
-        attendees =
-            new address[](end - offset);
+        attendees = new address[](end - offset);
 
-        for (
-            uint256 index = offset;
-            index < end;
-            index++
-        ) {
-            attendees[index - offset] =
-                _attendees[eventId][index];
+        for (uint256 index = offset; index < end; index++) {
+            attendees[index - offset] = _attendees[eventId][index];
         }
     }
 
@@ -964,14 +804,9 @@ contract ShowUpV3 is ReentrancyGuard {
         string calldata description,
         string calldata metadataURI
     ) private pure {
-        uint256 titleLength =
-            bytes(title).length;
-
-        uint256 descriptionLength =
-            bytes(description).length;
-
-        uint256 metadataLength =
-            bytes(metadataURI).length;
+        uint256 titleLength = bytes(title).length;
+        uint256 descriptionLength = bytes(description).length;
+        uint256 metadataLength = bytes(metadataURI).length;
 
         if (titleLength == 0) {
             revert InvalidTitle();
@@ -981,10 +816,7 @@ contract ShowUpV3 is ReentrancyGuard {
             revert TitleTooLong();
         }
 
-        if (
-            descriptionLength >
-            MAX_DESCRIPTION_BYTES
-        ) {
+        if (descriptionLength > MAX_DESCRIPTION_BYTES) {
             revert DescriptionTooLong();
         }
 
@@ -992,10 +824,7 @@ contract ShowUpV3 is ReentrancyGuard {
             revert InvalidMetadataURI();
         }
 
-        if (
-            metadataLength >
-            MAX_METADATA_URI_BYTES
-        ) {
+        if (metadataLength > MAX_METADATA_URI_BYTES) {
             revert MetadataURITooLong();
         }
     }
@@ -1009,7 +838,6 @@ contract ShowUpV3 is ReentrancyGuard {
             if (totalPrice != 0) {
                 revert InvalidFreeEventPricing();
             }
-
             return;
         }
 
@@ -1023,70 +851,107 @@ contract ShowUpV3 is ReentrancyGuard {
         }
     }
 
+    function _validatePaymentDeadline(
+        EventType eventType,
+        uint64 paymentDeadline,
+        uint64 eventStart
+    ) private view {
+        if (eventType == EventType.Free) {
+            if (paymentDeadline != 0) {
+                revert InvalidPaymentDeadline();
+            }
+            return;
+        }
+
+        bool validPaymentDeadline =
+            block.timestamp < paymentDeadline &&
+            paymentDeadline < eventStart;
+
+        if (!validPaymentDeadline) {
+            revert InvalidPaymentDeadline();
+        }
+    }
+
+    function _requireReservationAvailable(
+        uint256 eventId,
+        address attendee,
+        EventDetails storage eventDetails
+    ) private view {
+        if (block.timestamp >= eventDetails.eventStart) {
+            revert ReservationsClosed();
+        }
+
+        if (
+            eventDetails.capacity != 0 &&
+            eventDetails.reservedSeats >= eventDetails.capacity
+        ) {
+            revert EventAtCapacity();
+        }
+
+        Reservation storage reservation = _reservations[eventId][attendee];
+
+        if (
+            reservation.status != ReservationStatus.None &&
+            reservation.status != ReservationStatus.Cancelled &&
+            reservation.status != ReservationStatus.PaymentDefaulted
+        ) {
+            revert ReservationNotAvailable();
+        }
+    }
+
     function _confirmAttendance(
         uint256 eventId,
         address attendee,
         EventDetails storage eventDetails
-    ) private {
-        Reservation storage reservation =
-            _reservations[eventId][attendee];
+    ) private returns (uint256 organizerPayment) {
+        Reservation storage reservation = _reservations[eventId][attendee];
 
-        if (
-            reservation.status !=
-            ReservationStatus.Reserved
-        ) {
-            revert ReservationNotActive();
-        }
+        if (eventDetails.eventType == EventType.Free) {
+            if (reservation.status != ReservationStatus.Reserved) {
+                revert ReservationNotActive();
+            }
 
-        reservation.updatedAt =
-            uint64(block.timestamp);
+            reservation.status = ReservationStatus.Attended;
+            reservation.updatedAt = uint64(block.timestamp);
 
-        if (
-            eventDetails.eventType ==
-            EventType.Free
-        ) {
-            reservation.status =
-                ReservationStatus.Attended;
+            uint256 attendeeRefund = eventDetails.depositAmount;
 
-            if (
-                eventDetails.depositAmount != 0
-            ) {
-                _consumeEscrow(eventDetails);
-
-                usdc.safeTransfer(
-                    attendee,
-                    eventDetails.depositAmount
-                );
+            if (attendeeRefund != 0) {
+                _consumeEscrow(eventDetails, attendeeRefund);
+                usdc.safeTransfer(attendee, attendeeRefund);
             }
 
             emit AttendanceConfirmed(
                 eventId,
                 attendee,
                 ReservationStatus.Attended,
-                eventDetails.depositAmount,
+                attendeeRefund,
                 0,
                 0
             );
 
-            return;
+            return 0;
         }
 
-        reservation.status =
-            ReservationStatus.PaymentDue;
+        if (reservation.status != ReservationStatus.Completed) {
+            revert ReservationNotActive();
+        }
 
-        reservation.paymentDeadline = uint64(
-            block.timestamp + PAYMENT_GRACE_PERIOD
-        );
+        reservation.status = ReservationStatus.Attended;
+        reservation.updatedAt = uint64(block.timestamp);
+
+        organizerPayment = eventDetails.totalPrice;
+        _consumeEscrow(eventDetails, organizerPayment);
 
         emit AttendanceConfirmed(
             eventId,
             attendee,
-            ReservationStatus.PaymentDue,
+            ReservationStatus.Attended,
             0,
-            0,
-            eventDetails.totalPrice -
-                eventDetails.depositAmount
+            organizerPayment,
+            0
         );
+
     }
 
     function _markNoShow(
@@ -1094,26 +959,26 @@ contract ShowUpV3 is ReentrancyGuard {
         address attendee,
         EventDetails storage eventDetails
     ) private returns (uint256 amount) {
-        Reservation storage reservation =
-            _reservations[eventId][attendee];
+        Reservation storage reservation = _reservations[eventId][attendee];
 
-        if (
-            reservation.status !=
-            ReservationStatus.Reserved
-        ) {
-            revert ReservationNotActive();
+        if (eventDetails.eventType == EventType.Free) {
+            if (reservation.status != ReservationStatus.Reserved) {
+                revert ReservationNotActive();
+            }
+            amount = eventDetails.depositAmount;
+        } else {
+            if (reservation.status != ReservationStatus.Completed) {
+                revert ReservationNotActive();
+            }
+            amount = eventDetails.totalPrice;
         }
 
-        reservation.status =
-            ReservationStatus.NoShow;
-
-        reservation.updatedAt =
-            uint64(block.timestamp);
-
-        amount = eventDetails.depositAmount;
+        reservation.status = ReservationStatus.NoShow;
+        reservation.updatedAt = uint64(block.timestamp);
+        reservation.paymentDeadline = 0;
 
         if (amount != 0) {
-            _consumeEscrow(eventDetails);
+            _consumeEscrow(eventDetails, amount);
         }
 
         emit NoShowSettled(
@@ -1124,12 +989,51 @@ contract ShowUpV3 is ReentrancyGuard {
         );
     }
 
-    function _consumeEscrow(
-        EventDetails storage eventDetails
-    ) private {
-        uint256 amount =
-            eventDetails.depositAmount;
+    function _activeReservationEscrow(
+        EventDetails storage eventDetails,
+        ReservationStatus status
+    ) private view returns (uint256) {
+        if (eventDetails.eventType == EventType.Free) {
+            if (status == ReservationStatus.Reserved) {
+                return eventDetails.depositAmount;
+            }
+            return type(uint256).max;
+        }
 
+        if (status == ReservationStatus.PaymentDue) {
+            return eventDetails.depositAmount;
+        }
+
+        if (status == ReservationStatus.Completed) {
+            return eventDetails.totalPrice;
+        }
+
+        return type(uint256).max;
+    }
+
+    function _listAttendee(uint256 eventId, address attendee) private {
+        if (!_attendeeListed[eventId][attendee]) {
+            _attendeeListed[eventId][attendee] = true;
+            _attendees[eventId].push(attendee);
+        }
+    }
+
+    function _addEscrow(
+        EventDetails storage eventDetails,
+        uint256 amount
+    ) private {
+        if (amount == 0) {
+            return;
+        }
+
+        eventDetails.escrowedAmount += amount;
+        totalEscrowed += amount;
+    }
+
+    function _consumeEscrow(
+        EventDetails storage eventDetails,
+        uint256 amount
+    ) private {
         if (amount == 0) {
             return;
         }
@@ -1142,10 +1046,8 @@ contract ShowUpV3 is ReentrancyGuard {
         EventDetails storage eventDetails
     ) private view {
         bool attendanceWindowOpen =
-            block.timestamp >=
-                eventDetails.eventStart &&
-            block.timestamp <=
-                eventDetails.resolutionDeadline;
+            block.timestamp >= eventDetails.eventStart &&
+            block.timestamp <= eventDetails.resolutionDeadline;
 
         if (!attendanceWindowOpen) {
             revert AttendanceWindowClosed();
@@ -1156,23 +1058,16 @@ contract ShowUpV3 is ReentrancyGuard {
         EventDetails storage eventDetails
     ) private view {
         bool noShowWindowOpen =
-            block.timestamp >=
-                eventDetails.eventEnd &&
-            block.timestamp <=
-                eventDetails.resolutionDeadline;
+            block.timestamp >= eventDetails.eventEnd &&
+            block.timestamp <= eventDetails.resolutionDeadline;
 
         if (!noShowWindowOpen) {
             revert NoShowWindowClosed();
         }
     }
 
-    function _validateBatchSize(
-        uint256 batchSize
-    ) private pure {
-        if (
-            batchSize == 0 ||
-            batchSize > MAX_BATCH_SIZE
-        ) {
+    function _validateBatchSize(uint256 batchSize) private pure {
+        if (batchSize == 0 || batchSize > MAX_BATCH_SIZE) {
             revert InvalidBatchSize();
         }
     }

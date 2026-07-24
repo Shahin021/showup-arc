@@ -100,6 +100,7 @@ describe("ShowUpV3", function () {
             eventStart,
             eventEnd,
             resolutionDeadline,
+            0n,
           ],
           {
             account: organizer.account,
@@ -139,6 +140,9 @@ describe("ShowUpV3", function () {
       const resolutionDeadline =
         now + 14_400n;
 
+      const paymentDeadline =
+        now + 5_400n;
+
       await waitForTransaction(
         showUp.write.createEvent(
           [
@@ -153,6 +157,7 @@ describe("ShowUpV3", function () {
             eventStart,
             eventEnd,
             resolutionDeadline,
+            paymentDeadline,
           ],
           {
             account: organizer.account,
@@ -781,41 +786,30 @@ describe("ShowUpV3", function () {
     );
   });
 
-  it("moves a paid attendee to payment due after attendance confirmation", async function () {
+  it("makes the remaining balance payable immediately after an upfront reservation", async function () {
     const {
       organizer,
       attendeeOne,
       mockUsdc,
       showUp,
-      waitForTransaction,
       createPaidEvent,
       reserveSeat,
     } = await networkHelpers.loadFixture(
       deployShowUpFixture,
     );
 
-    const {
+    const { eventId } =
+      await createPaidEvent();
+
+    await reserveSeat(
       eventId,
-      eventStart,
-    } = await createPaidEvent();
-
-    await reserveSeat(eventId, attendeeOne);
-
-    await networkHelpers.time.increaseTo(
-      eventStart,
+      attendeeOne,
     );
 
-    await waitForTransaction(
-      showUp.write.confirmAttendance(
-        [
-          eventId,
-          attendeeOne.account.address,
-        ],
-        {
-          account: organizer.account,
-        },
-      ),
-    );
+    const eventDetails =
+      await showUp.read.getEvent([
+        eventId,
+      ]);
 
     const reservation =
       await showUp.read.getReservation([
@@ -829,9 +823,8 @@ describe("ShowUpV3", function () {
     );
 
     assert.equal(
-      reservation.paymentDeadline >
-        eventStart,
-      true,
+      reservation.paymentDeadline,
+      eventDetails.paymentDeadline,
     );
 
     assert.equal(
@@ -854,7 +847,7 @@ describe("ShowUpV3", function () {
     );
   });
 
-  it("pays the full ticket price to the organizer after the remaining balance is paid", async function () {
+  it("keeps the full ticket price in escrow until attendance is confirmed", async function () {
     const {
       organizer,
       attendeeOne,
@@ -872,22 +865,9 @@ describe("ShowUpV3", function () {
       eventStart,
     } = await createPaidEvent();
 
-    await reserveSeat(eventId, attendeeOne);
-
-    await networkHelpers.time.increaseTo(
-      eventStart,
-    );
-
-    await waitForTransaction(
-      showUp.write.confirmAttendance(
-        [
-          eventId,
-          attendeeOne.account.address,
-        ],
-        {
-          account: organizer.account,
-        },
-      ),
+    await reserveSeat(
+      eventId,
+      attendeeOne,
     );
 
     await waitForTransaction(
@@ -910,6 +890,52 @@ describe("ShowUpV3", function () {
       await mockUsdc.read.balanceOf([
         organizer.account.address,
       ]),
+      0n,
+    );
+
+    assert.equal(
+      await mockUsdc.read.balanceOf([
+        showUp.address,
+      ]),
+      TOTAL_PRICE,
+    );
+
+    let reservation =
+      await showUp.read.getReservation([
+        eventId,
+        attendeeOne.account.address,
+      ]);
+
+    assert.equal(
+      Number(reservation.status),
+      8,
+    );
+
+    assert.equal(
+      await showUp.read.totalEscrowed(),
+      TOTAL_PRICE,
+    );
+
+    await networkHelpers.time.increaseTo(
+      eventStart,
+    );
+
+    await waitForTransaction(
+      showUp.write.confirmAttendance(
+        [
+          eventId,
+          attendeeOne.account.address,
+        ],
+        {
+          account: organizer.account,
+        },
+      ),
+    );
+
+    assert.equal(
+      await mockUsdc.read.balanceOf([
+        organizer.account.address,
+      ]),
       TOTAL_PRICE,
     );
 
@@ -918,6 +944,142 @@ describe("ShowUpV3", function () {
         showUp.address,
       ]),
       0n,
+    );
+
+    reservation =
+      await showUp.read.getReservation([
+        eventId,
+        attendeeOne.account.address,
+      ]);
+
+    assert.equal(
+      Number(reservation.status),
+      3,
+    );
+
+    assert.equal(
+      await showUp.read.totalEscrowed(),
+      0n,
+    );
+  });
+
+  it("allows an attendee to pay the full ticket price when reserving", async function () {
+    const {
+      organizer,
+      attendeeOne,
+      mockUsdc,
+      showUp,
+      waitForTransaction,
+      createPaidEvent,
+    } = await networkHelpers.loadFixture(
+      deployShowUpFixture,
+    );
+
+    const { eventId } =
+      await createPaidEvent();
+
+    await waitForTransaction(
+      showUp.write.reserveSeatAndPayFull(
+        [eventId],
+        {
+          account: attendeeOne.account,
+        },
+      ),
+    );
+
+    assert.equal(
+      await mockUsdc.read.balanceOf([
+        attendeeOne.account.address,
+      ]),
+      INITIAL_BALANCE - TOTAL_PRICE,
+    );
+
+    assert.equal(
+      await mockUsdc.read.balanceOf([
+        organizer.account.address,
+      ]),
+      0n,
+    );
+
+    assert.equal(
+      await mockUsdc.read.balanceOf([
+        showUp.address,
+      ]),
+      TOTAL_PRICE,
+    );
+
+    const reservation =
+      await showUp.read.getReservation([
+        eventId,
+        attendeeOne.account.address,
+      ]);
+
+    assert.equal(
+      Number(reservation.status),
+      8,
+    );
+
+    const eventDetails =
+      await showUp.read.getEvent([
+        eventId,
+      ]);
+
+    assert.equal(
+      eventDetails.reservedSeats,
+      1n,
+    );
+
+    assert.equal(
+      eventDetails.escrowedAmount,
+      TOTAL_PRICE,
+    );
+
+    assert.equal(
+      await showUp.read.totalEscrowed(),
+      TOTAL_PRICE,
+    );
+  });
+
+  it("requires full payment for reservations made after the payment deadline", async function () {
+    const {
+      attendeeOne,
+      showUp,
+      waitForTransaction,
+      createPaidEvent,
+    } = await networkHelpers.loadFixture(
+      deployShowUpFixture,
+    );
+
+    const { eventId } =
+      await createPaidEvent();
+
+    const eventDetails =
+      await showUp.read.getEvent([
+        eventId,
+      ]);
+
+    await networkHelpers.time.increaseTo(
+      eventDetails.paymentDeadline + 1n,
+    );
+
+    await viem.assertions.revertWithCustomError(
+      showUp.write.reserveSeat(
+        [eventId],
+        {
+          account: attendeeOne.account,
+        },
+      ),
+      showUp,
+      "DepositReservationsClosed",
+    );
+
+    await waitForTransaction(
+      showUp.write.reserveSeatAndPayFull(
+        [eventId],
+        {
+          account: attendeeOne.account,
+        },
+      ),
     );
 
     const reservation =
@@ -933,11 +1095,11 @@ describe("ShowUpV3", function () {
 
     assert.equal(
       await showUp.read.totalEscrowed(),
-      0n,
+      TOTAL_PRICE,
     );
   });
 
-  it("transfers only the upfront payment to the organizer for a paid-event no-show", async function () {
+  it("transfers the full ticket price to the organizer for a paid-event no-show", async function () {
     const {
       organizer,
       attendeeOne,
@@ -945,7 +1107,6 @@ describe("ShowUpV3", function () {
       showUp,
       waitForTransaction,
       createPaidEvent,
-      reserveSeat,
     } = await networkHelpers.loadFixture(
       deployShowUpFixture,
     );
@@ -955,7 +1116,14 @@ describe("ShowUpV3", function () {
       eventEnd,
     } = await createPaidEvent();
 
-    await reserveSeat(eventId, attendeeOne);
+    await waitForTransaction(
+      showUp.write.reserveSeatAndPayFull(
+        [eventId],
+        {
+          account: attendeeOne.account,
+        },
+      ),
+    );
 
     await networkHelpers.time.increaseTo(
       eventEnd,
@@ -977,7 +1145,7 @@ describe("ShowUpV3", function () {
       await mockUsdc.read.balanceOf([
         organizer.account.address,
       ]),
-      UPFRONT_AMOUNT,
+      TOTAL_PRICE,
     );
 
     assert.equal(
@@ -1003,7 +1171,8 @@ describe("ShowUpV3", function () {
       0n,
     );
   });
-  it("marks a paid attendee as payment defaulted after the payment deadline", async function () {
+
+  it("marks an unpaid reservation as defaulted and releases its seat", async function () {
     const {
       organizer,
       attendeeOne,
@@ -1016,27 +1185,12 @@ describe("ShowUpV3", function () {
       deployShowUpFixture,
     );
 
-    const {
+    const { eventId } =
+      await createPaidEvent();
+
+    await reserveSeat(
       eventId,
-      eventStart,
-    } = await createPaidEvent();
-
-    await reserveSeat(eventId, attendeeOne);
-
-    await networkHelpers.time.increaseTo(
-      eventStart,
-    );
-
-    await waitForTransaction(
-      showUp.write.confirmAttendance(
-        [
-          eventId,
-          attendeeOne.account.address,
-        ],
-        {
-          account: organizer.account,
-        },
-      ),
+      attendeeOne,
     );
 
     const reservationBeforeDefault =
@@ -1096,6 +1250,21 @@ describe("ShowUpV3", function () {
     assert.equal(
       Number(reservationAfterDefault.status),
       9,
+    );
+
+    const eventDetails =
+      await showUp.read.getEvent([
+        eventId,
+      ]);
+
+    assert.equal(
+      eventDetails.reservedSeats,
+      0n,
+    );
+
+    assert.equal(
+      eventDetails.escrowedAmount,
+      0n,
     );
 
     assert.equal(
