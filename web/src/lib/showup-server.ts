@@ -7,7 +7,7 @@ import {
 import { arcPublicClient } from "@/lib/arc-public-client";
 
 export const SHOWUP_V3_ADDRESS =
-  "0xf41385007335A02535F20947780a685A62f6D5F3";
+  "0x81a14301ADb2c8DA38dbd7d8Fa05eF940115FfBD";
 
 export const ARC_TESTNET_USDC_ADDRESS =
   "0x3600000000000000000000000000000000000000";
@@ -87,6 +87,10 @@ export const SHOWUP_EVENT_ABI = [
           {
             name: "cancelled",
             type: "bool",
+          },
+          {
+            name: "paymentDeadline",
+            type: "uint64",
           },
         ],
       },
@@ -190,6 +194,7 @@ export type ShowUpEventDetails = {
   eventEnd: bigint;
   resolutionDeadline: bigint;
   cancelled: boolean;
+  paymentDeadline: bigint;
 };
 
 export type ShowUpReservation = {

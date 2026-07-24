@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const FALLBACK_CONTRACT_ADDRESS =
-  "0xf41385007335A02535F20947780a685A62f6D5F3";
+  "0x81a14301ADb2c8DA38dbd7d8Fa05eF940115FfBD";
 
 const SHOWUP_ABI = [
   {
@@ -96,6 +96,10 @@ const SHOWUP_ABI = [
             name: "cancelled",
             type: "bool",
           },
+          {
+            name: "paymentDeadline",
+            type: "uint64",
+          },
         ],
       },
     ],
@@ -118,6 +122,7 @@ type ContractEvent = {
   eventEnd: bigint;
   resolutionDeadline: bigint;
   cancelled: boolean;
+  paymentDeadline: bigint;
 };
 
 function getContractAddress() {
@@ -289,6 +294,8 @@ export async function GET() {
                 details.resolutionDeadline.toString(),
               cancelled:
                 details.cancelled,
+                paymentDeadline:
+                  details.paymentDeadline.toString(),
             };
           },
         )

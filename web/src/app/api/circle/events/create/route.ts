@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CREATE_EVENT_SIGNATURE =
-  "createEvent(string,string,string,uint8,uint256,uint256,uint256,uint64,uint64,uint64,uint64)";
+  "createEvent(string,string,string,uint8,uint256,uint256,uint256,uint64,uint64,uint64,uint64,uint64)";
 
 const MAX_TITLE_BYTES = 320;
 const MAX_DESCRIPTION_BYTES = 960;
@@ -533,6 +533,16 @@ export async function POST(
         Date.now() / 1000,
       );
 
+    const paymentDeadline =
+      eventType === 1 &&
+      eventStart - now >
+        24 * 60 * 60
+        ? eventStart -
+          24 *
+            60 *
+            60
+        : 0;
+
     if (
       eventEnd <= eventStart
     ) {
@@ -559,6 +569,27 @@ export async function POST(
         {
           error:
             "The cancellation deadline must still be in the future. Move the event later or shorten the cancellation period.",
+        },
+        {
+          status: 400,
+          headers: {
+            "Cache-Control":
+              "no-store",
+          },
+        },
+      );
+    }
+
+    if (
+      eventType === 1 &&
+      paymentDeadline !== 0 &&
+      cancellationDeadline >
+        paymentDeadline
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "For Paid events with upfront reservations, the cancellation period must be at least 24 hours.",
         },
         {
           status: 400,
@@ -646,6 +677,9 @@ export async function POST(
               String(
                 resolutionDeadline,
               ),
+              String(
+                paymentDeadline,
+              ),
             ],
             feeLevel: "MEDIUM",
             refId,
@@ -705,7 +739,9 @@ export async function POST(
         challengeId,
         refId,
         createdAfter,
-      },
+                paymentDeadline:
+            String(paymentDeadline),
+        },
       {
         status: 200,
         headers: {

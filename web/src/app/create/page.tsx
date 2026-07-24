@@ -635,6 +635,27 @@ export default function CreateEventPage() {
         );
       }
 
+      const millisecondsUntilStart =
+        startDate.getTime() -
+        Date.now();
+
+      const depositReservationsAvailable =
+        millisecondsUntilStart >
+        24 *
+          60 *
+          60 *
+          1000;
+
+      if (
+        eventType === "paid" &&
+        depositReservationsAvailable &&
+        parsedCancellationHours < 24
+      ) {
+        throw new Error(
+          "Paid events with upfront reservations require a cancellation period of at least 24 hours.",
+        );
+      }
+
       const cancellationDeadline =
         startDate.getTime() -
         parsedCancellationHours *
@@ -1980,7 +2001,7 @@ export default function CreateEventPage() {
                     </p>
 
                     <p className="mt-1 break-all font-mono text-xs leading-5 text-white/55">
-                      0xf41385007335A02535F20947780a685A62f6D5F3
+                      0x81a14301ADb2c8DA38dbd7d8Fa05eF940115FfBD
                     </p>
                   </div>
                 </div>
