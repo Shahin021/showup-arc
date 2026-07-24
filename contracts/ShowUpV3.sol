@@ -234,6 +234,7 @@ contract ShowUpV3 is ReentrancyGuard {
 
         if (
             eventType == EventType.Paid &&
+            paymentDeadline != 0 &&
             cancellationDeadline > paymentDeadline
         ) {
             revert InvalidTimeline();
@@ -326,9 +327,13 @@ contract ShowUpV3 is ReentrancyGuard {
         uint64 paymentDeadline;
 
         if (eventDetails.eventType == EventType.Paid) {
-            if (block.timestamp > eventDetails.paymentDeadline) {
+            if (
+                eventDetails.paymentDeadline == 0 ||
+                block.timestamp > eventDetails.paymentDeadline
+            ) {
                 revert DepositReservationsClosed();
             }
+
             newStatus = ReservationStatus.PaymentDue;
             paymentDeadline = eventDetails.paymentDeadline;
         }
@@ -860,6 +865,12 @@ contract ShowUpV3 is ReentrancyGuard {
             if (paymentDeadline != 0) {
                 revert InvalidPaymentDeadline();
             }
+            return;
+        }
+
+        // paymentDeadline == 0 means this Paid event only supports
+        // full payment at reservation time.
+        if (paymentDeadline == 0) {
             return;
         }
 

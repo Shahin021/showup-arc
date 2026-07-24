@@ -1273,4 +1273,108 @@ describe("ShowUpV3", function () {
     );
   });
 
+  it("supports full-payment-only paid events with no payment deadline", async function () {
+    const {
+      organizer,
+      attendeeOne,
+      showUp,
+      waitForTransaction,
+    } = await networkHelpers.loadFixture(
+      deployShowUpFixture,
+    );
+
+    const now =
+      BigInt(
+        await networkHelpers.time.latest(),
+      );
+
+    const cancellationDeadline =
+      now + 3_600n;
+
+    const eventStart =
+      now + 43_200n;
+
+    const eventEnd =
+      now + 50_400n;
+
+    const resolutionDeadline =
+      now + 57_600n;
+
+    await waitForTransaction(
+      showUp.write.createEvent(
+        [
+          "Arc Short Notice Workshop",
+          "A paid event starting in less than 24 hours.",
+          "https://showup.example/metadata/arc-short-notice-workshop.json",
+          1,
+          UPFRONT_AMOUNT,
+          TOTAL_PRICE,
+          5n,
+          cancellationDeadline,
+          eventStart,
+          eventEnd,
+          resolutionDeadline,
+          0n,
+        ],
+        {
+          account: organizer.account,
+        },
+      ),
+    );
+
+    const eventId =
+      await showUp.read.eventCount();
+
+    await viem.assertions.revertWithCustomError(
+      showUp.write.reserveSeat(
+        [eventId],
+        {
+          account: attendeeOne.account,
+        },
+      ),
+      showUp,
+      "DepositReservationsClosed",
+    );
+
+    await waitForTransaction(
+      showUp.write.reserveSeatAndPayFull(
+        [eventId],
+        {
+          account: attendeeOne.account,
+        },
+      ),
+    );
+
+    const eventDetails =
+      await showUp.read.getEvent([
+        eventId,
+      ]);
+
+    const reservation =
+      await showUp.read.getReservation([
+        eventId,
+        attendeeOne.account.address,
+      ]);
+
+    assert.equal(
+      eventDetails.paymentDeadline,
+      0n,
+    );
+
+    assert.equal(
+      eventDetails.reservedSeats,
+      1n,
+    );
+
+    assert.equal(
+      Number(reservation.status),
+      8,
+    );
+
+    assert.equal(
+      await showUp.read.totalEscrowed(),
+      TOTAL_PRICE,
+    );
+  });
+
 });
