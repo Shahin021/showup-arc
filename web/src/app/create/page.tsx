@@ -2001,7 +2001,7 @@ export default function CreateEventPage() {
                     </p>
 
                     <p className="mt-1 break-all font-mono text-xs leading-5 text-white/55">
-                      0x81a14301ADb2c8DA38dbd7d8Fa05eF940115FfBD
+                      0xd778B7b9152200702F3D253099FebcC4bb439cEd
                     </p>
                   </div>
                 </div>

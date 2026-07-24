@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const FALLBACK_CONTRACT_ADDRESS =
-  "0x81a14301ADb2c8DA38dbd7d8Fa05eF940115FfBD";
+  "0xd778B7b9152200702F3D253099FebcC4bb439cEd";
 
 const SHOWUP_ABI = [
   {

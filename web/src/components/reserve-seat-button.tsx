@@ -37,6 +37,8 @@ type ReservationMode =
   | "full";
 
 type ReservationStatusResponse = {
+  organizer?: string;
+  isOrganizer?: boolean;
   eventType?: number;
   eventTypeLabel?: string;
 
@@ -463,6 +465,11 @@ export default function ReserveSeatButton({
   ] = useState(false);
 
   const [
+    isOrganizer,
+    setIsOrganizer,
+  ] = useState(false);
+
+  const [
     processingMode,
     setProcessingMode,
   ] = useState<ReservationMode | null>(
@@ -592,6 +599,11 @@ export default function ReserveSeatButton({
             status.canReserveFullPayment,
           );
 
+        const currentIsOrganizer =
+          Boolean(
+            status.isOrganizer,
+          );
+
         setError("");
 
         setReservationStatus(
@@ -624,6 +636,10 @@ export default function ReserveSeatButton({
 
         setCanReserveFullPayment(
           currentCanReserveFullPayment,
+        );
+
+        setIsOrganizer(
+          currentIsOrganizer,
         );
 
         setEventOpen(
@@ -705,6 +721,14 @@ export default function ReserveSeatButton({
         }
 
         setReserved(false);
+
+        if (currentIsOrganizer) {
+          setMessage(
+            "Organizers cannot reserve seats in their own events.",
+          );
+
+          return;
+        }
 
         if (
           status.event?.cancelled
@@ -867,6 +891,7 @@ export default function ReserveSeatButton({
       setUpfrontReservationsOpen(false);
       setCanReserveUpfront(false);
       setCanReserveFullPayment(false);
+      setIsOrganizer(false);
       setProcessingMode(null);
       setEventOpen(false);
       setEventCancelled(false);
@@ -1779,6 +1804,10 @@ export default function ReserveSeatButton({
       return "Connect Circle wallet";
     }
 
+    if (isOrganizer) {
+      return "Organizer cannot reserve own event";
+    }
+
     if (eventCancelled) {
       return "Event cancelled";
     }
@@ -1804,6 +1833,7 @@ export default function ReserveSeatButton({
   const upfrontButtonDisabled =
     busy ||
     reserved ||
+    isOrganizer ||
     !walletConnected ||
     !eventOpen ||
     !canReserveUpfront;
@@ -1811,6 +1841,7 @@ export default function ReserveSeatButton({
   const fullPaymentButtonDisabled =
     busy ||
     reserved ||
+    isOrganizer ||
     !walletConnected ||
     !eventOpen ||
     !canReserveFullPayment;
@@ -1818,6 +1849,7 @@ export default function ReserveSeatButton({
   const mainButtonDisabled =
     busy ||
     reserved ||
+    isOrganizer ||
     !walletConnected ||
     !eventOpen ||
     !canReserve;
@@ -1825,7 +1857,9 @@ export default function ReserveSeatButton({
   const messageClassName =
     error
       ? "text-red-300"
-      : reservationStatus === 9
+      : isOrganizer
+        ? "text-amber-200"
+        : reservationStatus === 9
         ? "text-amber-200"
         : reserved ||
             reservationStatus ===
@@ -1875,6 +1909,14 @@ export default function ReserveSeatButton({
           className="w-full cursor-default rounded-2xl border border-[#74f2c2]/25 bg-[#74f2c2]/10 py-4 font-semibold text-[#b7ffe3]"
         >
           Refund claimed
+        </button>
+      ) : isOrganizer ? (
+        <button
+          type="button"
+          disabled
+          className="w-full cursor-not-allowed rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] py-4 font-semibold text-amber-100/75"
+        >
+          Organizer cannot reserve own event
         </button>
       ) : isPaidEvent &&
         !reserved &&

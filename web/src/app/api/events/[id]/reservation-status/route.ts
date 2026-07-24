@@ -85,6 +85,13 @@ export async function GET(
     const isPaidEvent =
       eventType === 1;
 
+    const organizer =
+      eventDetails.organizer;
+
+    const isOrganizer =
+      organizer.toLowerCase() ===
+      attendee.toLowerCase();
+
     const now =
       BigInt(
         Math.floor(
@@ -108,6 +115,7 @@ export async function GET(
         eventDetails.eventStart;
 
     const baseReservationAvailable =
+      !isOrganizer &&
       eventOpen &&
       capacityAvailable &&
       reservationReusable;
@@ -210,6 +218,10 @@ export async function GET(
           eventId.toString(),
 
         attendee,
+
+        organizer,
+
+        isOrganizer,
 
         eventType,
 

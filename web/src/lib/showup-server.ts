@@ -7,7 +7,7 @@ import {
 import { arcPublicClient } from "@/lib/arc-public-client";
 
 export const SHOWUP_V3_ADDRESS =
-  "0x81a14301ADb2c8DA38dbd7d8Fa05eF940115FfBD";
+  "0xd778B7b9152200702F3D253099FebcC4bb439cEd";
 
 export const ARC_TESTNET_USDC_ADDRESS =
   "0x3600000000000000000000000000000000000000";

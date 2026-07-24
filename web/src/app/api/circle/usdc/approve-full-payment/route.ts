@@ -72,6 +72,15 @@ export async function POST(
       );
     }
 
+    if (
+      eventDetails.organizer.toLowerCase() ===
+      wallet.address.toLowerCase()
+    ) {
+      throw new ShowUpApiError(
+        "Organizers cannot reserve seats in their own events.",
+      );
+    }
+
     const reservationStatus =
       Number(
         reservation.status,
