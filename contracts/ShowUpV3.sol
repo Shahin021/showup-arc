@@ -106,6 +106,8 @@ contract ShowUpV3 is ReentrancyGuard {
     error InvalidBatchSize();
     error PaidEventRequired();
 
+    error OrganizerCannotReserve();
+
     event EventCreated(
         uint256 indexed eventId,
         address indexed organizer,
@@ -888,6 +890,10 @@ contract ShowUpV3 is ReentrancyGuard {
         address attendee,
         EventDetails storage eventDetails
     ) private view {
+        if (attendee == eventDetails.organizer) {
+            revert OrganizerCannotReserve();
+        }
+
         if (block.timestamp >= eventDetails.eventStart) {
             revert ReservationsClosed();
         }

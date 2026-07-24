@@ -1377,4 +1377,66 @@ describe("ShowUpV3", function () {
     );
   });
 
+  it("prevents the organizer from reserving their own paid event", async function () {
+    const {
+      organizer,
+      showUp,
+      waitForTransaction,
+    } = await networkHelpers.loadFixture(
+      deployShowUpFixture,
+    );
+
+    const now =
+      BigInt(
+        await networkHelpers.time.latest(),
+      );
+
+    await waitForTransaction(
+      showUp.write.createEvent(
+        [
+          "Organizer Reservation Guard",
+          "Testing organizer reservation protection.",
+          "https://showup.example/metadata/organizer-guard.json",
+          1,
+          UPFRONT_AMOUNT,
+          TOTAL_PRICE,
+          3n,
+          now + 1_800n,
+          now + 7_200n,
+          now + 10_800n,
+          now + 14_400n,
+          now + 3_600n,
+        ],
+        {
+          account: organizer.account,
+        },
+      ),
+    );
+
+    const eventId =
+      await showUp.read.eventCount();
+
+    await viem.assertions.revertWithCustomError(
+      showUp.write.reserveSeat(
+        [eventId],
+        {
+          account: organizer.account,
+        },
+      ),
+      showUp,
+      "OrganizerCannotReserve",
+    );
+
+    await viem.assertions.revertWithCustomError(
+      showUp.write.reserveSeatAndPayFull(
+        [eventId],
+        {
+          account: organizer.account,
+        },
+      ),
+      showUp,
+      "OrganizerCannotReserve",
+    );
+  });
+
 });
