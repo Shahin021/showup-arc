@@ -12,6 +12,7 @@ export default defineConfig({
       default: {
         version: "0.8.24",
         settings: {
+          evmVersion: "cancun",
           viaIR: true,
           optimizer: {
             enabled: true,
@@ -23,6 +24,7 @@ export default defineConfig({
       production: {
         version: "0.8.24",
         settings: {
+          evmVersion: "cancun",
           viaIR: true,
           optimizer: {
             enabled: true,
