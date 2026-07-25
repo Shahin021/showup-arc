@@ -43,6 +43,10 @@ type EventType =
   | "free"
   | "paid";
 
+type AccessMode =
+  | "public"
+  | "inviteOnly";
+
 type SessionResponse = {
   userId?: string;
   userToken?: string;
@@ -68,6 +72,7 @@ type StoredSubmission = {
   description: string;
   metadataURI: string;
   eventType: EventType;
+  accessMode: AccessMode;
   deposit: string;
   totalPrice: string;
   capacity: string;
@@ -373,6 +378,8 @@ export default function CreateEventPage() {
 
   const [eventType, setEventType] =
     useState<EventType>("free");
+  const [accessMode, setAccessMode] =
+    useState<AccessMode>("public");
   const [deposit, setDeposit] =
     useState("2");
   const [totalPrice, setTotalPrice] =
@@ -957,6 +964,7 @@ export default function CreateEventPage() {
               metadataURI:
                 metadataData.metadataURI,
               eventType,
+              accessMode,
               deposit,
               totalPrice:
                 eventType === "paid"
@@ -1013,6 +1021,7 @@ export default function CreateEventPage() {
         metadataURI:
           metadataData.metadataURI,
         eventType,
+        accessMode,
         deposit,
         totalPrice:
           eventType === "paid"
@@ -1498,6 +1507,70 @@ export default function CreateEventPage() {
                   />
                 </label>
               </div>
+            </section>
+
+            <section className="mt-9 border-t border-white/10 pt-8">
+              <h2 className="text-xl font-semibold">
+                Event access
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-white/40">
+                Choose who is allowed to reserve this event.
+              </p>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  disabled={formDisabled}
+                  onClick={() =>
+                    setAccessMode("public")
+                  }
+                  className={`rounded-2xl border px-4 py-4 text-left transition ${
+                    accessMode === "public"
+                      ? "border-[#74f2c2]/60 bg-[#74f2c2]/10 text-white"
+                      : "border-white/10 bg-white/[0.035] text-white/45 hover:border-white/20"
+                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                >
+                  <span className="block text-sm font-semibold">
+                    Public event
+                  </span>
+
+                  <span className="mt-1 block text-xs leading-5 opacity-70">
+                    Any wallet can reserve while seats are available.
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={formDisabled}
+                  onClick={() =>
+                    setAccessMode("inviteOnly")
+                  }
+                  className={`rounded-2xl border px-4 py-4 text-left transition ${
+                    accessMode === "inviteOnly"
+                      ? "border-[#74f2c2]/60 bg-[#74f2c2]/10 text-white"
+                      : "border-white/10 bg-white/[0.035] text-white/45 hover:border-white/20"
+                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                >
+                  <span className="block text-sm font-semibold">
+                    Invite-only event
+                  </span>
+
+                  <span className="mt-1 block text-xs leading-5 opacity-70">
+                    Only wallets invited by the organizer can reserve.
+                  </span>
+                </button>
+              </div>
+
+              {accessMode === "inviteOnly" ? (
+                <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] px-4 py-3">
+                  <p className="text-xs leading-5 text-amber-100/70">
+                    Wallet invitations will be created after the event
+                    transaction is confirmed. Do not place secret meeting
+                    links or sensitive information in public event fields.
+                  </p>
+                </div>
+              ) : null}
             </section>
 
             <section className="mt-9 border-t border-white/10 pt-8">
@@ -1997,11 +2070,11 @@ export default function CreateEventPage() {
 
                   <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3">
                     <p className="text-xs text-white/30">
-                      ShowUp V3 contract
+                      ShowUp V5 contract
                     </p>
 
                     <p className="mt-1 break-all font-mono text-xs leading-5 text-white/55">
-                      0xd778B7b9152200702F3D253099FebcC4bb439cEd
+                      0x916fe65099332a613afb7413464D50183De7C263
                     </p>
                   </div>
                 </div>

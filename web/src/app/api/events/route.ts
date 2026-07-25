@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const FALLBACK_CONTRACT_ADDRESS =
-  "0xd778B7b9152200702F3D253099FebcC4bb439cEd";
+  "0x916fe65099332a613afb7413464D50183De7C263";
 
 const SHOWUP_ABI = [
   {
@@ -54,6 +54,10 @@ const SHOWUP_ABI = [
           },
           {
             name: "eventType",
+            type: "uint8",
+          },
+          {
+            name: "accessMode",
             type: "uint8",
           },
           {
@@ -112,6 +116,7 @@ type ContractEvent = {
   description: string;
   metadataURI: string;
   eventType: number;
+  accessMode: number;
   depositAmount: bigint;
   totalPrice: bigint;
   capacity: bigint;
@@ -248,6 +253,11 @@ export async function GET() {
                 details.eventType,
               );
 
+            const accessMode =
+              Number(
+                details.accessMode,
+              );
+
             return {
               id:
                 eventId.toString(),
@@ -264,6 +274,11 @@ export async function GET() {
                 eventType === 1
                   ? "Paid"
                   : "Free",
+              accessMode,
+              accessModeLabel:
+                accessMode === 1
+                  ? "Invite-only"
+                  : "Public",
               deposit:
                 formatUnits(
                   details.depositAmount,

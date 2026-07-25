@@ -6,8 +6,15 @@ import {
 } from "viem";
 import { arcPublicClient } from "@/lib/arc-public-client";
 
+export const SHOWUP_V5_ADDRESS =
+  "0x916fe65099332a613afb7413464D50183De7C263";
+
+/**
+ * Temporary compatibility alias for routes that still import the
+ * previous constant name. New code should use SHOWUP_V5_ADDRESS.
+ */
 export const SHOWUP_V3_ADDRESS =
-  "0xd778B7b9152200702F3D253099FebcC4bb439cEd";
+  SHOWUP_V5_ADDRESS;
 
 export const ARC_TESTNET_USDC_ADDRESS =
   "0x3600000000000000000000000000000000000000";
@@ -46,6 +53,10 @@ export const SHOWUP_EVENT_ABI = [
           },
           {
             name: "eventType",
+            type: "uint8",
+          },
+          {
+            name: "accessMode",
             type: "uint8",
           },
           {
@@ -184,6 +195,7 @@ export type ShowUpEventDetails = {
   description: string;
   metadataURI: string;
   eventType: number | bigint;
+  accessMode: number | bigint;
   depositAmount: bigint;
   totalPrice: bigint;
   capacity: bigint;
@@ -245,7 +257,7 @@ export function getShowUpAddress() {
     process.env
       .NEXT_PUBLIC_SHOWUP_CONTRACT_ADDRESS
       ?.trim() ||
-    SHOWUP_V3_ADDRESS;
+    SHOWUP_V5_ADDRESS;
 
   if (!isAddress(configured)) {
     throw new ShowUpApiError(

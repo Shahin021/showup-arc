@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CREATE_EVENT_SIGNATURE =
-  "createEvent(string,string,string,uint8,uint256,uint256,uint256,uint64,uint64,uint64,uint64,uint64)";
+  "createEvent(string,string,string,uint8,uint8,uint256,uint256,uint256,uint64,uint64,uint64,uint64,uint64)";
 
 const MAX_TITLE_BYTES = 320;
 const MAX_DESCRIPTION_BYTES = 960;
@@ -19,6 +19,7 @@ type CreateEventRequest = {
   description?: unknown;
   metadataURI?: unknown;
   eventType?: unknown;
+  accessMode?: unknown;
   deposit?: unknown;
   totalPrice?: unknown;
   capacity?: unknown;
@@ -84,6 +85,38 @@ function parseEventType(
 
   throw new Error(
     "Event type must be Free or Paid.",
+  );
+}
+
+function parseAccessMode(
+  value: unknown,
+) {
+  const normalized =
+    typeof value === "string" ||
+    typeof value === "number"
+      ? String(value)
+          .trim()
+          .toLowerCase()
+      : "";
+
+  if (
+    normalized === "0" ||
+    normalized === "public"
+  ) {
+    return 0;
+  }
+
+  if (
+    normalized === "1" ||
+    normalized === "inviteonly" ||
+    normalized === "invite-only" ||
+    normalized === "private"
+  ) {
+    return 1;
+  }
+
+  throw new Error(
+    "Access mode must be Public or Invite-only.",
   );
 }
 
@@ -443,6 +476,11 @@ export async function POST(
         body.eventType,
       );
 
+    const accessMode =
+      parseAccessMode(
+        body.accessMode,
+      );
+
     const depositUnits =
       parseUsdcUnits(
         body.deposit ??
@@ -666,6 +704,7 @@ export async function POST(
               description,
               metadataURI,
               String(eventType),
+              String(accessMode),
               depositUnits.toString(),
               totalPriceUnits.toString(),
               capacity.toString(),
