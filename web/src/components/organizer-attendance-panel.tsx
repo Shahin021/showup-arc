@@ -10,6 +10,8 @@ import type {
   ChangeEvent,
 } from "react";
 
+import OrganizerCancelEventButton from "@/components/organizer-cancel-event-button";
+
 const CIRCLE_USER_ID_KEY =
   "showup_circle_user_id";
 
@@ -1936,6 +1938,12 @@ export default function OrganizerAttendancePanel({
           </button>
         </div>
       </div>
+
+      <OrganizerCancelEventButton
+        eventId={eventId}
+        organizer={organizer}
+        eventStart={eventStart}
+      />
 
       <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 px-4 py-3 text-xs leading-5 text-white/45">
         {attendanceWindowOpen ? (
