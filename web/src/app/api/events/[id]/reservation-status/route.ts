@@ -120,13 +120,18 @@ export async function GET(
       capacityAvailable &&
       reservationReusable;
 
+    const reservationHasEscrow =
+      status === 1 ||
+      status === 7 ||
+      status === 8;
+
     const canClaimCancelledEventRefund =
       eventDetails.cancelled &&
-      status === 1;
+      reservationHasEscrow;
 
     const canClaimFallbackRefund =
       !eventDetails.cancelled &&
-      status === 1 &&
+      reservationHasEscrow &&
       now >
         eventDetails.resolutionDeadline;
 
