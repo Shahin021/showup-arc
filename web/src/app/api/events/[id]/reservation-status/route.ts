@@ -85,6 +85,11 @@ export async function GET(
     const isPaidEvent =
       eventType === 1;
 
+    const accessMode =
+      Number(
+        eventDetails.accessMode,
+      );
+
     const organizer =
       eventDetails.organizer;
 
@@ -234,6 +239,13 @@ export async function GET(
           isPaidEvent
             ? "Paid"
             : "Free",
+
+        accessMode,
+
+        accessModeLabel:
+          accessMode === 1
+            ? "Invite-only"
+            : "Public",
 
         reservation: {
           status,
@@ -426,6 +438,13 @@ export async function GET(
             isPaidEvent
               ? "Paid"
               : "Free",
+
+          accessMode,
+
+          accessModeLabel:
+            accessMode === 1
+              ? "Invite-only"
+              : "Public",
 
           capacityAvailable,
 

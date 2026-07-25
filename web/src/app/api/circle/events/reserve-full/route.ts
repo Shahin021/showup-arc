@@ -11,6 +11,10 @@ import {
   verifyCircleArcWallet,
 } from "@/lib/showup-server";
 
+import {
+  parseReservationInvitation,
+} from "@/lib/showup-invitation";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -18,6 +22,9 @@ type ReserveFullRequest = {
   userToken?: unknown;
   walletId?: unknown;
   eventId?: unknown;
+  nonce?: unknown;
+  expiry?: unknown;
+  signature?: unknown;
 };
 
 export async function POST(
@@ -152,6 +159,48 @@ export async function POST(
       );
     }
 
+    const inviteOnly =
+      Number(
+        eventDetails.accessMode,
+      ) === 1;
+
+    let abiFunctionSignature =
+      "reserveSeatAndPayFull(uint256)";
+
+    let abiParameters = [
+      eventId.toString(),
+    ];
+
+    if (inviteOnly) {
+      const invitation =
+        parseReservationInvitation({
+          nonce:
+            body.nonce,
+          expiry:
+            body.expiry,
+          signature:
+            body.signature,
+        });
+
+      if (
+        invitation.expiry <= now
+      ) {
+        throw new ShowUpApiError(
+          "This invitation has expired.",
+        );
+      }
+
+      abiFunctionSignature =
+        "reserveSeatAndPayFullWithInvitation(uint256,uint256,uint256,bytes)";
+
+      abiParameters = [
+        eventId.toString(),
+        invitation.nonce.toString(),
+        invitation.expiry.toString(),
+        invitation.signature,
+      ];
+    }
+
     const challenge =
       await createCircleChallenge({
         userToken:
@@ -160,13 +209,12 @@ export async function POST(
           wallet.walletId,
         contractAddress:
           getShowUpAddress(),
-        abiFunctionSignature:
-          "reserveSeatAndPayFull(uint256)",
-        abiParameters: [
-          eventId.toString(),
-        ],
+        abiFunctionSignature,
+        abiParameters,
         refPrefix:
-          `showup-reserve-full-${eventId.toString()}`,
+          inviteOnly
+            ? `showup-private-reserve-full-${eventId.toString()}`
+            : `showup-reserve-full-${eventId.toString()}`,
       });
 
     return NextResponse.json(

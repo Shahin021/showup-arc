@@ -117,3 +117,82 @@ export function getCircleInvitationTypedData(
     },
   };
 }
+
+
+export type ReservationInvitation = {
+  nonce: bigint;
+  expiry: bigint;
+  signature: `0x${string}`;
+};
+
+function readInvitationString(
+  value: unknown,
+) {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+export function parseReservationInvitation(
+  input: {
+    nonce?: unknown;
+    expiry?: unknown;
+    signature?: unknown;
+  },
+) {
+  const nonceValue =
+    readInvitationString(
+      input.nonce,
+    );
+
+  const expiryValue =
+    readInvitationString(
+      input.expiry,
+    );
+
+  const signatureValue =
+    readInvitationString(
+      input.signature,
+    );
+
+  if (!/^\d+$/.test(nonceValue)) {
+    throw new Error(
+      "Invitation nonce is invalid.",
+    );
+  }
+
+  if (!/^\d+$/.test(expiryValue)) {
+    throw new Error(
+      "Invitation expiry is invalid.",
+    );
+  }
+
+  if (
+    !/^0x(?:[0-9a-fA-F]{2})+$/.test(
+      signatureValue,
+    )
+  ) {
+    throw new Error(
+      "Invitation signature is invalid.",
+    );
+  }
+
+  const nonce =
+    BigInt(nonceValue);
+
+  const expiry =
+    BigInt(expiryValue);
+
+  if (expiry <= BigInt(0)) {
+    throw new Error(
+      "Invitation expiry must be greater than zero.",
+    );
+  }
+
+  return {
+    nonce,
+    expiry,
+    signature:
+      signatureValue as `0x${string}`,
+  } satisfies ReservationInvitation;
+}

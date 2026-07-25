@@ -1105,6 +1105,9 @@ export default function EventDetailsPage() {
                   depositFormatted={
                     event.deposit
                   }
+                  accessMode={
+                    event.accessMode
+                  }
                   onReservationConfirmed={(
                     reservedSeats,
                   ) => {

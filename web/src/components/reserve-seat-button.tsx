@@ -5,6 +5,11 @@ import {
   useState,
 } from "react";
 
+import {
+  getAddress,
+  isAddress,
+} from "viem";
+
 const CIRCLE_USER_ID_KEY =
   "showup_circle_user_id";
 
@@ -41,6 +46,8 @@ type ReservationStatusResponse = {
   isOrganizer?: boolean;
   eventType?: number;
   eventTypeLabel?: string;
+  accessMode?: number;
+  accessModeLabel?: string;
 
   reservation?: {
     status: number;
@@ -97,6 +104,8 @@ type ReservationStatusResponse = {
     cancelled: boolean;
     eventType?: number;
     eventTypeLabel?: string;
+    accessMode?: number;
+    accessModeLabel?: string;
     capacityAvailable: boolean;
     capacity?: string;
     reservedSeats: string;
@@ -118,6 +127,7 @@ type ReservationStatusResponse = {
 type ReserveSeatButtonProps = {
   eventId: string;
   depositFormatted: string;
+  accessMode: number;
   onReservationConfirmed?: (
     reservedSeats: string,
   ) => void;
@@ -157,6 +167,118 @@ function hasPositiveAmount(
   } catch {
     return false;
   }
+}
+
+type ReservationInvitation = {
+  attendee: string;
+  nonce: string;
+  expiry: string;
+  signature: string;
+};
+
+function readReservationInvitation(
+  walletAddress: string,
+): ReservationInvitation {
+  const searchParams =
+    new URLSearchParams(
+      window.location.search,
+    );
+
+  const attendee =
+    searchParams
+      .get("attendee")
+      ?.trim() ?? "";
+
+  const nonce =
+    searchParams
+      .get("nonce")
+      ?.trim() ?? "";
+
+  const expiry =
+    searchParams
+      .get("expiry")
+      ?.trim() ?? "";
+
+  const signature =
+    searchParams
+      .get("signature")
+      ?.trim() ?? "";
+
+  if (
+    !attendee ||
+    !nonce ||
+    !expiry ||
+    !signature
+  ) {
+    throw new Error(
+      "Open this Invite-only event using the complete invitation link sent by the organizer.",
+    );
+  }
+
+  if (!isAddress(attendee)) {
+    throw new Error(
+      "The invited wallet address in this link is invalid.",
+    );
+  }
+
+  const normalizedAttendee =
+    getAddress(attendee);
+
+  if (
+    normalizedAttendee
+      .toLowerCase() !==
+    walletAddress.toLowerCase()
+  ) {
+    throw new Error(
+      "This invitation belongs to a different wallet. Connect the wallet assigned by the organizer.",
+    );
+  }
+
+  if (!/^\d+$/.test(nonce)) {
+    throw new Error(
+      "The invitation nonce is invalid.",
+    );
+  }
+
+  if (!/^\d+$/.test(expiry)) {
+    throw new Error(
+      "The invitation expiry is invalid.",
+    );
+  }
+
+  if (
+    !/^0x(?:[0-9a-fA-F]{2})+$/.test(
+      signature,
+    )
+  ) {
+    throw new Error(
+      "The invitation signature is invalid.",
+    );
+  }
+
+  const expirySeconds =
+    BigInt(expiry);
+
+  const now =
+    BigInt(
+      Math.floor(
+        Date.now() / 1000,
+      ),
+    );
+
+  if (expirySeconds <= now) {
+    throw new Error(
+      "This invitation has expired.",
+    );
+  }
+
+  return {
+    attendee:
+      normalizedAttendee,
+    nonce,
+    expiry,
+    signature,
+  };
 }
 
 async function requestCircleSession(
@@ -407,6 +529,7 @@ function getActiveReservationMessage(
 export default function ReserveSeatButton({
   eventId,
   depositFormatted,
+  accessMode,
   onReservationConfirmed,
 }: ReserveSeatButtonProps) {
   const [
@@ -996,6 +1119,13 @@ export default function ReserveSeatButton({
         );
       }
 
+      const invitation =
+        accessMode === 1
+          ? readReservationInvitation(
+              walletAddress,
+            )
+          : null;
+
       setMessage(
         "Creating a secure Circle session...",
       );
@@ -1273,6 +1403,16 @@ export default function ReserveSeatButton({
                   session.userToken,
                 walletId,
                 eventId,
+                ...(invitation
+                  ? {
+                      nonce:
+                        invitation.nonce,
+                      expiry:
+                        invitation.expiry,
+                      signature:
+                        invitation.signature,
+                    }
+                  : {}),
               }),
             },
           );
@@ -1471,6 +1611,16 @@ export default function ReserveSeatButton({
                 session.userToken,
               walletId,
               eventId,
+              ...(invitation
+                ? {
+                    nonce:
+                      invitation.nonce,
+                    expiry:
+                      invitation.expiry,
+                    signature:
+                      invitation.signature,
+                  }
+                : {}),
             }),
           },
         );
