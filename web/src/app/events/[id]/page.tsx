@@ -12,6 +12,7 @@ import CircleWalletButton from "@/components/circle-wallet-button";
 import ReserveSeatButton from "@/components/reserve-seat-button";
 import PayRemainingBalanceButton from "@/components/pay-remaining-balance-button";
 import OrganizerAttendancePanel from "@/components/organizer-attendance-panel";
+import OrganizerInvitationPanel from "@/components/organizer-invitation-panel";
 
 type OnchainEvent = {
   id: string;
@@ -22,6 +23,9 @@ type OnchainEvent = {
 
   eventType: number;
   eventTypeLabel: string;
+
+  accessMode: number;
+  accessModeLabel: string;
 
   deposit: string;
   depositAmount: string;
@@ -1188,6 +1192,19 @@ export default function EventDetailsPage() {
                   }}
                 />
 
+                <OrganizerInvitationPanel
+                  eventId={event.id}
+                  organizer={
+                    event.organizer
+                  }
+                  eventStart={
+                    event.eventStart
+                  }
+                  accessMode={
+                    event.accessMode
+                  }
+                />
+
                 <OrganizerAttendancePanel
                   eventId={event.id}
                   organizer={
@@ -1327,7 +1344,7 @@ export default function EventDetailsPage() {
                     <div className="my-4 h-px bg-white/10" />
 
                     <p className="text-xs text-white/30">
-                      ShowUp V3 contract
+                      ShowUp V5 contract
                     </p>
 
                     <p className="mt-2 break-all font-mono text-xs leading-5 text-white/50">
