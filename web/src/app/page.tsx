@@ -110,6 +110,17 @@ export default function Home() {
 
         <div className="pointer-events-none absolute right-[-180px] top-[180px] h-[520px] w-[520px] rounded-full bg-[#8d70ff]/12 blur-[170px]" />
 
+        <div className="pointer-events-none absolute left-[47%] top-1/2 hidden h-[680px] w-[680px] -translate-y-1/2 xl:block">
+          <Image
+            src="/arc-logo-glow.webp"
+            alt=""
+            fill
+            sizes="680px"
+            aria-hidden="true"
+            className="object-contain opacity-[0.22] mix-blend-screen"
+          />
+        </div>
+
         <div className="relative mx-auto grid max-w-7xl gap-14 px-6 py-16 lg:grid-cols-[1.08fr_0.92fr] lg:px-10 lg:py-20">
           <div className="flex flex-col justify-center">
             <div className="mb-6 flex w-fit items-center gap-2 rounded-full border border-[#72cfff]/25 bg-[#418cff]/10 px-4 py-2 text-sm text-[#9bddff]">
