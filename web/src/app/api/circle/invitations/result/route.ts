@@ -120,14 +120,111 @@ function parseAddress(
   return getAddress(normalized);
 }
 
-function isHexSignature(
-  value: string,
+function readCircleSignatureValue(
+  value: unknown,
 ) {
+  const directValue =
+    readString(value);
+
+  if (directValue) {
+    return directValue;
+  }
+
+  if (
+    !value ||
+    typeof value !== "object"
+  ) {
+    return "";
+  }
+
+  const record =
+    value as Record<
+      string,
+      unknown
+    >;
+
   return (
-    /^0x[0-9a-fA-F]+$/.test(
+    readString(
+      record.signature,
+    ) ||
+    readString(
+      record.value,
+    ) ||
+    readString(
+      record.data,
+    )
+  );
+}
+
+function normalizeCircleSignature(
+  value: unknown,
+) {
+  const rawSignature =
+    readCircleSignatureValue(
       value,
-    ) &&
-    value.length % 2 === 0
+    );
+
+  if (!rawSignature) {
+    throw new ShowUpApiError(
+      "Circle completed the challenge but did not return an invitation signature.",
+      502,
+    );
+  }
+
+  const signatureBody =
+    rawSignature.replace(
+      /^0x/i,
+      "",
+    );
+
+  if (
+    !signatureBody ||
+    !/^(?:[0-9a-fA-F]{2})+$/.test(
+      signatureBody,
+    )
+  ) {
+    throw new ShowUpApiError(
+      "Circle returned an invitation signature in an unsupported format.",
+      502,
+    );
+  }
+
+  return `0x${signatureBody}` as Hex;
+}
+
+function readCircleSigningAddress(
+  challenge: CircleChallenge,
+) {
+  const directAddress =
+    readString(
+      challenge.walletAddress,
+    );
+
+  if (directAddress) {
+    return directAddress;
+  }
+
+  if (
+    !challenge.signature ||
+    typeof challenge.signature !==
+      "object"
+  ) {
+    return "";
+  }
+
+  const signatureRecord =
+    challenge.signature as Record<
+      string,
+      unknown
+    >;
+
+  return (
+    readString(
+      signatureRecord.walletAddress,
+    ) ||
+    readString(
+      signatureRecord.signedBy,
+    )
   );
 }
 
@@ -287,24 +384,14 @@ export async function POST(
     }
 
     const signature =
-      readString(
+      normalizeCircleSignature(
         challenge.signature,
       );
 
     const signedByValue =
-      readString(
-        challenge.walletAddress,
+      readCircleSigningAddress(
+        challenge,
       );
-
-    if (
-      !signature ||
-      !isHexSignature(signature)
-    ) {
-      throw new ShowUpApiError(
-        "Circle did not return a valid invitation signature.",
-        502,
-      );
-    }
 
     if (!isAddress(signedByValue)) {
       throw new ShowUpApiError(
