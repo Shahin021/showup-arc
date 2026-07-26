@@ -615,6 +615,13 @@ export default function ReserveSeatButton({
   ] = useState(false);
 
   const [
+    invitationReady,
+    setInvitationReady,
+  ] = useState(
+    accessMode !== 1,
+  );
+
+  const [
     walletConnected,
     setWalletConnected,
   ] = useState(false);
@@ -712,15 +719,45 @@ export default function ReserveSeatButton({
               ?.upfrontReservationsOpen,
           );
 
+        const currentAccessMode =
+          status.accessMode ??
+          status.event
+            ?.accessMode ??
+          accessMode;
+
+        let currentInvitationReady =
+          currentAccessMode !== 1;
+
+        let currentInvitationMessage =
+          "";
+
+        if (currentAccessMode === 1) {
+          try {
+            readReservationInvitation(
+              walletAddress,
+            );
+
+            currentInvitationReady =
+              true;
+          } catch (invitationError) {
+            currentInvitationMessage =
+              getErrorMessage(
+                invitationError,
+              );
+          }
+        }
+
         const currentCanReserveUpfront =
           Boolean(
             status.canReserveUpfront,
-          );
+          ) &&
+          currentInvitationReady;
 
         const currentCanReserveFullPayment =
           Boolean(
             status.canReserveFullPayment,
-          );
+          ) &&
+          currentInvitationReady;
 
         const currentIsOrganizer =
           Boolean(
@@ -761,6 +798,10 @@ export default function ReserveSeatButton({
           currentCanReserveFullPayment,
         );
 
+        setInvitationReady(
+          currentInvitationReady,
+        );
+
         setIsOrganizer(
           currentIsOrganizer,
         );
@@ -781,7 +822,8 @@ export default function ReserveSeatButton({
         setCanReserve(
           Boolean(
             status.canReserve,
-          ),
+          ) &&
+          currentInvitationReady,
         );
 
         setCanClaimCancelledEventRefund(
@@ -868,6 +910,15 @@ export default function ReserveSeatButton({
         ) {
           setMessage(
             "Reservations are closed for this event.",
+          );
+
+          return;
+        }
+
+        if (!currentInvitationReady) {
+          setMessage(
+            currentInvitationMessage ||
+              "A valid invitation link is required to reserve this event.",
           );
 
           return;
@@ -984,6 +1035,11 @@ export default function ReserveSeatButton({
 
         setReserved(false);
         setCanReserve(false);
+        setCanReserveUpfront(false);
+        setCanReserveFullPayment(false);
+        setInvitationReady(
+          accessMode !== 1,
+        );
 
         setMessage(
           "Unable to refresh this wallet's reservation status. Please try again.",
@@ -1019,6 +1075,9 @@ export default function ReserveSeatButton({
       setEventOpen(false);
       setEventCancelled(false);
       setCanReserve(false);
+      setInvitationReady(
+        accessMode !== 1,
+      );
       setCanClaimCancelledEventRefund(
         false,
       );
@@ -1069,6 +1128,7 @@ export default function ReserveSeatButton({
   }, [
     eventId,
     depositFormatted,
+    accessMode,
   ]);
 
   async function handleReserve(
@@ -1962,10 +2022,18 @@ export default function ReserveSeatButton({
       return "Event cancelled";
     }
 
+    if (!eventOpen) {
+      return "Reservation unavailable";
+    }
+
     if (
-      !eventOpen ||
-      !canReserve
+      accessMode === 1 &&
+      !invitationReady
     ) {
+      return "Valid invitation required";
+    }
+
+    if (!canReserve) {
       return "Reservation unavailable";
     }
 
@@ -1986,6 +2054,8 @@ export default function ReserveSeatButton({
     isOrganizer ||
     !walletConnected ||
     !eventOpen ||
+    (accessMode === 1 &&
+      !invitationReady) ||
     !canReserveUpfront;
 
   const fullPaymentButtonDisabled =
@@ -1994,6 +2064,8 @@ export default function ReserveSeatButton({
     isOrganizer ||
     !walletConnected ||
     !eventOpen ||
+    (accessMode === 1 &&
+      !invitationReady) ||
     !canReserveFullPayment;
 
   const mainButtonDisabled =
@@ -2002,6 +2074,8 @@ export default function ReserveSeatButton({
     isOrganizer ||
     !walletConnected ||
     !eventOpen ||
+    (accessMode === 1 &&
+      !invitationReady) ||
     !canReserve;
 
   const messageClassName =
