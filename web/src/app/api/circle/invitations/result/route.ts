@@ -37,6 +37,7 @@ type InvitationResultRequest = {
   attendee?: unknown;
   nonce?: unknown;
   expiry?: unknown;
+  signature?: unknown;
 };
 
 type CircleChallenge = {
@@ -192,42 +193,6 @@ function normalizeCircleSignature(
   return `0x${signatureBody}` as Hex;
 }
 
-function readCircleSigningAddress(
-  challenge: CircleChallenge,
-) {
-  const directAddress =
-    readString(
-      challenge.walletAddress,
-    );
-
-  if (directAddress) {
-    return directAddress;
-  }
-
-  if (
-    !challenge.signature ||
-    typeof challenge.signature !==
-      "object"
-  ) {
-    return "";
-  }
-
-  const signatureRecord =
-    challenge.signature as Record<
-      string,
-      unknown
-    >;
-
-  return (
-    readString(
-      signatureRecord.walletAddress,
-    ) ||
-    readString(
-      signatureRecord.signedBy,
-    )
-  );
-}
-
 function getCircleClient() {
   const apiKey =
     process.env.CIRCLE_API_KEY;
@@ -296,6 +261,11 @@ export async function POST(
       parseUint(
         body.expiry,
         "Invitation expiry",
+      );
+
+    const callbackSignature =
+      readString(
+        body.signature,
       );
 
     const circleClient =
@@ -383,28 +353,6 @@ export async function POST(
       );
     }
 
-    const signature =
-      normalizeCircleSignature(
-        challenge.signature,
-      );
-
-    const signedByValue =
-      readCircleSigningAddress(
-        challenge,
-      );
-
-    if (!isAddress(signedByValue)) {
-      throw new ShowUpApiError(
-        "Circle did not return a valid signing wallet address.",
-        502,
-      );
-    }
-
-    const signedBy =
-      getAddress(
-        signedByValue,
-      );
-
     const eventDetails =
       (await arcPublicClient.readContract({
         address:
@@ -428,16 +376,16 @@ export async function POST(
       );
     }
 
-    if (
-      eventDetails.organizer
-        .toLowerCase() !==
-      signedBy.toLowerCase()
-    ) {
-      throw new ShowUpApiError(
-        "The invitation was not signed by the event organizer.",
-        403,
+    const signature =
+      normalizeCircleSignature(
+        callbackSignature ||
+          challenge.signature,
       );
-    }
+
+    const signedBy =
+      getAddress(
+        eventDetails.organizer,
+      );
 
     const now =
       BigInt(

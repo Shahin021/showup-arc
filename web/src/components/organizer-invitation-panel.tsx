@@ -210,7 +210,7 @@ async function executeChallenge(
     encryptionKey,
   });
 
-  await new Promise<void>(
+  return await new Promise<string>(
     (resolve, reject) => {
       const timeout =
         window.setTimeout(
@@ -267,7 +267,37 @@ async function executeChallenge(
             return;
           }
 
-          resolve();
+          const signatureResult =
+            result as typeof result & {
+              data?: {
+                signature?: unknown;
+              };
+            };
+
+          const signatureValue =
+            signatureResult
+              .data
+              ?.signature;
+
+          const signature =
+            typeof signatureValue ===
+              "string"
+              ? signatureValue.trim()
+              : "";
+
+          if (!signature) {
+            reject(
+              new Error(
+                "Circle completed the authorization but did not return the callback signature.",
+              ),
+            );
+
+            return;
+          }
+
+          resolve(
+            signature,
+          );
         },
       );
     },
@@ -278,6 +308,7 @@ async function getInvitationResult(
   userToken: string,
   challengeId: string,
   invitation: InvitationPayload,
+  circleSignature: string,
 ) {
   const response =
     await fetch(
@@ -300,6 +331,8 @@ async function getInvitationResult(
             invitation.nonce,
           expiry:
             invitation.expiry,
+          signature:
+            circleSignature,
         }),
       },
     );
@@ -324,6 +357,7 @@ async function waitForResult(
   userToken: string,
   challengeId: string,
   invitation: InvitationPayload,
+  circleSignature: string,
 ): Promise<CompletedResult> {
   for (
     let attempt = 0;
@@ -335,6 +369,7 @@ async function waitForResult(
         userToken,
         challengeId,
         invitation,
+        circleSignature,
       );
 
     if (
@@ -685,11 +720,12 @@ export default function OrganizerInvitationPanel({
         "Confirm the invitation with your Circle PIN.",
       );
 
-      await executeChallenge(
-        data.challengeId,
-        session.userToken,
-        session.encryptionKey,
-      );
+      const circleSignature =
+        await executeChallenge(
+          data.challengeId,
+          session.userToken,
+          session.encryptionKey,
+        );
 
       setPanelState(
         "checking",
@@ -704,6 +740,7 @@ export default function OrganizerInvitationPanel({
           session.userToken,
           data.challengeId,
           data.invitation,
+          circleSignature,
         );
 
       const absoluteUrl =
