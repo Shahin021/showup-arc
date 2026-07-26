@@ -164,12 +164,12 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center justify-center lg:justify-end">
-            <div className="relative w-full max-w-[430px]">
+          <div className="flex items-center justify-center lg:items-stretch lg:justify-end">
+            <div className="relative w-full max-w-[430px] lg:h-full">
               <div className="absolute inset-8 rounded-[36px] bg-gradient-to-br from-[#318cff]/20 to-[#8c72ff]/20 blur-3xl" />
 
-              <div className="relative rounded-[32px] border border-[#79b7ff]/18 bg-[#0b1025]/80 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl">
-                <div className="rounded-[25px] border border-[#79b7ff]/14 bg-[#070c1d] p-5 lg:min-h-[672px]">
+              <div className="relative rounded-[32px] border border-[#79b7ff]/18 bg-[#0b1025]/80 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl lg:h-full">
+                <div className="flex rounded-[25px] border border-[#79b7ff]/14 bg-[#070c1d] p-5 lg:h-full lg:flex-col">
                   <div className="flex items-start justify-between gap-5">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -260,7 +260,7 @@ export default function Home() {
 
                   <Link
                     href="/events"
-                    className="mt-5 block w-full rounded-2xl bg-gradient-to-r from-[#73d8ff] to-[#8195ff] py-3.5 text-center font-semibold text-[#050817] transition hover:brightness-110"
+                    className="mt-auto block w-full rounded-2xl bg-gradient-to-r from-[#73d8ff] to-[#8195ff] py-3.5 text-center font-semibold text-[#050817] transition hover:brightness-110"
                   >
                     Open live application
                   </Link>
