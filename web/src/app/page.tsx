@@ -110,14 +110,14 @@ export default function Home() {
 
         <div className="pointer-events-none absolute right-[-180px] top-[180px] h-[520px] w-[520px] rounded-full bg-[#8d70ff]/12 blur-[170px]" />
 
-        <div className="pointer-events-none absolute left-[47%] top-1/2 hidden h-[680px] w-[680px] -translate-y-1/2 xl:block">
+        <div className="pointer-events-none absolute left-[52%] top-1/2 hidden h-[650px] w-[650px] -translate-x-1/2 -translate-y-1/2 xl:block">
           <Image
-            src="/arc-logo-glow.webp"
+            src="/arc-watermark-transparent-v2.png"
             alt=""
             fill
-            sizes="680px"
+            sizes="650px"
             aria-hidden="true"
-            className="object-contain opacity-[0.22] mix-blend-screen"
+            className="object-contain opacity-[0.14]"
           />
         </div>
 
