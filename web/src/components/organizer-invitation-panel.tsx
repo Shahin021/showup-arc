@@ -801,10 +801,10 @@ export default function OrganizerInvitationPanel({
   }
 
   return (
-    <section className="rounded-[30px] border border-[#74f2c2]/20 bg-[#74f2c2]/[0.06] p-6">
+    <section className="rounded-[30px] border border-[#79b7ff]/16 bg-[#0b1025] p-6 shadow-xl shadow-[#267cff]/10">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#74f2c2]/70">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#73d8ff]/70">
             Organizer tools
           </p>
 
@@ -813,7 +813,7 @@ export default function OrganizerInvitationPanel({
           </h2>
         </div>
 
-        <span className="rounded-full border border-[#74f2c2]/20 bg-[#74f2c2]/10 px-3 py-1 text-xs text-[#b7ffe3]">
+        <span className="rounded-full border border-[#9285ff]/30 bg-[#9285ff]/10 px-3 py-1 text-xs text-[#c9c2ff]">
           Invite-only
         </span>
       </div>
@@ -845,7 +845,7 @@ export default function OrganizerInvitationPanel({
               )
             }
             placeholder="0x..."
-            className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 font-mono text-sm text-white outline-none transition placeholder:text-white/20 focus:border-[#74f2c2]/50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-2 w-full rounded-2xl border border-[#79b7ff]/12 bg-[#0d142b] px-4 py-3 font-mono text-sm text-white outline-none transition placeholder:text-white/20 focus:border-[#73d8ff]/50 disabled:cursor-not-allowed disabled:opacity-40"
           />
         </label>
 
@@ -870,7 +870,7 @@ export default function OrganizerInvitationPanel({
                   event.target.value,
                 )
               }
-              className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 pr-20 text-sm text-white outline-none transition focus:border-[#74f2c2]/50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full rounded-2xl border border-[#79b7ff]/12 bg-[#0d142b] px-4 py-3 pr-20 text-sm text-white outline-none transition focus:border-[#73d8ff]/50 disabled:cursor-not-allowed disabled:opacity-40"
             />
 
             <span className="pointer-events-none absolute right-4 top-3 text-sm text-white/30">
@@ -885,7 +885,7 @@ export default function OrganizerInvitationPanel({
             busy ||
             eventStarted
           }
-          className="w-full rounded-2xl bg-[#74f2c2] px-5 py-3.5 font-semibold text-[#07110f] transition hover:bg-[#9dffda] disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded-2xl bg-gradient-to-r from-[#73d8ff] to-[#8195ff] px-5 py-3.5 font-semibold text-[#050817] shadow-lg shadow-[#267cff]/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {panelState ===
           "preparing"
@@ -908,7 +908,7 @@ export default function OrganizerInvitationPanel({
             panelState ===
             "error"
               ? "border-red-400/20 bg-red-400/10 text-red-100"
-              : "border-white/10 bg-black/20 text-white/60"
+              : "border-[#79b7ff]/12 bg-[#0d142b] text-white/60"
           }`}
         >
           {message}
@@ -917,7 +917,7 @@ export default function OrganizerInvitationPanel({
 
       {inviteUrl &&
       invitation ? (
-        <div className="mt-5 rounded-2xl border border-[#74f2c2]/20 bg-black/20 p-4">
+        <div className="mt-5 rounded-2xl border border-[#73d8ff]/20 bg-[#0d142b] p-4">
           <p className="text-xs text-white/35">
             Assigned wallet
           </p>
@@ -942,7 +942,7 @@ export default function OrganizerInvitationPanel({
             readOnly
             value={inviteUrl}
             rows={4}
-            className="mt-4 w-full resize-none rounded-xl border border-white/10 bg-black/30 p-3 font-mono text-xs leading-5 text-white/60 outline-none"
+            className="mt-4 w-full resize-none rounded-xl border border-[#79b7ff]/12 bg-[#080d1d] p-3 font-mono text-xs leading-5 text-white/60 outline-none"
           />
 
           <button
@@ -950,7 +950,7 @@ export default function OrganizerInvitationPanel({
             onClick={
               handleCopy
             }
-            className="mt-3 w-full rounded-xl border border-[#74f2c2]/25 bg-[#74f2c2]/10 px-4 py-3 text-sm font-medium text-[#b7ffe3] transition hover:bg-[#74f2c2]/15"
+            className="mt-3 w-full rounded-xl border border-[#73d8ff]/25 bg-[#73d8ff]/10 px-4 py-3 text-sm font-medium text-[#b8e8ff] transition hover:bg-[#73d8ff]/15"
           >
             Copy invitation link
           </button>

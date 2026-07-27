@@ -270,11 +270,11 @@ function getStatusClass(
   status: number,
 ) {
   if (status === 1) {
-    return "border-[#74f2c2]/25 bg-[#74f2c2]/10 text-[#b7ffe3]";
+    return "border-[#73d8ff]/25 bg-[#73d8ff]/10 text-[#b8e8ff]";
   }
 
   if (status === 2) {
-    return "border-white/10 bg-white/[0.04] text-white/45";
+    return "border-[#79b7ff]/12 bg-white/[0.04] text-white/45";
   }
 
   if (status === 3) {
@@ -304,7 +304,7 @@ function getStatusClass(
     return "border-orange-300/25 bg-orange-300/10 text-orange-100";
   }
 
-  return "border-white/10 bg-white/[0.04] text-white/50";
+  return "border-[#79b7ff]/12 bg-white/[0.04] text-white/50";
 }
 
 function getConnectedOrganizerWallet(
@@ -1860,10 +1860,10 @@ export default function OrganizerAttendancePanel({
   }
 
   return (
-    <section className="mt-6 rounded-[26px] border border-[#74f2c2]/20 bg-[#74f2c2]/[0.055] p-5">
+    <section className="mt-6 rounded-[26px] border border-[#79b7ff]/16 bg-[#0b1025] p-5 shadow-xl shadow-[#267cff]/10">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#74f2c2]">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#73d8ff]">
             Organizer controls
           </p>
 
@@ -1892,7 +1892,7 @@ export default function OrganizerAttendancePanel({
                 busyAttendee,
               )
             }
-            className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-white/55 transition hover:border-[#74f2c2]/25 hover:bg-[#74f2c2]/10 hover:text-[#b7ffe3] disabled:cursor-wait disabled:opacity-50"
+            className="rounded-xl border border-[#79b7ff]/12 px-3 py-2 text-xs font-medium text-white/55 transition hover:border-[#73d8ff]/25 hover:bg-[#73d8ff]/10 hover:text-[#b8e8ff] disabled:cursor-wait disabled:opacity-50"
           >
             {loading
               ? "Refreshing..."
@@ -1911,7 +1911,7 @@ export default function OrganizerAttendancePanel({
                 busyAttendee,
               )
             }
-            className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-white/55 transition hover:border-[#74f2c2]/25 hover:bg-[#74f2c2]/10 hover:text-[#b7ffe3] disabled:cursor-wait disabled:opacity-50"
+            className="rounded-xl border border-[#79b7ff]/12 px-3 py-2 text-xs font-medium text-white/55 transition hover:border-[#73d8ff]/25 hover:bg-[#73d8ff]/10 hover:text-[#b8e8ff] disabled:cursor-wait disabled:opacity-50"
           >
             {exporting
               ? "Exporting..."
@@ -1930,7 +1930,7 @@ export default function OrganizerAttendancePanel({
                 busyAttendee,
               )
             }
-            className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-white/55 transition hover:border-[#74f2c2]/25 hover:bg-[#74f2c2]/10 hover:text-[#b7ffe3] disabled:cursor-wait disabled:opacity-50"
+            className="rounded-xl border border-[#79b7ff]/12 px-3 py-2 text-xs font-medium text-white/55 transition hover:border-[#73d8ff]/25 hover:bg-[#73d8ff]/10 hover:text-[#b8e8ff] disabled:cursor-wait disabled:opacity-50"
           >
             {printing
               ? "Preparing..."
@@ -1945,7 +1945,7 @@ export default function OrganizerAttendancePanel({
         eventStart={eventStart}
       />
 
-      <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 px-4 py-3 text-xs leading-5 text-white/45">
+      <div className="mt-4 rounded-2xl border border-[#79b7ff]/12 bg-[#0d142b] px-4 py-3 text-xs leading-5 text-white/45">
         {attendanceWindowOpen ? (
           <>
             Check-in is open until{" "}
@@ -1996,7 +1996,7 @@ export default function OrganizerAttendancePanel({
             placeholder="Search wallet address..."
             autoComplete="off"
             spellCheck={false}
-            className="w-full rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-[#74f2c2]/35"
+            className="w-full rounded-2xl border border-[#79b7ff]/12 bg-[#0d142b] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-[#73d8ff]/35"
           />
         </label>
 
@@ -2019,7 +2019,7 @@ export default function OrganizerAttendancePanel({
                   .value as StatusFilter,
               );
             }}
-            className="w-full rounded-2xl border border-white/10 bg-[#0b1714] px-4 py-3 text-sm text-white/75 outline-none transition focus:border-[#74f2c2]/35"
+            className="w-full rounded-2xl border border-[#79b7ff]/12 bg-[#0d142b] px-4 py-3 text-sm text-white/75 outline-none transition focus:border-[#73d8ff]/35"
           >
             <option value="all">
               All statuses
@@ -2084,7 +2084,7 @@ export default function OrganizerAttendancePanel({
       ) : null}
 
       {message ? (
-        <div className="mt-4 rounded-2xl border border-[#74f2c2]/20 bg-[#74f2c2]/10 px-4 py-3 text-sm leading-6 text-[#caffeb]">
+        <div className="mt-4 rounded-2xl border border-[#73d8ff]/20 bg-[#73d8ff]/10 px-4 py-3 text-sm leading-6 text-[#c1eaff]">
           {message}
         </div>
       ) : null}
@@ -2092,14 +2092,14 @@ export default function OrganizerAttendancePanel({
       <div className="mt-4 space-y-3">
         {loading &&
         attendees.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-5 text-sm text-white/40">
+          <div className="rounded-2xl border border-[#79b7ff]/12 bg-[#0d142b] px-4 py-5 text-sm text-white/40">
             Loading attendee page...
           </div>
         ) : null}
 
         {!loading &&
         attendees.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-5 text-sm text-white/40">
+          <div className="rounded-2xl border border-[#79b7ff]/12 bg-[#0d142b] px-4 py-5 text-sm text-white/40">
             No attendee wallets match this search and status filter.
           </div>
         ) : null}
@@ -2120,7 +2120,7 @@ export default function OrganizerAttendancePanel({
                 key={
                   attendee.attendee
                 }
-                className="rounded-2xl border border-white/10 bg-black/10 p-4"
+                className="rounded-2xl border border-[#79b7ff]/12 bg-[#0d142b] p-4"
               >
                 <div className="flex flex-col gap-4">
                   <div className="min-w-0">
@@ -2135,7 +2135,7 @@ export default function OrganizerAttendancePanel({
                             attendee.attendee,
                           );
                         }}
-                        className="max-w-full rounded-lg font-mono text-sm font-medium text-white/80 transition hover:text-[#b7ffe3]"
+                        className="max-w-full rounded-lg font-mono text-sm font-medium text-white/80 transition hover:text-[#b8e8ff]"
                       >
                         {shortenAddress(
                           attendee.attendee,
@@ -2199,7 +2199,7 @@ export default function OrganizerAttendancePanel({
                             busyAttendee,
                           )
                         }
-                        className="w-full rounded-xl bg-[#74f2c2] px-4 py-2.5 text-xs font-semibold text-[#07110f] transition hover:bg-[#8ff6cf] disabled:cursor-not-allowed disabled:opacity-40"
+                        className="w-full rounded-xl bg-gradient-to-r from-[#73d8ff] to-[#8195ff] px-4 py-2.5 text-xs font-semibold text-[#050817] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         {processing &&
                         busyAction ===
@@ -2269,7 +2269,7 @@ export default function OrganizerAttendancePanel({
         )}
       </div>
 
-      <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+      <div className="mt-5 flex items-center justify-between gap-3 border-t border-[#79b7ff]/12 pt-4">
         <button
           type="button"
           onClick={() => {
@@ -2291,7 +2291,7 @@ export default function OrganizerAttendancePanel({
               busyAttendee,
             )
           }
-          className="rounded-xl border border-white/10 px-4 py-2.5 text-xs font-medium text-white/55 transition hover:border-[#74f2c2]/25 hover:bg-[#74f2c2]/10 hover:text-[#b7ffe3] disabled:cursor-not-allowed disabled:opacity-35"
+          className="rounded-xl border border-[#79b7ff]/12 px-4 py-2.5 text-xs font-medium text-white/55 transition hover:border-[#73d8ff]/25 hover:bg-[#73d8ff]/10 hover:text-[#b8e8ff] disabled:cursor-not-allowed disabled:opacity-35"
         >
           Previous
         </button>
@@ -2323,7 +2323,7 @@ export default function OrganizerAttendancePanel({
               busyAttendee,
             )
           }
-          className="rounded-xl border border-white/10 px-4 py-2.5 text-xs font-medium text-white/55 transition hover:border-[#74f2c2]/25 hover:bg-[#74f2c2]/10 hover:text-[#b7ffe3] disabled:cursor-not-allowed disabled:opacity-35"
+          className="rounded-xl border border-[#79b7ff]/12 px-4 py-2.5 text-xs font-medium text-white/55 transition hover:border-[#73d8ff]/25 hover:bg-[#73d8ff]/10 hover:text-[#b8e8ff] disabled:cursor-not-allowed disabled:opacity-35"
         >
           Next
         </button>
