@@ -889,7 +889,7 @@ export default function ReserveSeatButton({
 
         if (currentIsOrganizer) {
           setMessage(
-            "Organizers cannot reserve seats in their own events.",
+            "",
           );
 
           return;
