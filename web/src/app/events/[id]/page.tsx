@@ -150,7 +150,7 @@ function getEventStatus(
     return {
       label: "Open",
       className:
-        "border-[#74f2c2]/25 bg-[#74f2c2]/10 text-[#b7ffe3]",
+        "border-[#73d8ff]/25 bg-[#73d8ff]/10 text-[#b8e8ff]",
     };
   }
 
@@ -165,7 +165,7 @@ function getEventStatus(
   return {
     label: "Ended",
     className:
-      "border-white/10 bg-white/[0.04] text-white/45",
+      "border-[#79b7ff]/12 bg-[#0d142b] text-white/45",
   };
 }
 
@@ -625,14 +625,14 @@ export default function EventDetailsPage() {
     );
 
   return (
-    <main className="min-h-screen bg-[#07110f] text-white">
-      <header className="border-b border-white/10">
+    <main className="min-h-screen bg-[#050817] text-white">
+      <header className="border-b border-[#79b7ff]/12 bg-[#050817]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
           <Link
             href="/"
             className="flex items-center gap-3"
           >
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#74f2c2] font-black text-[#07110f]">
+            <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-[#73d8ff] to-[#9285ff] font-black text-[#050817] shadow-lg shadow-[#4b9cff]/20">
               S
             </div>
 
@@ -642,7 +642,7 @@ export default function EventDetailsPage() {
               </p>
 
               <p className="text-xs text-white/35">
-                Built on Arc
+                Programmable commitment on Arc
               </p>
             </div>
           </Link>
@@ -650,7 +650,7 @@ export default function EventDetailsPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/events"
-              className="hidden text-sm text-white/45 transition hover:text-white sm:block"
+              className="hidden text-sm text-white/45 transition hover:text-[#9bddff] sm:block"
             >
               All events
             </Link>
@@ -663,13 +663,13 @@ export default function EventDetailsPage() {
       <section className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:py-14">
         <Link
           href="/events"
-          className="inline-flex items-center gap-2 text-sm text-white/40 transition hover:text-white/75"
+          className="inline-flex items-center gap-2 text-sm text-white/40 transition hover:text-[#9bddff]"
         >
           ← Back to events
         </Link>
 
         {loading ? (
-          <div className="mt-8 rounded-[30px] border border-white/10 bg-white/[0.035] p-10 text-center text-white/45">
+          <div className="mt-8 rounded-[30px] border border-[#79b7ff]/12 bg-[#0a1025] p-10 text-center text-white/45">
             Loading event from Arc Testnet...
           </div>
         ) : null}
@@ -691,7 +691,7 @@ export default function EventDetailsPage() {
         event ? (
           <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
             <div className="space-y-7">
-              <article className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.035]">
+              <article className="overflow-hidden rounded-[30px] border border-[#79b7ff]/14 bg-[#0a1025] shadow-2xl shadow-[#267cff]/10">
                 {metadata?.eventImage ? (
                   <div
                     className="h-64 bg-cover bg-center sm:h-96"
@@ -701,7 +701,7 @@ export default function EventDetailsPage() {
                     }}
                   />
                 ) : (
-                  <div className="grid h-56 place-items-center bg-gradient-to-br from-[#74f2c2]/15 to-transparent text-sm text-white/30">
+                  <div className="grid h-56 place-items-center bg-gradient-to-br from-[#288cff]/20 via-[#625cff]/10 to-[#050817] text-sm text-white/35">
                     ShowUp Event #
                     {event.id}
                   </div>
@@ -709,7 +709,7 @@ export default function EventDetailsPage() {
 
                 <div className="p-6 sm:p-8">
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/50">
+                    <span className="rounded-full border border-[#79b7ff]/12 bg-[#0d142b] px-3 py-1 text-xs text-white/50">
                       Event #{event.id}
                     </span>
 
@@ -733,7 +733,7 @@ export default function EventDetailsPage() {
                       </span>
                     ) : null}
 
-                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/40">
+                    <span className="rounded-full border border-[#79b7ff]/12 bg-[#0d142b] px-3 py-1 text-xs text-white/40">
                       Arc Testnet
                     </span>
                   </div>
@@ -751,7 +751,7 @@ export default function EventDetailsPage() {
                   ) : null}
 
                   {metadata?.location ? (
-                    <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-white/55">
+                    <div className="mt-6 rounded-2xl border border-[#79b7ff]/12 bg-[#0b1228] px-4 py-3 text-sm text-white/55">
                       📍{" "}
                       {
                         metadata.location
@@ -761,7 +761,7 @@ export default function EventDetailsPage() {
                 </div>
               </article>
 
-              <section className="rounded-[30px] border border-white/10 bg-white/[0.035] p-6 sm:p-8">
+              <section className="rounded-[30px] border border-[#79b7ff]/12 bg-[#0a1025] p-6 sm:p-8">
                 <h2 className="text-2xl font-semibold">
                   About this event
                 </h2>
@@ -792,7 +792,7 @@ export default function EventDetailsPage() {
                   </div>
 
                   <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                    <div className="rounded-2xl border border-[#79b7ff]/12 bg-[#0d142b] p-4">
                       <p className="text-xs text-white/35">
                         Upfront payment
                       </p>
@@ -805,7 +805,7 @@ export default function EventDetailsPage() {
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                    <div className="rounded-2xl border border-[#79b7ff]/12 bg-[#0d142b] p-4">
                       <p className="text-xs text-white/35">
                         Remaining balance
                       </p>
@@ -820,7 +820,7 @@ export default function EventDetailsPage() {
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                    <div className="rounded-2xl border border-[#79b7ff]/12 bg-[#0d142b] p-4">
                       <p className="text-xs text-white/35">
                         Total price
                       </p>
@@ -850,7 +850,7 @@ export default function EventDetailsPage() {
 
               {videoPresentation.type !==
               "none" ? (
-                <section className="rounded-[30px] border border-white/10 bg-white/[0.035] p-6 sm:p-8">
+                <section className="rounded-[30px] border border-[#79b7ff]/12 bg-[#0a1025] p-6 sm:p-8">
                   <h2 className="text-2xl font-semibold">
                     Promotional video
                   </h2>
@@ -888,7 +888,7 @@ export default function EventDetailsPage() {
                       }
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-6 inline-flex rounded-2xl border border-[#74f2c2]/25 bg-[#74f2c2]/10 px-5 py-3 text-sm font-medium text-[#b7ffe3] transition hover:bg-[#74f2c2]/15"
+                      className="mt-6 inline-flex rounded-2xl border border-[#73d8ff]/25 bg-[#73d8ff]/10 px-5 py-3 text-sm font-medium text-[#b8e8ff] transition hover:bg-[#73d8ff]/15"
                     >
                       Watch promotional
                       video ↗
@@ -898,7 +898,7 @@ export default function EventDetailsPage() {
               ) : null}
 
               {metadata?.rules ? (
-                <section className="rounded-[30px] border border-white/10 bg-white/[0.035] p-6 sm:p-8">
+                <section className="rounded-[30px] border border-[#79b7ff]/12 bg-[#0a1025] p-6 sm:p-8">
                   <h2 className="text-2xl font-semibold">
                     Attendance rules
                   </h2>
@@ -909,7 +909,7 @@ export default function EventDetailsPage() {
                 </section>
               ) : null}
 
-              <section className="rounded-[30px] border border-white/10 bg-white/[0.035] p-6 sm:p-8">
+              <section className="rounded-[30px] border border-[#79b7ff]/12 bg-[#0a1025] p-6 sm:p-8">
                 <h2 className="text-2xl font-semibold">
                   Organizer
                 </h2>
@@ -925,7 +925,7 @@ export default function EventDetailsPage() {
                       }}
                     />
                   ) : (
-                    <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-[#74f2c2]/10 text-xl font-semibold text-[#b7ffe3]">
+                    <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-[#73d8ff]/10 text-xl font-semibold text-[#b8e8ff]">
                       {organizerName
                         .slice(0, 1)
                         .toUpperCase()}
@@ -962,7 +962,7 @@ export default function EventDetailsPage() {
                           }
                           target="_blank"
                           rel="noreferrer"
-                          className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white/55 transition hover:border-white/20 hover:text-white"
+                          className="rounded-xl border border-[#79b7ff]/12 px-4 py-2 text-sm text-white/55 transition hover:border-white/20 hover:text-white"
                         >
                           Website ↗
                         </a>
@@ -975,7 +975,7 @@ export default function EventDetailsPage() {
                           }
                           target="_blank"
                           rel="noreferrer"
-                          className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white/55 transition hover:border-white/20 hover:text-white"
+                          className="rounded-xl border border-[#79b7ff]/12 px-4 py-2 text-sm text-white/55 transition hover:border-white/20 hover:text-white"
                         >
                           View on X ↗
                         </a>
@@ -987,8 +987,8 @@ export default function EventDetailsPage() {
             </div>
 
             <aside className="space-y-5 lg:sticky lg:top-8">
-              <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/25">
-                <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#74f2c2]">
+              <div className="rounded-[30px] border border-[#79b7ff]/16 bg-[#0b1025] p-6 shadow-2xl shadow-[#267cff]/10">
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#73d8ff]">
                   {paymentDetails.isPaid
                     ? "Upfront payment"
                     : "Commitment deposit"}
@@ -1013,7 +1013,7 @@ export default function EventDetailsPage() {
 
                 {paymentDetails.isPaid ? (
                   <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl bg-white/[0.04] p-4">
+                    <div className="rounded-2xl bg-[#0d142b] p-4">
                       <p className="text-xs text-white/35">
                         Total price
                       </p>
@@ -1028,7 +1028,7 @@ export default function EventDetailsPage() {
                       </p>
                     </div>
 
-                    <div className="rounded-2xl bg-white/[0.04] p-4">
+                    <div className="rounded-2xl bg-[#0d142b] p-4">
                       <p className="text-xs text-white/35">
                         Pay later
                       </p>
@@ -1048,7 +1048,7 @@ export default function EventDetailsPage() {
                 <div className="my-6 h-px bg-white/10" />
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl bg-white/[0.04] p-4">
+                  <div className="rounded-2xl bg-[#0d142b] p-4">
                     <p className="text-xs text-white/35">
                       Remaining seats
                     </p>
@@ -1060,7 +1060,7 @@ export default function EventDetailsPage() {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-white/[0.04] p-4">
+                  <div className="rounded-2xl bg-[#0d142b] p-4">
                     <p className="text-xs text-white/35">
                       Reserved
                     </p>
@@ -1090,7 +1090,7 @@ export default function EventDetailsPage() {
 
                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
                       <div
-                        className="h-full rounded-full bg-[#74f2c2]"
+                        className="h-full rounded-full bg-gradient-to-r from-[#73d8ff] to-[#8195ff]"
                         style={{
                           width:
                             `${capacityDetails.progress}%`,
@@ -1268,7 +1268,7 @@ export default function EventDetailsPage() {
                 />
               </div>
 
-              <div className="rounded-[30px] border border-white/10 bg-white/[0.035] p-6">
+              <div className="rounded-[30px] border border-[#79b7ff]/12 bg-[#0a1025] p-6">
                 <h2 className="font-semibold">
                   Event timeline
                 </h2>
@@ -1331,7 +1331,7 @@ export default function EventDetailsPage() {
                 </div>
               </div>
 
-              <div className="rounded-[30px] border border-white/10 bg-white/[0.035] p-6">
+              <div className="rounded-[30px] border border-[#79b7ff]/12 bg-[#0a1025] p-6">
                 <p className="text-xs text-white/30">
                   Organizer wallet
                 </p>
@@ -1365,7 +1365,7 @@ export default function EventDetailsPage() {
                     }
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-5 inline-flex text-xs text-[#74f2c2] transition hover:text-[#b7ffe3]"
+                    className="mt-5 inline-flex text-xs text-[#73d8ff] transition hover:text-[#b8e8ff]"
                   >
                     View public metadata
                     ↗
