@@ -237,7 +237,7 @@ export default function EventsPage() {
 
   return (
     <main className="min-h-screen bg-[#050817] text-white">
-      <header className="border-b border-[#79b7ff]/12 bg-[#050817]/90 backdrop-blur-xl">
+      <header className="relative z-[100] overflow-visible border-b border-[#79b7ff]/12 bg-[#050817]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-5 lg:px-10">
           <Link href="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#73d8ff] to-[#9285ff] text-lg font-black text-[#050817] shadow-lg shadow-[#4b9cff]/20">

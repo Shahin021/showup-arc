@@ -626,7 +626,7 @@ export default function EventDetailsPage() {
 
   return (
     <main className="min-h-screen bg-[#050817] text-white">
-      <header className="border-b border-[#79b7ff]/12 bg-[#050817]/90 backdrop-blur-xl">
+      <header className="relative z-[100] overflow-visible border-b border-[#79b7ff]/12 bg-[#050817]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
           <Link
             href="/"

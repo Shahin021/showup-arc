@@ -1234,7 +1234,7 @@ export default function CircleWalletButton() {
     <>
       <div
         ref={menuRef}
-        className="relative flex flex-col items-end"
+        className="relative z-[200] flex flex-col items-end"
       >
         {status === "ready" && walletAddress ? (
           <>
@@ -1246,9 +1246,9 @@ export default function CircleWalletButton() {
               }}
               aria-expanded={menuOpen}
               aria-haspopup="menu"
-              className="flex items-center gap-2 rounded-full border border-[#74f2c2]/30 bg-[#74f2c2]/15 px-4 py-2.5 text-sm font-medium text-[#9dffda] transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/20"
+              className="flex items-center gap-2 rounded-full border border-[#73d8ff]/30 bg-[#73d8ff]/15 px-4 py-2.5 text-sm font-medium text-[#b8e8ff] transition hover:border-[#73d8ff]/60 hover:bg-[#73d8ff]/20"
             >
-              <span className="h-2 w-2 rounded-full bg-[#74f2c2]" />
+              <span className="h-2 w-2 rounded-full bg-[#73d8ff]" />
 
               <span className="font-mono">
                 {shortenAddress(walletAddress)}
@@ -1275,15 +1275,15 @@ export default function CircleWalletButton() {
             {menuOpen && (
               <div
                 role="menu"
-                className="absolute right-0 top-full z-50 mt-3 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1916]/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
+                className="absolute right-0 top-full z-[220] mt-3 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#0a1025]/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
               >
                 <div className="px-2 pb-3 pt-1">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#74f2c2]">
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#73d8ff]">
                       Circle wallet
                     </p>
 
-                    <span className="rounded-full bg-[#74f2c2]/10 px-2 py-1 text-[10px] font-medium text-[#9dffda]">
+                    <span className="rounded-full bg-[#73d8ff]/10 px-2 py-1 text-[10px] font-medium text-[#b8e8ff]">
                       Arc Testnet
                     </span>
                   </div>
@@ -1320,7 +1320,7 @@ export default function CircleWalletButton() {
                           key={wallet.id}
                           className={`flex w-full items-center gap-2 rounded-xl border px-2 py-2 transition ${
                             isActive
-                              ? "border-[#74f2c2]/30 bg-[#74f2c2]/10"
+                              ? "border-[#73d8ff]/30 bg-[#73d8ff]/10"
                               : "border-white/[0.07] bg-white/[0.025] hover:border-white/15 hover:bg-white/[0.06]"
                           }`}
                         >
@@ -1344,7 +1344,7 @@ export default function CircleWalletButton() {
                             <span
                               className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-medium ${
                                 isActive
-                                  ? "bg-[#74f2c2]/15 text-[#9dffda]"
+                                  ? "bg-[#73d8ff]/15 text-[#b8e8ff]"
                                   : "bg-white/[0.06] text-white/35"
                               }`}
                             >
@@ -1360,7 +1360,7 @@ export default function CircleWalletButton() {
                                 wallet,
                               );
                             }}
-                            className="shrink-0 rounded-lg border border-white/10 px-2 py-1.5 text-[10px] font-medium text-white/45 transition hover:border-[#74f2c2]/25 hover:bg-[#74f2c2]/10 hover:text-[#9dffda]"
+                            className="shrink-0 rounded-lg border border-white/10 px-2 py-1.5 text-[10px] font-medium text-white/45 transition hover:border-[#73d8ff]/25 hover:bg-[#73d8ff]/10 hover:text-[#b8e8ff]"
                           >
                             Rename
                           </button>
@@ -1383,7 +1383,7 @@ export default function CircleWalletButton() {
                   >
                     <span>Copy address</span>
 
-                    <span className="text-xs text-[#74f2c2]">
+                    <span className="text-xs text-[#73d8ff]">
                       {copied ? "Copied" : "Copy"}
                     </span>
                   </button>
@@ -1441,7 +1441,7 @@ export default function CircleWalletButton() {
               disabled={status === "loading"}
               aria-expanded={walletChooserOpen}
               aria-haspopup="menu"
-              className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:border-[#74f2c2]/60 hover:bg-[#74f2c2]/10 disabled:cursor-wait disabled:opacity-70"
+              className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:border-[#73d8ff]/60 hover:bg-[#73d8ff]/10 disabled:cursor-wait disabled:opacity-70"
             >
               {buttonLabel}
 
@@ -1468,10 +1468,10 @@ export default function CircleWalletButton() {
             {walletChooserOpen && (
               <div
                 role="menu"
-                className="absolute right-0 top-full z-50 mt-3 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1916]/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
+                className="absolute right-0 top-full z-[220] mt-3 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#0a1025]/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
               >
                 <div className="px-3 pb-3 pt-2">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#74f2c2]">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#73d8ff]">
                     Choose a wallet
                   </p>
 
@@ -1553,10 +1553,10 @@ export default function CircleWalletButton() {
         {message && status !== "ready" && (
           <p
             aria-live="polite"
-            className={`absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border px-3 py-2 text-xs leading-5 shadow-xl backdrop-blur ${
+            className={`absolute right-0 top-full z-[220] mt-2 w-72 rounded-xl border px-3 py-2 text-xs leading-5 shadow-xl backdrop-blur ${
               status === "error"
                 ? "border-red-400/25 bg-red-950/90 text-red-200"
-                : "border-white/10 bg-[#0b1916]/95 text-white/65"
+                : "border-white/10 bg-[#0a1025]/95 text-white/65"
             }`}
           >
             {message}
