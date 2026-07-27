@@ -275,7 +275,7 @@ export default function WalletRecoveryDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 py-8 backdrop-blur-sm"
+      className="fixed inset-0 z-[500] grid place-items-center overflow-y-auto bg-black/75 px-4 py-4 backdrop-blur-md sm:py-8"
       onMouseDown={(event) => {
         if (
           event.target === event.currentTarget &&
@@ -289,11 +289,11 @@ export default function WalletRecoveryDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="wallet-recovery-title"
-        className="w-full max-w-lg overflow-hidden rounded-[28px] border border-white/10 bg-[#0b1916] shadow-2xl shadow-black/60"
+        className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-[28px] border border-[#79b7ff]/16 bg-[#0a1025] shadow-2xl shadow-[#267cff]/20"
       >
         <div className="flex items-start justify-between gap-5 border-b border-white/10 px-6 py-5">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#74f2c2]">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#73d8ff]">
               ShowUp wallet recovery
             </p>
 
@@ -344,7 +344,7 @@ export default function WalletRecoveryDialog({
                       ? "Creating recovery code..."
                       : "Recovery code unavailable"
                   }
-                  className="mt-2 min-h-36 w-full resize-none rounded-2xl border border-white/10 bg-black/20 p-4 font-mono text-xs leading-6 text-[#b7ffe3] outline-none"
+                  className="mt-2 min-h-36 w-full resize-none rounded-2xl border border-white/10 bg-[#0d142b] p-4 font-mono text-xs leading-6 text-[#b8e8ff] outline-none"
                 />
               </div>
 
@@ -364,7 +364,7 @@ export default function WalletRecoveryDialog({
                   type="button"
                   onClick={handleDownload}
                   disabled={!recoveryCode || isWorking}
-                  className="rounded-2xl bg-[#74f2c2] px-4 py-3 text-sm font-semibold text-[#07110f] transition hover:bg-[#9dffda] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-2xl bg-[#73d8ff] px-4 py-3 text-sm font-semibold text-[#050817] transition hover:bg-[#8195ff] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Download code
                 </button>
@@ -424,7 +424,7 @@ export default function WalletRecoveryDialog({
                   autoCapitalize="none"
                   spellCheck={false}
                   placeholder="SUP1..."
-                  className="mt-2 min-h-36 w-full resize-none rounded-2xl border border-white/10 bg-black/20 p-4 font-mono text-xs leading-6 text-white outline-none transition focus:border-[#74f2c2]/50 disabled:opacity-60"
+                  className="mt-2 min-h-36 w-full resize-none rounded-2xl border border-white/10 bg-[#0d142b] p-4 font-mono text-xs leading-6 text-white outline-none transition focus:border-[#73d8ff]/50 disabled:opacity-60"
                 />
               </div>
 
@@ -434,7 +434,7 @@ export default function WalletRecoveryDialog({
                   void handleRestore();
                 }}
                 disabled={!recoveryInput.trim() || isWorking}
-                className="mt-4 w-full rounded-2xl bg-[#74f2c2] px-4 py-3.5 text-sm font-semibold text-[#07110f] transition hover:bg-[#9dffda] disabled:cursor-not-allowed disabled:opacity-40"
+                className="mt-4 w-full rounded-2xl bg-[#73d8ff] px-4 py-3.5 text-sm font-semibold text-[#050817] transition hover:bg-[#8195ff] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isWorking
                   ? "Restoring wallet..."
@@ -451,7 +451,7 @@ export default function WalletRecoveryDialog({
           {statusMessage && (
             <p
               aria-live="polite"
-              className="mt-4 rounded-2xl border border-[#74f2c2]/15 bg-[#74f2c2]/10 px-4 py-3 text-sm leading-6 text-[#b7ffe3]"
+              className="mt-4 rounded-2xl border border-[#73d8ff]/15 bg-[#73d8ff]/10 px-4 py-3 text-sm leading-6 text-[#b8e8ff]"
             >
               {statusMessage}
             </p>
