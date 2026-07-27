@@ -22,7 +22,7 @@ const MAX_AVATAR_BYTES = 750_000;
 const MAX_VIDEO_BYTES = 50_000_000;
 
 const inputClassName =
-  "mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-[#74f2c2]/60 focus:bg-[#74f2c2]/[0.04] disabled:cursor-not-allowed disabled:opacity-40";
+  "mt-2 w-full rounded-2xl border border-[#79b7ff]/14 bg-[#0d142b] px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-[#73d8ff]/55 focus:bg-[#101a35] focus:shadow-[0_0_0_3px_rgba(115,216,255,0.08)] disabled:cursor-not-allowed disabled:opacity-40";
 
 const labelClassName =
   "block text-sm font-medium text-white/75";
@@ -1064,14 +1064,14 @@ export default function CreateEventPage() {
     submissionState === "awaiting";
 
   return (
-    <main className="min-h-screen bg-[#07110f] text-white">
-      <header className="border-b border-white/10">
+    <main className="min-h-screen bg-[#050817] text-white">
+      <header className="border-b border-[#79b7ff]/12 bg-[#050817]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
           <Link
             href="/"
             className="flex items-center gap-3"
           >
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#74f2c2] font-black text-[#07110f]">
+            <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-[#73d8ff] to-[#9285ff] font-black text-[#050817] shadow-lg shadow-[#4b9cff]/20">
               S
             </div>
 
@@ -1080,7 +1080,7 @@ export default function CreateEventPage() {
                 ShowUp
               </p>
               <p className="text-xs text-white/35">
-                Built on Arc
+                Programmable commitment on Arc
               </p>
             </div>
           </Link>
@@ -1088,7 +1088,7 @@ export default function CreateEventPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/"
-              className="hidden text-sm text-white/45 transition hover:text-white sm:block"
+              className="hidden text-sm text-white/45 transition hover:text-[#9bddff] sm:block"
             >
               Back home
             </Link>
@@ -1100,12 +1100,15 @@ export default function CreateEventPage() {
 
       <section className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:py-14">
         <div className="mb-8 max-w-3xl">
-          <div className="inline-flex rounded-full border border-[#74f2c2]/20 bg-[#74f2c2]/10 px-4 py-2 text-xs font-medium text-[#aaffdf]">
+          <div className="inline-flex rounded-full border border-[#73d8ff]/20 bg-[#73d8ff]/10 px-4 py-2 text-xs font-medium text-[#a9e3ff]">
             Live on Arc Testnet
           </div>
 
           <h1 className="mt-5 text-4xl font-semibold tracking-tight sm:text-5xl">
-            Create an accountable event.
+            Create an{" "}
+            <span className="bg-gradient-to-r from-[#73d8ff] to-[#9285ff] bg-clip-text text-transparent">
+              accountable event.
+            </span>
           </h1>
 
           <p className="mt-4 max-w-2xl text-base leading-7 text-white/45">
@@ -1116,7 +1119,7 @@ export default function CreateEventPage() {
         <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
           <form
             onSubmit={handleSubmit}
-            className="rounded-[30px] border border-white/10 bg-white/[0.035] p-5 shadow-2xl shadow-black/20 sm:p-8"
+            className="rounded-[30px] border border-[#79b7ff]/14 bg-[#0a1025] p-5 shadow-2xl shadow-[#267cff]/10 sm:p-8"
           >
             <section>
               <div className="flex items-start justify-between gap-5">
@@ -1130,7 +1133,7 @@ export default function CreateEventPage() {
                   </p>
                 </div>
 
-                <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/40">
+                <span className="rounded-full border border-[#79b7ff]/12 px-3 py-1 text-xs text-white/40">
                   Arc Testnet
                 </span>
               </div>
@@ -1138,7 +1141,7 @@ export default function CreateEventPage() {
               <div className="mt-6">
                 <label className={labelClassName}>
                   Event title
-                  <span className="ml-1 text-[#74f2c2]">
+                  <span className="ml-1 text-[#73d8ff]">
                     *
                   </span>
 
@@ -1184,7 +1187,7 @@ export default function CreateEventPage() {
               <div className="mt-5">
                 <label className={labelClassName}>
                   Full event description
-                  <span className="ml-1 text-[#74f2c2]">
+                  <span className="ml-1 text-[#73d8ff]">
                     *
                   </span>
 
@@ -1241,7 +1244,7 @@ export default function CreateEventPage() {
                           null,
                       )
                     }
-                    className={`${inputClassName} file:mr-4 file:rounded-xl file:border-0 file:bg-[#74f2c2] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[#07110f]`}
+                    className={`${inputClassName} file:mr-4 file:rounded-xl file:border-0 file:bg-[#73d8ff] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[#07110f]`}
                   />
                 </label>
 
@@ -1251,7 +1254,7 @@ export default function CreateEventPage() {
               </div>
             </section>
 
-            <section className="mt-9 border-t border-white/10 pt-8">
+            <section className="mt-9 border-t border-[#79b7ff]/12 pt-8">
               <h2 className="text-xl font-semibold">
                 Organizer profile
               </h2>
@@ -1263,7 +1266,7 @@ export default function CreateEventPage() {
               <div className="mt-6">
                 <label className={labelClassName}>
                   Organizer name
-                  <span className="ml-1 text-[#74f2c2]">
+                  <span className="ml-1 text-[#73d8ff]">
                     *
                   </span>
 
@@ -1364,7 +1367,7 @@ export default function CreateEventPage() {
               </div>
             </section>
 
-            <section className="mt-9 border-t border-white/10 pt-8">
+            <section className="mt-9 border-t border-[#79b7ff]/12 pt-8">
               <h2 className="text-xl font-semibold">
                 Promotional video
               </h2>
@@ -1391,8 +1394,8 @@ export default function CreateEventPage() {
                     }}
                     className={`rounded-2xl border px-4 py-3 text-sm font-medium transition ${
                       videoMode === value
-                        ? "border-[#74f2c2]/50 bg-[#74f2c2]/10 text-[#b7ffe3]"
-                        : "border-white/10 bg-white/[0.03] text-white/45 hover:border-white/20 hover:text-white/70"
+                        ? "border-[#73d8ff]/50 bg-[#73d8ff]/10 text-[#b8e8ff]"
+                        : "border-[#79b7ff]/12 bg-[#0b1228] text-white/45 hover:border-[#79b7ff]/25 hover:text-white/70"
                     }`}
                   >
                     {label}
@@ -1416,7 +1419,7 @@ export default function CreateEventPage() {
                         );
                         setVideoUploadProgress(0);
                       }}
-                      className={`${inputClassName} file:mr-4 file:rounded-xl file:border-0 file:bg-[#74f2c2] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[#07110f]`}
+                      className={`${inputClassName} file:mr-4 file:rounded-xl file:border-0 file:bg-[#73d8ff] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[#07110f]`}
                     />
                   </label>
 
@@ -1425,7 +1428,7 @@ export default function CreateEventPage() {
                   </p>
 
                   {videoFile ? (
-                    <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+                    <div className="mt-3 rounded-2xl border border-[#79b7ff]/12 bg-[#0b1228] p-4">
                       <div className="flex items-center justify-between gap-3 text-sm">
                         <span className="truncate text-white/65">
                           {videoFile.name}
@@ -1440,7 +1443,7 @@ export default function CreateEventPage() {
                         <div className="mt-3">
                           <div className="h-2 overflow-hidden rounded-full bg-white/10">
                             <div
-                              className="h-full rounded-full bg-[#74f2c2] transition-all"
+                              className="h-full rounded-full bg-[#73d8ff] transition-all"
                               style={{
                                 width: `${videoUploadProgress}%`,
                               }}
@@ -1484,7 +1487,7 @@ export default function CreateEventPage() {
               ) : null}
             </section>
 
-            <section className="mt-9 border-t border-white/10 pt-8">
+            <section className="mt-9 border-t border-[#79b7ff]/12 pt-8">
               <h2 className="text-xl font-semibold">
                 Attendance rules
               </h2>
@@ -1509,7 +1512,7 @@ export default function CreateEventPage() {
               </div>
             </section>
 
-            <section className="mt-9 border-t border-white/10 pt-8">
+            <section className="mt-9 border-t border-[#79b7ff]/12 pt-8">
               <h2 className="text-xl font-semibold">
                 Event access
               </h2>
@@ -1527,8 +1530,8 @@ export default function CreateEventPage() {
                   }
                   className={`rounded-2xl border px-4 py-4 text-left transition ${
                     accessMode === "public"
-                      ? "border-[#74f2c2]/60 bg-[#74f2c2]/10 text-white"
-                      : "border-white/10 bg-white/[0.035] text-white/45 hover:border-white/20"
+                      ? "border-[#73d8ff]/60 bg-[#73d8ff]/10 text-white"
+                      : "border-[#79b7ff]/12 bg-[#0a1025] text-white/45 hover:border-[#79b7ff]/25"
                   } disabled:cursor-not-allowed disabled:opacity-40`}
                 >
                   <span className="block text-sm font-semibold">
@@ -1548,8 +1551,8 @@ export default function CreateEventPage() {
                   }
                   className={`rounded-2xl border px-4 py-4 text-left transition ${
                     accessMode === "inviteOnly"
-                      ? "border-[#74f2c2]/60 bg-[#74f2c2]/10 text-white"
-                      : "border-white/10 bg-white/[0.035] text-white/45 hover:border-white/20"
+                      ? "border-[#73d8ff]/60 bg-[#73d8ff]/10 text-white"
+                      : "border-[#79b7ff]/12 bg-[#0a1025] text-white/45 hover:border-[#79b7ff]/25"
                   } disabled:cursor-not-allowed disabled:opacity-40`}
                 >
                   <span className="block text-sm font-semibold">
@@ -1573,7 +1576,7 @@ export default function CreateEventPage() {
               ) : null}
             </section>
 
-            <section className="mt-9 border-t border-white/10 pt-8">
+            <section className="mt-9 border-t border-[#79b7ff]/12 pt-8">
               <h2 className="text-xl font-semibold">
                 Pricing and capacity
               </h2>
@@ -1592,8 +1595,8 @@ export default function CreateEventPage() {
                     }
                     className={`rounded-2xl border px-4 py-4 text-left transition ${
                       eventType === "free"
-                        ? "border-[#74f2c2]/60 bg-[#74f2c2]/10 text-white"
-                        : "border-white/10 bg-white/[0.035] text-white/45 hover:border-white/20"
+                        ? "border-[#73d8ff]/60 bg-[#73d8ff]/10 text-white"
+                        : "border-[#79b7ff]/12 bg-[#0a1025] text-white/45 hover:border-[#79b7ff]/25"
                     } disabled:cursor-not-allowed disabled:opacity-40`}
                   >
                     <span className="block text-sm font-semibold">
@@ -1613,8 +1616,8 @@ export default function CreateEventPage() {
                     }
                     className={`rounded-2xl border px-4 py-4 text-left transition ${
                       eventType === "paid"
-                        ? "border-[#74f2c2]/60 bg-[#74f2c2]/10 text-white"
-                        : "border-white/10 bg-white/[0.035] text-white/45 hover:border-white/20"
+                        ? "border-[#73d8ff]/60 bg-[#73d8ff]/10 text-white"
+                        : "border-[#79b7ff]/12 bg-[#0a1025] text-white/45 hover:border-[#79b7ff]/25"
                     } disabled:cursor-not-allowed disabled:opacity-40`}
                   >
                     <span className="block text-sm font-semibold">
@@ -1633,7 +1636,7 @@ export default function CreateEventPage() {
                   {eventType === "paid"
                     ? "Upfront payment"
                     : "Commitment deposit"}
-                  <span className="ml-1 text-[#74f2c2]">
+                  <span className="ml-1 text-[#73d8ff]">
                     *
                   </span>
 
@@ -1656,7 +1659,7 @@ export default function CreateEventPage() {
                       className={`${inputClassName} pr-20`}
                     />
 
-                    <span className="pointer-events-none absolute bottom-3.5 right-4 text-sm font-medium text-[#74f2c2]">
+                    <span className="pointer-events-none absolute bottom-3.5 right-4 text-sm font-medium text-[#73d8ff]">
                       USDC
                     </span>
                   </div>
@@ -1665,7 +1668,7 @@ export default function CreateEventPage() {
                 {eventType === "paid" ? (
                   <label className={labelClassName}>
                     Total price
-                    <span className="ml-1 text-[#74f2c2]">
+                    <span className="ml-1 text-[#73d8ff]">
                       *
                     </span>
 
@@ -1684,7 +1687,7 @@ export default function CreateEventPage() {
                         className={`${inputClassName} pr-20`}
                       />
 
-                      <span className="pointer-events-none absolute bottom-3.5 right-4 text-sm font-medium text-[#74f2c2]">
+                      <span className="pointer-events-none absolute bottom-3.5 right-4 text-sm font-medium text-[#73d8ff]">
                         USDC
                       </span>
                     </div>
@@ -1704,7 +1707,7 @@ export default function CreateEventPage() {
                 >
                   <label className={labelClassName}>
                     Event capacity
-                    <span className="ml-1 text-[#74f2c2]">
+                    <span className="ml-1 text-[#73d8ff]">
                       *
                     </span>
 
@@ -1738,7 +1741,7 @@ export default function CreateEventPage() {
                           event.target.checked,
                         )
                       }
-                      className="h-4 w-4 accent-[#74f2c2]"
+                      className="h-4 w-4 accent-[#73d8ff]"
                     />
 
                     Unlimited capacity
@@ -1747,7 +1750,7 @@ export default function CreateEventPage() {
               </div>
             </section>
 
-            <section className="mt-9 border-t border-white/10 pt-8">
+            <section className="mt-9 border-t border-[#79b7ff]/12 pt-8">
               <h2 className="text-xl font-semibold">
                 Event timeline
               </h2>
@@ -1759,7 +1762,7 @@ export default function CreateEventPage() {
               <div className="mt-6 grid gap-5 sm:grid-cols-2">
                 <label className={labelClassName}>
                   Event start
-                  <span className="ml-1 text-[#74f2c2]">
+                  <span className="ml-1 text-[#73d8ff]">
                     *
                   </span>
 
@@ -1778,7 +1781,7 @@ export default function CreateEventPage() {
 
                 <label className={labelClassName}>
                   Event end
-                  <span className="ml-1 text-[#74f2c2]">
+                  <span className="ml-1 text-[#73d8ff]">
                     *
                   </span>
 
@@ -1856,8 +1859,8 @@ export default function CreateEventPage() {
               </div>
             </section>
 
-            <div className="mt-8 rounded-2xl border border-[#74f2c2]/20 bg-[#74f2c2]/10 p-4">
-              <p className="text-sm leading-6 text-[#c7ffea]">
+            <div className="mt-8 rounded-2xl border border-[#73d8ff]/20 bg-[#73d8ff]/10 p-4">
+              <p className="text-sm leading-6 text-[#c1eaff]">
                 Creating an event does not lock a deposit. Deposits enter escrow only when attendees reserve seats.
               </p>
             </div>
@@ -1868,8 +1871,8 @@ export default function CreateEventPage() {
                   submissionState === "error"
                     ? "border-red-400/20 bg-red-400/10 text-red-200"
                     : submissionState === "submitted"
-                      ? "border-[#74f2c2]/30 bg-[#74f2c2]/10 text-[#c7ffea]"
-                      : "border-white/10 bg-white/[0.04] text-white/65"
+                      ? "border-[#73d8ff]/30 bg-[#73d8ff]/10 text-[#c1eaff]"
+                      : "border-[#79b7ff]/12 bg-[#0d142b] text-white/65"
                 }`}
               >
                 {message}
@@ -1879,7 +1882,7 @@ export default function CreateEventPage() {
             <button
               type="submit"
               disabled={formDisabled}
-              className="mt-6 w-full rounded-2xl bg-[#74f2c2] py-4 font-semibold text-[#07110f] transition hover:bg-[#9dffda] disabled:cursor-wait disabled:opacity-60"
+              className="mt-6 w-full rounded-2xl bg-gradient-to-r from-[#73d8ff] to-[#8195ff] py-4 font-semibold text-[#050817] shadow-lg shadow-[#267cff]/20 transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60"
             >
               {buttonLabel}
             </button>
@@ -1890,8 +1893,8 @@ export default function CreateEventPage() {
           </form>
 
           <aside className="lg:sticky lg:top-8">
-            <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-4 shadow-2xl shadow-black/30">
-              <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[#0b1916]">
+            <div className="overflow-hidden rounded-[30px] border border-[#79b7ff]/16 bg-[#0b1025] p-4 shadow-2xl shadow-[#267cff]/12">
+              <div className="overflow-hidden rounded-[24px] border border-[#79b7ff]/12 bg-[#080e21]">
                 {eventImagePreview ? (
                   <div
                     className="h-48 bg-cover bg-center"
@@ -1900,7 +1903,7 @@ export default function CreateEventPage() {
                     }}
                   />
                 ) : (
-                  <div className="grid h-40 place-items-center bg-gradient-to-br from-[#74f2c2]/15 to-transparent text-sm text-white/30">
+                  <div className="grid h-40 place-items-center bg-gradient-to-br from-[#288cff]/20 via-[#625cff]/10 to-[#050817] text-sm text-white/35">
                     Event cover preview
                   </div>
                 )}
@@ -1908,7 +1911,7 @@ export default function CreateEventPage() {
                 <div className="p-6">
                   <div className="flex items-start justify-between gap-5">
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#74f2c2]">
+                      <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#73d8ff]">
                         Live preview
                       </p>
 
@@ -1923,7 +1926,7 @@ export default function CreateEventPage() {
                       </p>
                     </div>
 
-                    <div className="shrink-0 rounded-2xl bg-[#74f2c2] px-3 py-2 text-center text-[#07110f]">
+                    <div className="shrink-0 rounded-2xl bg-gradient-to-br from-[#73d8ff] to-[#8195ff] px-3 py-2 text-center text-[#050817] shadow-lg shadow-[#4b9cff]/20">
                       <p className="text-xs font-semibold uppercase">
                         {eventStart
                           ? new Date(
@@ -1949,7 +1952,7 @@ export default function CreateEventPage() {
 
                   {(organizerName ||
                     avatarPreview) ? (
-                    <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                    <div className="mt-5 flex items-center gap-3 rounded-2xl border border-[#79b7ff]/12 bg-[#0b1228] p-3">
                       {avatarPreview ? (
                         <div
                           className="h-11 w-11 shrink-0 rounded-full bg-cover bg-center"
@@ -1989,7 +1992,7 @@ export default function CreateEventPage() {
                   <div className="my-6 h-px bg-white/10" />
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="rounded-2xl bg-white/[0.04] p-4">
+                    <div className="rounded-2xl bg-[#0d142b] p-4">
                       <p className="text-xs leading-5 text-white/35">
                         {eventType === "paid"
                           ? "Upfront payment"
@@ -2002,7 +2005,7 @@ export default function CreateEventPage() {
                     </div>
 
                     {eventType === "paid" ? (
-                      <div className="rounded-2xl bg-white/[0.04] p-4">
+                      <div className="rounded-2xl bg-[#0d142b] p-4">
                         <p className="text-xs leading-5 text-white/35">
                           Total price
                         </p>
@@ -2012,7 +2015,7 @@ export default function CreateEventPage() {
                         </p>
                       </div>
                     ) : (
-                      <div className="rounded-2xl bg-white/[0.04] p-4">
+                      <div className="rounded-2xl bg-[#0d142b] p-4">
                         <p className="text-xs leading-5 text-white/35">
                           Available seats
                         </p>
@@ -2024,7 +2027,7 @@ export default function CreateEventPage() {
                     )}
 
                     {eventType === "paid" ? (
-                      <div className="col-span-2 rounded-2xl bg-white/[0.04] p-4">
+                      <div className="col-span-2 rounded-2xl bg-[#0d142b] p-4">
                         <p className="text-xs leading-5 text-white/35">
                           Available seats
                         </p>
@@ -2036,7 +2039,7 @@ export default function CreateEventPage() {
                     ) : null}
                   </div>
 
-                  <div className="mt-4 space-y-3 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+                  <div className="mt-4 space-y-3 rounded-2xl border border-[#79b7ff]/12 bg-[#0b1228] p-4">
                     <div>
                       <p className="text-xs text-white/30">
                         Starts
@@ -2060,15 +2063,15 @@ export default function CreateEventPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-2xl border border-[#74f2c2]/20 bg-[#74f2c2]/10 p-4">
-                    <p className="text-sm font-medium leading-6 text-[#b7ffe3]">
+                  <div className="mt-4 rounded-2xl border border-[#73d8ff]/20 bg-[#73d8ff]/10 p-4">
+                    <p className="text-sm font-medium leading-6 text-[#b8e8ff]">
                       {eventType === "paid"
                         ? "The upfront payment secures the reservation. After attendance is confirmed, the remaining balance becomes due."
                         : "Attend or cancel on time and the full commitment deposit returns."}
                     </p>
                   </div>
 
-                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3">
+                  <div className="mt-6 rounded-2xl border border-[#79b7ff]/12 bg-[#0b1228] px-4 py-3">
                     <p className="text-xs text-white/30">
                       ShowUp V5 contract
                     </p>
