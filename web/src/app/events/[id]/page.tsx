@@ -725,6 +725,18 @@ export default function EventDetailsPage() {
                         : "Free event"}
                     </span>
 
+                    <span
+                      className={
+                        event.accessMode === 1
+                          ? "rounded-full border border-[#9285ff]/30 bg-[#9285ff]/10 px-3 py-1 text-xs font-medium text-[#c9c2ff]"
+                          : "rounded-full border border-[#73d8ff]/25 bg-[#73d8ff]/10 px-3 py-1 text-xs font-medium text-[#b8e8ff]"
+                      }
+                    >
+                      {event.accessMode === 1
+                        ? "Invite-only"
+                        : "Public"}
+                    </span>
+
                     {status ? (
                       <span
                         className={`rounded-full border px-3 py-1 text-xs font-medium ${status.className}`}
