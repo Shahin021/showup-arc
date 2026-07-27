@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type WalletRecoveryMode = "backup" | "restore";
 
@@ -267,15 +268,15 @@ export default function WalletRecoveryDialog({
     }
   }
 
-  if (!open) {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 
   const isBackupMode = mode === "backup";
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[500] grid place-items-center overflow-y-auto bg-black/75 px-4 py-4 backdrop-blur-md sm:py-8"
+      className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-md"
       onMouseDown={(event) => {
         if (
           event.target === event.currentTarget &&
@@ -289,9 +290,9 @@ export default function WalletRecoveryDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="wallet-recovery-title"
-        className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-[28px] border border-[#79b7ff]/16 bg-[#0a1025] shadow-2xl shadow-[#267cff]/20"
+        className="absolute left-1/2 top-1/2 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto overscroll-contain rounded-[28px] border border-[#79b7ff]/16 bg-[#0a1025] shadow-2xl shadow-[#267cff]/20"
       >
-        <div className="flex items-start justify-between gap-5 border-b border-white/10 px-6 py-5">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-5 border-b border-[#79b7ff]/12 bg-[#0a1025]/95 px-6 py-5 backdrop-blur-xl">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#73d8ff]">
               ShowUp wallet recovery
@@ -467,6 +468,7 @@ export default function WalletRecoveryDialog({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
