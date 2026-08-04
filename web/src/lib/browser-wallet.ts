@@ -203,3 +203,88 @@ export async function connectBrowserWallet(
     walletClient,
   };
 }
+
+export async function findBrowserWalletProvider(
+  providerRdns: string,
+): Promise<BrowserWalletProviderDetail> {
+  const normalizedRdns =
+    providerRdns.trim().toLowerCase();
+
+  if (!normalizedRdns) {
+    throw new Error(
+      "The browser wallet provider is missing.",
+    );
+  }
+
+  const providers =
+    await discoverBrowserWallets();
+
+  const walletProvider =
+    providers.find(
+      (provider) =>
+        provider.info.rdns
+          .trim()
+          .toLowerCase() === normalizedRdns,
+    );
+
+  if (!walletProvider) {
+    throw new Error(
+      "The selected browser wallet extension could not be found.",
+    );
+  }
+
+  return walletProvider;
+}
+
+export async function signBrowserWalletMessage({
+  providerRdns,
+  expectedAddress,
+  message,
+}: {
+  providerRdns: string;
+  expectedAddress: `0x${string}`;
+  message: string;
+}) {
+  const normalizedMessage =
+    message.trim();
+
+  if (!normalizedMessage) {
+    throw new Error(
+      "The wallet authorization message is empty.",
+    );
+  }
+
+  const walletProvider =
+    await findBrowserWalletProvider(
+      providerRdns,
+    );
+
+  const connection =
+    await connectBrowserWallet(
+      walletProvider.provider,
+    );
+
+  if (
+    connection.address.toLowerCase() !==
+    expectedAddress.toLowerCase()
+  ) {
+    throw new Error(
+      "The active browser wallet account has changed. Reconnect the expected account and try again.",
+    );
+  }
+
+  const signature =
+    await connection.walletClient.signMessage({
+      account: connection.address,
+      message: normalizedMessage,
+    });
+
+  return {
+    address: connection.address,
+    signature,
+    providerName:
+      walletProvider.info.name,
+    providerRdns:
+      walletProvider.info.rdns,
+  };
+}
