@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import WalletRecoveryDialog, {
   type WalletRecoveryMode,
 } from "@/components/wallet-recovery-dialog";
+import {
+  clearActiveWallet,
+  saveActiveWallet,
+} from "@/lib/showup-wallet";
 
 const CIRCLE_USER_ID_KEY = "showup_circle_user_id";
 const CIRCLE_WALLET_READY_KEY = "showup_circle_wallet_ready";
@@ -392,6 +396,11 @@ function saveWallet(wallet: WalletDetails) {
     wallet.id,
   );
 
+  saveActiveWallet({
+    kind: "circle",
+    address: wallet.address as `0x${string}`,
+  });
+
   window.dispatchEvent(
     new Event(
       CIRCLE_WALLET_CHANGED_EVENT,
@@ -403,6 +412,8 @@ function clearWalletStorage(keepUserId: boolean) {
   window.localStorage.removeItem(CIRCLE_WALLET_READY_KEY);
   window.localStorage.removeItem(CIRCLE_WALLET_ADDRESS_KEY);
   window.localStorage.removeItem(CIRCLE_WALLET_ID_KEY);
+
+  clearActiveWallet();
 
   window.dispatchEvent(
     new Event(
