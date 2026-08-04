@@ -1228,7 +1228,7 @@ export default function CircleWalletButton() {
   const buttonLabel =
     status === "loading"
       ? "Connecting..."
-      : "Choose wallet";
+      : "Connect Wallet";
 
   return (
     <>
