@@ -1736,7 +1736,7 @@ export default function CircleWalletButton() {
                                 </span>
                               )}
 
-                              <span className="mt-3 block max-w-full truncate text-sm font-medium text-white/80 group-hover:text-white">
+                              <span className="mt-3 block max-w-full text-center text-sm font-medium leading-5 text-white/80 group-hover:text-white">
                                 {walletProvider.info.name}
                               </span>
 
