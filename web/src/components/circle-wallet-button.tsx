@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import WalletRecoveryDialog, {
   type WalletRecoveryMode,
 } from "@/components/wallet-recovery-dialog";
@@ -464,9 +465,6 @@ export default function CircleWalletButton() {
 
   const [browserWallets, setBrowserWallets] =
     useState<BrowserWalletProviderDetail[]>([]);
-
-  const [showAllBrowserWallets, setShowAllBrowserWallets] =
-    useState(false);
 
   const [wallets, setWallets] = useState<WalletDetails[]>([]);
   const [activeWalletId, setActiveWalletId] = useState("");
@@ -1370,9 +1368,9 @@ export default function CircleWalletButton() {
     }
   }
 
-  const primaryWalletKeywords = [
-    "metamask",
+  const supportedEvmWallets = [
     "rabby",
+    "metamask",
     "coinbase",
     "okx",
   ];
@@ -1383,41 +1381,21 @@ export default function CircleWalletButton() {
     `${walletProvider.info.name} ${walletProvider.info.rdns}`
       .toLowerCase();
 
-  const getWalletPriority = (
-    walletProvider: BrowserWalletProviderDetail,
-  ) => {
-    const searchValue =
-      getWalletSearchValue(walletProvider);
-
-    const index =
-      primaryWalletKeywords.findIndex((keyword) =>
-        searchValue.includes(keyword),
-      );
-
-    return index === -1
-      ? Number.MAX_SAFE_INTEGER
-      : index;
-  };
-
-  const primaryBrowserWallets =
-    browserWallets
-      .filter(
-        (walletProvider) =>
-          getWalletPriority(walletProvider) !==
-          Number.MAX_SAFE_INTEGER,
+  const featuredBrowserWallets =
+    supportedEvmWallets
+      .map((keyword) =>
+        browserWallets.find((walletProvider) =>
+          getWalletSearchValue(
+            walletProvider,
+          ).includes(keyword),
+        ),
       )
-      .sort(
-        (first, second) =>
-          getWalletPriority(first) -
-          getWalletPriority(second),
+      .filter(
+        (
+          walletProvider,
+        ): walletProvider is BrowserWalletProviderDetail =>
+          Boolean(walletProvider),
       );
-
-  const otherBrowserWallets =
-    browserWallets.filter(
-      (walletProvider) =>
-        getWalletPriority(walletProvider) ===
-        Number.MAX_SAFE_INTEGER,
-    );
 
   const buttonLabel =
     status === "loading"
@@ -1669,211 +1647,240 @@ export default function CircleWalletButton() {
               )}
             </button>
 
-            {walletChooserOpen && (
+            {walletChooserOpen &&
+              typeof document !== "undefined" &&
+              createPortal(
               <div
-                role="menu"
-                className="absolute right-0 top-full z-[220] mt-3 max-h-[calc(100vh-7rem)] w-80 overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#0a1025]/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
+                role="presentation"
+                onMouseDown={() => {
+                  setWalletChooserOpen(false);
+                }}
+                className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 px-4 py-3 backdrop-blur-sm"
               >
-                <div className="px-3 pb-3 pt-2">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#73d8ff]">
-                    Choose a wallet
-                  </p>
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="wallet-modal-title"
+                  onMouseDown={(event) => {
+                    event.stopPropagation();
+                  }}
+                  className="max-h-[calc(100vh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-3xl border border-white/10 bg-[#070b18] p-5 shadow-2xl shadow-black/70 sm:p-6"
+                >
+                  <div className="flex items-start justify-between gap-6">
+                    <div>
+                      <p
+                        id="wallet-modal-title"
+                        className="text-2xl font-semibold tracking-tight text-white"
+                      >
+                        Connect Wallet
+                      </p>
 
-                  <p className="mt-2 text-xs leading-5 text-white/45">
-                    Connect an installed browser wallet or use a
-                    PIN-secured Circle wallet.
-                  </p>
-                </div>
+                      <p className="mt-2 text-sm leading-6 text-white/45">
+                        Choose how you want to connect to ShowUp
+                        on Arc Testnet.
+                      </p>
+                    </div>
 
-                <div className="h-px bg-white/10" />
-
-                <div className="space-y-1 pt-2">
-                  <div className="flex items-center justify-between px-2 pb-2 pt-1">
-                    <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/40">
-                      EVM wallets
-                    </p>
-
-                    <span className="text-[10px] text-white/30">
-                      Arc Testnet
-                    </span>
+                    <button
+                      type="button"
+                      aria-label="Close wallet selection"
+                      onClick={() => {
+                        setWalletChooserOpen(false);
+                      }}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xl text-white/55 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                    >
+                      ×
+                    </button>
                   </div>
 
-                  {browserWallets.length > 0 ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-2">
-                        {primaryBrowserWallets.map(
+                  <div className="mt-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#73d8ff]">
+                        EVM wallets
+                      </p>
+
+                      <span className="rounded-full bg-[#73d8ff]/10 px-2.5 py-1 text-[10px] font-medium text-[#b8e8ff]">
+                        Arc Testnet
+                      </span>
+                    </div>
+
+                    {featuredBrowserWallets.length > 0 ? (
+                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        {featuredBrowserWallets.map(
                           (walletProvider) => (
                             <button
                               key={walletProvider.info.uuid}
                               type="button"
-                              role="menuitem"
                               onClick={() => {
                                 void handleConnectBrowserWallet(
                                   walletProvider,
                                 );
                               }}
-                              className="min-w-0 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left transition hover:border-[#73d8ff]/25 hover:bg-[#73d8ff]/10"
+                              className="group flex min-h-24 flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.025] px-3 py-3 text-center transition hover:border-[#73d8ff]/35 hover:bg-[#73d8ff]/10"
                             >
-                              <span className="block truncate text-sm font-medium text-white/80">
+                              {walletProvider.info.icon ? (
+                                <span
+                                  aria-hidden="true"
+                                  className="h-12 w-12 rounded-2xl bg-contain bg-center bg-no-repeat"
+                                  style={{
+                                    backgroundImage:
+                                      `url("${walletProvider.info.icon}")`,
+                                  }}
+                                />
+                              ) : (
+                                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-lg font-semibold text-white/70">
+                                  {walletProvider.info.name.slice(
+                                    0,
+                                    1,
+                                  )}
+                                </span>
+                              )}
+
+                              <span className="mt-3 block max-w-full truncate text-sm font-medium text-white/80 group-hover:text-white">
                                 {walletProvider.info.name}
                               </span>
 
-                              <span className="mt-1 block text-[11px] text-white/35">
-                                Connect
+                              <span className="mt-1 text-[10px] text-white/30">
+                                Installed
                               </span>
                             </button>
                           ),
                         )}
                       </div>
+                    ) : (
+                      <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-4 py-4 text-sm leading-6 text-white/45">
+                        No supported EVM wallet was detected.
+                        Install Rabby, MetaMask, Coinbase Wallet,
+                        or OKX Wallet.
+                      </div>
+                    )}
+                  </div>
 
-                      {primaryBrowserWallets.length === 0 && (
-                        <p className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-xs leading-5 text-white/40">
-                          Installed EVM wallets were detected below.
-                        </p>
-                      )}
+                  <div className="my-5 h-px bg-white/10" />
 
-                      {otherBrowserWallets.length > 0 && (
-                        <div className="mt-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowAllBrowserWallets(
-                                (current) => !current,
-                              );
-                            }}
-                            className="flex w-full items-center justify-between rounded-xl border border-white/[0.07] px-3 py-2.5 text-left text-xs text-white/55 transition hover:border-white/15 hover:bg-white/[0.04] hover:text-white/75"
-                          >
-                            <span>
-                              {showAllBrowserWallets
-                                ? "Hide additional wallets"
-                                : `More wallets (${otherBrowserWallets.length})`}
-                            </span>
-
-                            <span>
-                              {showAllBrowserWallets ? "−" : "+"}
-                            </span>
-                          </button>
-
-                          {showAllBrowserWallets && (
-                            <div className="mt-2 max-h-44 space-y-1 overflow-y-auto pr-1">
-                              {otherBrowserWallets.map(
-                                (walletProvider) => (
-                                  <button
-                                    key={walletProvider.info.uuid}
-                                    type="button"
-                                    role="menuitem"
-                                    onClick={() => {
-                                      void handleConnectBrowserWallet(
-                                        walletProvider,
-                                      );
-                                    }}
-                                    className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-white/70 transition hover:bg-white/[0.06] hover:text-white"
-                                  >
-                                    {walletProvider.info.name}
-                                  </button>
-                                ),
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-xs leading-5 text-white/40">
-                      No installed EVM wallet was detected.
-                    </p>
-                  )}
-
-                  <div className="my-3 h-px bg-white/10" />
-
-                  <div className="px-2 pb-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/40">
+                  <div>
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/45">
                         Solana wallets
                       </p>
 
-                      <span className="rounded-full bg-white/[0.05] px-2 py-1 text-[10px] text-white/35">
-                        Next
+                      <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[10px] text-white/35">
+                        Coming next
                       </span>
                     </div>
 
-                    <p className="mt-2 text-xs leading-5 text-white/40">
-                      Phantom, Backpack and Solflare support will
-                      be added with the Solana bridge flow.
+                    <div className="mt-4 grid grid-cols-3 gap-3">
+                      {[
+                        {
+                          name: "Phantom",
+                          mark: "P",
+                        },
+                        {
+                          name: "Backpack",
+                          mark: "B",
+                        },
+                        {
+                          name: "Solflare",
+                          mark: "S",
+                        },
+                      ].map((wallet) => (
+                        <div
+                          key={wallet.name}
+                          className="flex min-h-20 flex-col items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02] px-2 py-3 text-center opacity-60"
+                        >
+                          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.07] text-xs font-semibold text-white/55">
+                            {wallet.mark}
+                          </span>
+
+                          <span className="mt-3 text-xs font-medium text-white/55">
+                            {wallet.name}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="mt-3 text-xs leading-5 text-white/35">
+                      Solana wallet connection will be enabled
+                      with the USDC bridge flow.
                     </p>
                   </div>
 
-                  <div className="my-3 h-px bg-white/10" />
+                  <div className="my-7 flex items-center gap-4">
+                    <div className="h-px flex-1 bg-white/10" />
 
-                  <div className="px-2 pb-1 pt-1">
-                    <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/40">
-                      Circle wallet
-                    </p>
+                    <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/30">
+                      Circle
+                    </span>
+
+                    <div className="h-px flex-1 bg-white/10" />
                   </div>
 
-                  {hasSavedUserId && (
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {hasSavedUserId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleConnect(false);
+                        }}
+                        className="rounded-2xl border border-[#73d8ff]/20 bg-[#73d8ff]/[0.07] px-3 py-3 text-left transition hover:border-[#73d8ff]/40 hover:bg-[#73d8ff]/10"
+                      >
+                        <span className="block text-sm font-medium text-white/80">
+                          Resume Circle wallet
+                        </span>
+
+                        <span className="mt-1 block text-xs leading-5 text-white/40">
+                          Continue with the wallet saved in this
+                          browser.
+                        </span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
-                      role="menuitem"
                       onClick={() => {
-                        void handleConnect(false);
+                        openRecoveryDialog("restore");
                       }}
-                      className="w-full rounded-xl px-3 py-3 text-left transition hover:bg-white/[0.06]"
+                      className="rounded-2xl border border-white/[0.08] bg-white/[0.025] px-3 py-3 text-left transition hover:border-white/15 hover:bg-white/[0.05]"
                     >
                       <span className="block text-sm font-medium text-white/80">
-                        Resume or reconnect wallet
+                        Restore Circle account
                       </span>
 
                       <span className="mt-1 block text-xs leading-5 text-white/40">
-                        Continue with the Circle wallet saved in
-                        this browser.
+                        Use an existing ShowUp recovery code.
                       </span>
                     </button>
-                  )}
 
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      openRecoveryDialog("restore");
-                    }}
-                    className="w-full rounded-xl px-3 py-3 text-left transition hover:bg-white/[0.06]"
-                  >
-                    <span className="block text-sm font-medium text-white/80">
-                      Restore existing Circle account
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (hasSavedUserId) {
+                          void handleCreateNewWallet();
+                          return;
+                        }
 
-                    <span className="mt-1 block text-xs leading-5 text-white/40">
-                      Use a ShowUp recovery code from another
-                      browser or device.
-                    </span>
-                  </button>
+                        void handleConnect(true);
+                      }}
+                      className="rounded-2xl border border-white/[0.08] bg-white/[0.025] px-3 py-3 text-left transition hover:border-white/15 hover:bg-white/[0.05]"
+                    >
+                      <span className="block text-sm font-medium text-white/80">
+                        Create new Circle wallet
+                      </span>
 
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      if (hasSavedUserId) {
-                        void handleCreateNewWallet();
-                        return;
-                      }
+                      <span className="mt-1 block text-xs leading-5 text-white/40">
+                        Create a PIN-secured wallet directly on
+                        Arc Testnet.
+                      </span>
+                    </button>
+                  </div>
 
-                      void handleConnect(true);
-                    }}
-                    className="w-full rounded-xl px-3 py-3 text-left transition hover:bg-white/[0.06]"
-                  >
-                    <span className="block text-sm font-medium text-white/80">
-                      Create new Circle wallet
-                    </span>
-
-                    <span className="mt-1 block text-xs leading-5 text-white/40">
-                      Set up a new PIN-secured wallet on Arc
-                      Testnet.
-                    </span>
-                  </button>
+                  <p className="mt-6 text-center text-[11px] text-white/25">
+                    ShowUp · Circle Wallets · USDC · Arc Testnet
+                  </p>
                 </div>
-              </div>
-            )}
+              </div>,
+                document.body,
+              )}
           </>
         )}
 
