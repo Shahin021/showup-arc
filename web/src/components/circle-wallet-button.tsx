@@ -5,8 +5,16 @@ import WalletRecoveryDialog, {
   type WalletRecoveryMode,
 } from "@/components/wallet-recovery-dialog";
 import {
+  connectBrowserWallet,
+  discoverBrowserWallets,
+  type BrowserWalletProviderDetail,
+} from "@/lib/browser-wallet";
+import {
   clearActiveWallet,
+  readActiveWallet,
   saveActiveWallet,
+  SHOWUP_WALLET_CHANGED_EVENT,
+  type ShowUpWalletKind,
 } from "@/lib/showup-wallet";
 
 const CIRCLE_USER_ID_KEY = "showup_circle_user_id";
@@ -447,6 +455,19 @@ export default function CircleWalletButton() {
 
   const [message, setMessage] = useState("");
   const [walletAddress, setWalletAddress] = useState("");
+
+  const [walletKind, setWalletKind] =
+    useState<ShowUpWalletKind | null>(null);
+
+  const [browserWalletName, setBrowserWalletName] =
+    useState("");
+
+  const [browserWallets, setBrowserWallets] =
+    useState<BrowserWalletProviderDetail[]>([]);
+
+  const [showAllBrowserWallets, setShowAllBrowserWallets] =
+    useState(false);
+
   const [wallets, setWallets] = useState<WalletDetails[]>([]);
   const [activeWalletId, setActiveWalletId] = useState("");
 
@@ -477,6 +498,22 @@ export default function CircleWalletButton() {
     let cancelled = false;
 
     async function restoreWallet() {
+      const activeWallet = readActiveWallet();
+
+      if (activeWallet?.kind === "browser") {
+        setWalletKind("browser");
+        setBrowserWalletName(activeWallet.providerName);
+        setWalletAddress(activeWallet.address);
+        setStatus("ready");
+        setMessage("");
+        return;
+      }
+
+      if (activeWallet?.kind === "circle") {
+        setWalletKind("circle");
+        setBrowserWalletName("");
+      }
+
       const savedUserId = window.localStorage.getItem(
         CIRCLE_USER_ID_KEY,
       );
@@ -554,6 +591,26 @@ export default function CircleWalletButton() {
       }
     }
 
+    function syncSharedWallet() {
+      const activeWallet = readActiveWallet();
+
+      if (!activeWallet) {
+        setWalletKind(null);
+        setBrowserWalletName("");
+        setWalletAddress("");
+        return;
+      }
+
+      setWalletKind(activeWallet.kind);
+      setWalletAddress(activeWallet.address);
+
+      setBrowserWalletName(
+        activeWallet.kind === "browser"
+          ? activeWallet.providerName
+          : "",
+      );
+    }
+
     function handleOutsideClick(event: MouseEvent) {
       if (
         menuRef.current &&
@@ -566,6 +623,11 @@ export default function CircleWalletButton() {
 
     void restoreWallet();
 
+    window.addEventListener(
+      SHOWUP_WALLET_CHANGED_EVENT,
+      syncSharedWallet,
+    );
+
     document.addEventListener(
       "mousedown",
       handleOutsideClick,
@@ -573,6 +635,11 @@ export default function CircleWalletButton() {
 
     return () => {
       cancelled = true;
+
+      window.removeEventListener(
+        SHOWUP_WALLET_CHANGED_EVENT,
+        syncSharedWallet,
+      );
 
       document.removeEventListener(
         "mousedown",
@@ -1222,19 +1289,135 @@ export default function CircleWalletButton() {
     }
   }
 
-  function toggleWalletChooser() {
+  async function handleConnectBrowserWallet(
+    walletProvider: BrowserWalletProviderDetail,
+  ) {
     if (status === "loading") {
       return;
     }
 
+    try {
+      setStatus("loading");
+      setMessage(
+        `Connecting ${walletProvider.info.name}...`,
+      );
+
+      const connection =
+        await connectBrowserWallet(
+          walletProvider.provider,
+        );
+
+      clearWalletStorage(true);
+
+      saveActiveWallet({
+        kind: "browser",
+        address: connection.address,
+        providerRdns: walletProvider.info.rdns,
+        providerName: walletProvider.info.name,
+      });
+
+      setWalletKind("browser");
+      setBrowserWalletName(walletProvider.info.name);
+      setWalletAddress(connection.address);
+      setWallets([]);
+      setActiveWalletId("");
+      setStatus("ready");
+      setMessage("");
+      setMenuOpen(false);
+      setWalletChooserOpen(false);
+    } catch (error) {
+      console.error(
+        "Browser wallet connection failed:",
+        error,
+      );
+
+      setStatus("error");
+      setMessage(getErrorMessage(error));
+    }
+  }
+
+  async function toggleWalletChooser() {
+    if (status === "loading") {
+      return;
+    }
+
+    const willOpen = !walletChooserOpen;
+
     setMenuOpen(false);
-    setWalletChooserOpen((current) => !current);
+    setWalletChooserOpen(willOpen);
     setMessage("");
 
     if (status === "error") {
       setStatus("idle");
     }
+
+    if (!willOpen) {
+      return;
+    }
+
+    try {
+      const providers =
+        await discoverBrowserWallets();
+
+      setBrowserWallets(providers);
+    } catch (error) {
+      console.error(
+        "Browser wallet discovery failed:",
+        error,
+      );
+
+      setBrowserWallets([]);
+    }
   }
+
+  const primaryWalletKeywords = [
+    "metamask",
+    "rabby",
+    "coinbase",
+    "okx",
+  ];
+
+  const getWalletSearchValue = (
+    walletProvider: BrowserWalletProviderDetail,
+  ) =>
+    `${walletProvider.info.name} ${walletProvider.info.rdns}`
+      .toLowerCase();
+
+  const getWalletPriority = (
+    walletProvider: BrowserWalletProviderDetail,
+  ) => {
+    const searchValue =
+      getWalletSearchValue(walletProvider);
+
+    const index =
+      primaryWalletKeywords.findIndex((keyword) =>
+        searchValue.includes(keyword),
+      );
+
+    return index === -1
+      ? Number.MAX_SAFE_INTEGER
+      : index;
+  };
+
+  const primaryBrowserWallets =
+    browserWallets
+      .filter(
+        (walletProvider) =>
+          getWalletPriority(walletProvider) !==
+          Number.MAX_SAFE_INTEGER,
+      )
+      .sort(
+        (first, second) =>
+          getWalletPriority(first) -
+          getWalletPriority(second),
+      );
+
+  const otherBrowserWallets =
+    browserWallets.filter(
+      (walletProvider) =>
+        getWalletPriority(walletProvider) ===
+        Number.MAX_SAFE_INTEGER,
+    );
 
   const buttonLabel =
     status === "loading"
@@ -1291,7 +1474,9 @@ export default function CircleWalletButton() {
                 <div className="px-2 pb-3 pt-1">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#73d8ff]">
-                      Circle wallet
+                      {walletKind === "browser"
+                        ? browserWalletName || "Browser wallet"
+                        : "Circle wallet"}
                     </p>
 
                     <span className="rounded-full bg-[#73d8ff]/10 px-2 py-1 text-[10px] font-medium text-[#b8e8ff]">
@@ -1306,7 +1491,9 @@ export default function CircleWalletButton() {
 
                 <div className="h-px bg-white/10" />
 
-                <div className="px-2 py-3">
+                {walletKind === "circle" && (
+                  <>
+                    <div className="px-2 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/45">
                       Your wallets
@@ -1379,9 +1566,11 @@ export default function CircleWalletButton() {
                       );
                     })}
                   </div>
-                </div>
+                    </div>
 
-                <div className="h-px bg-white/10" />
+                    <div className="h-px bg-white/10" />
+                  </>
+                )}
 
                 <div className="space-y-1 pt-2">
                   <button
@@ -1399,12 +1588,14 @@ export default function CircleWalletButton() {
                     </span>
                   </button>
 
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      openRecoveryDialog("backup");
-                    }}
+                  {walletKind === "circle" && (
+                    <>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          openRecoveryDialog("backup");
+                        }}
                     className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
                   >
                     Back up wallet
@@ -1430,7 +1621,9 @@ export default function CircleWalletButton() {
                     className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
                   >
                     Create new wallet
-                  </button>
+                      </button>
+                    </>
+                  )}
 
                   <button
                     type="button"
@@ -1479,7 +1672,7 @@ export default function CircleWalletButton() {
             {walletChooserOpen && (
               <div
                 role="menu"
-                className="absolute right-0 top-full z-[220] mt-3 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#0a1025]/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
+                className="absolute right-0 top-full z-[220] mt-3 max-h-[calc(100vh-7rem)] w-80 overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#0a1025]/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
               >
                 <div className="px-3 pb-3 pt-2">
                   <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#73d8ff]">
@@ -1487,14 +1680,137 @@ export default function CircleWalletButton() {
                   </p>
 
                   <p className="mt-2 text-xs leading-5 text-white/45">
-                    Create a new Circle wallet or reconnect one
-                    you already backed up.
+                    Connect an installed browser wallet or use a
+                    PIN-secured Circle wallet.
                   </p>
                 </div>
 
                 <div className="h-px bg-white/10" />
 
                 <div className="space-y-1 pt-2">
+                  <div className="flex items-center justify-between px-2 pb-2 pt-1">
+                    <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/40">
+                      EVM wallets
+                    </p>
+
+                    <span className="text-[10px] text-white/30">
+                      Arc Testnet
+                    </span>
+                  </div>
+
+                  {browserWallets.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        {primaryBrowserWallets.map(
+                          (walletProvider) => (
+                            <button
+                              key={walletProvider.info.uuid}
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                void handleConnectBrowserWallet(
+                                  walletProvider,
+                                );
+                              }}
+                              className="min-w-0 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left transition hover:border-[#73d8ff]/25 hover:bg-[#73d8ff]/10"
+                            >
+                              <span className="block truncate text-sm font-medium text-white/80">
+                                {walletProvider.info.name}
+                              </span>
+
+                              <span className="mt-1 block text-[11px] text-white/35">
+                                Connect
+                              </span>
+                            </button>
+                          ),
+                        )}
+                      </div>
+
+                      {primaryBrowserWallets.length === 0 && (
+                        <p className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-xs leading-5 text-white/40">
+                          Installed EVM wallets were detected below.
+                        </p>
+                      )}
+
+                      {otherBrowserWallets.length > 0 && (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowAllBrowserWallets(
+                                (current) => !current,
+                              );
+                            }}
+                            className="flex w-full items-center justify-between rounded-xl border border-white/[0.07] px-3 py-2.5 text-left text-xs text-white/55 transition hover:border-white/15 hover:bg-white/[0.04] hover:text-white/75"
+                          >
+                            <span>
+                              {showAllBrowserWallets
+                                ? "Hide additional wallets"
+                                : `More wallets (${otherBrowserWallets.length})`}
+                            </span>
+
+                            <span>
+                              {showAllBrowserWallets ? "−" : "+"}
+                            </span>
+                          </button>
+
+                          {showAllBrowserWallets && (
+                            <div className="mt-2 max-h-44 space-y-1 overflow-y-auto pr-1">
+                              {otherBrowserWallets.map(
+                                (walletProvider) => (
+                                  <button
+                                    key={walletProvider.info.uuid}
+                                    type="button"
+                                    role="menuitem"
+                                    onClick={() => {
+                                      void handleConnectBrowserWallet(
+                                        walletProvider,
+                                      );
+                                    }}
+                                    className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-white/70 transition hover:bg-white/[0.06] hover:text-white"
+                                  >
+                                    {walletProvider.info.name}
+                                  </button>
+                                ),
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-xs leading-5 text-white/40">
+                      No installed EVM wallet was detected.
+                    </p>
+                  )}
+
+                  <div className="my-3 h-px bg-white/10" />
+
+                  <div className="px-2 pb-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/40">
+                        Solana wallets
+                      </p>
+
+                      <span className="rounded-full bg-white/[0.05] px-2 py-1 text-[10px] text-white/35">
+                        Next
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-xs leading-5 text-white/40">
+                      Phantom, Backpack and Solflare support will
+                      be added with the Solana bridge flow.
+                    </p>
+                  </div>
+
+                  <div className="my-3 h-px bg-white/10" />
+
+                  <div className="px-2 pb-1 pt-1">
+                    <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/40">
+                      Circle wallet
+                    </p>
+                  </div>
+
                   {hasSavedUserId && (
                     <button
                       type="button"
