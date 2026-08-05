@@ -3,7 +3,15 @@ import {
   BlobAccessError,
   put,
 } from "@vercel/blob";
-import { NextResponse } from "next/server";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
+import {
+  readWalletSession,
+  SHOWUP_WALLET_SESSION_COOKIE,
+} from "@/lib/showup-wallet-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +39,86 @@ type CircleWalletsResponse = {
   code?: number;
   message?: string;
 };
+
+function readForwardedHeader(
+  value: string | null,
+) {
+  return (
+    value
+      ?.split(",")[0]
+      ?.trim() ?? ""
+  );
+}
+
+function getPublicRequestUrl(
+  request: Request,
+) {
+  const internalUrl =
+    new URL(request.url);
+
+  const host =
+    readForwardedHeader(
+      request.headers.get(
+        "x-forwarded-host",
+      ),
+    ) ||
+    request.headers
+      .get("host")
+      ?.trim() ||
+    internalUrl.host;
+
+  const forwardedProtocol =
+    readForwardedHeader(
+      request.headers.get(
+        "x-forwarded-proto",
+      ),
+    ).toLowerCase();
+
+  const protocol =
+    forwardedProtocol === "http" ||
+    forwardedProtocol === "https"
+      ? `${forwardedProtocol}:`
+      : internalUrl.protocol;
+
+  return new URL(
+    `${protocol}//${host}`,
+  );
+}
+
+function readBrowserWallet(
+  request: NextRequest,
+): CircleWallet | null {
+  const session =
+    readWalletSession(
+      request.cookies.get(
+        SHOWUP_WALLET_SESSION_COOKIE,
+      )?.value,
+    );
+
+  if (!session) {
+    return null;
+  }
+
+  const requestUrl =
+    getPublicRequestUrl(request);
+
+  if (
+    session.domain !==
+    requestUrl.host.toLowerCase()
+  ) {
+    throw new Error(
+      "The browser wallet session does not match this application.",
+    );
+  }
+
+  return {
+    id:
+      `browser:${session.address.toLowerCase()}`,
+    address: session.address,
+    blockchain: "ARC-TESTNET",
+    state: "LIVE",
+  };
+}
 
 function getCircleApiKey() {
   const apiKey = process.env.CIRCLE_API_KEY;
@@ -174,7 +262,7 @@ async function verifyCircleWallet(
   return wallet;
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
 
@@ -182,7 +270,6 @@ export async function POST(request: Request) {
       formData,
       "userToken",
       {
-        required: true,
         maxLength: 20_000,
       },
     );
@@ -191,7 +278,6 @@ export async function POST(request: Request) {
       formData,
       "walletId",
       {
-        required: true,
         maxLength: 200,
       },
     );
@@ -327,10 +413,31 @@ export async function POST(request: Request) {
       MAX_ORGANIZER_AVATAR_BYTES,
     );
 
-    const wallet = await verifyCircleWallet(
-      userToken,
-      walletId,
-    );
+    const hasCircleCredentials =
+      Boolean(userToken || walletId);
+
+    if (
+      hasCircleCredentials &&
+      (!userToken || !walletId)
+    ) {
+      throw new Error(
+        "Both the Circle user token and wallet ID are required.",
+      );
+    }
+
+    const wallet =
+      userToken && walletId
+        ? await verifyCircleWallet(
+            userToken,
+            walletId,
+          )
+        : readBrowserWallet(request);
+
+    if (!wallet) {
+      throw new Error(
+        "Connect and authorize a wallet before uploading event metadata.",
+      );
+    }
 
     const metadataId = randomUUID();
 
