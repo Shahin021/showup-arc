@@ -11,6 +11,9 @@ import {
   type BrowserWalletProviderDetail,
 } from "@/lib/browser-wallet";
 import {
+  authorizeBrowserWallet,
+} from "@/lib/browser-wallet-auth";
+import {
   clearActiveWallet,
   readActiveWallet,
   saveActiveWallet,
@@ -1304,6 +1307,17 @@ export default function CircleWalletButton() {
         await connectBrowserWallet(
           walletProvider.provider,
         );
+
+      setMessage(
+        `Authorize ${walletProvider.info.name}...`,
+      );
+
+      await authorizeBrowserWallet({
+        providerRdns:
+          walletProvider.info.rdns,
+        expectedAddress:
+          connection.address,
+      });
 
       clearWalletStorage(true);
 

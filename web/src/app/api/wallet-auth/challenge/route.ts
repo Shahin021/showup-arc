@@ -11,6 +11,54 @@ type ChallengeRequestBody = {
   address?: unknown;
 };
 
+function readForwardedHeader(
+  value: string | null,
+) {
+  return (
+    value
+      ?.split(",")[0]
+      ?.trim() ?? ""
+  );
+}
+
+function getPublicRequestUrl(
+  request: Request,
+) {
+  const internalUrl =
+    new URL(request.url);
+
+  const forwardedHost =
+    readForwardedHeader(
+      request.headers.get(
+        "x-forwarded-host",
+      ),
+    );
+
+  const host =
+    forwardedHost ||
+    request.headers
+      .get("host")
+      ?.trim() ||
+    internalUrl.host;
+
+  const forwardedProtocol =
+    readForwardedHeader(
+      request.headers.get(
+        "x-forwarded-proto",
+      ),
+    ).toLowerCase();
+
+  const protocol =
+    forwardedProtocol === "http" ||
+    forwardedProtocol === "https"
+      ? `${forwardedProtocol}:`
+      : internalUrl.protocol;
+
+  return new URL(
+    `${protocol}//${host}`,
+  );
+}
+
 function jsonError(
   message: string,
   status: number,
@@ -33,7 +81,7 @@ export async function POST(
 ) {
   try {
     const requestUrl =
-      new URL(request.url);
+      getPublicRequestUrl(request);
 
     const requestOrigin =
       requestUrl.origin;
@@ -53,9 +101,17 @@ export async function POST(
         );
       }
 
-      if (
-        origin.origin !== requestOrigin
-      ) {
+      const fetchSite =
+        request.headers
+          .get("sec-fetch-site")
+          ?.trim()
+          .toLowerCase();
+
+      const isSameOriginRequest =
+        fetchSite === "same-origin" ||
+        origin.origin === requestOrigin;
+
+      if (!isSameOriginRequest) {
         return jsonError(
           "Cross-origin wallet authorization is not allowed.",
           403,
