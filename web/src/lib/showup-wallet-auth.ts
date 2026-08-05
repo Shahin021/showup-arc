@@ -18,6 +18,12 @@ export const SHOWUP_WALLET_CHALLENGE_COOKIE =
 export const WALLET_CHALLENGE_MAX_AGE_SECONDS =
   5 * 60;
 
+export const SHOWUP_WALLET_SESSION_COOKIE =
+  "showup_wallet_session";
+
+export const WALLET_SESSION_MAX_AGE_SECONDS =
+  15 * 60;
+
 export type WalletChallengePayload = {
   version: 1;
   purpose: "showup-wallet-auth";
@@ -26,6 +32,16 @@ export type WalletChallengePayload = {
   uri: string;
   chainId: number;
   nonce: string;
+  issuedAt: string;
+  expiresAt: string;
+};
+
+export type WalletSessionPayload = {
+  version: 1;
+  purpose: "showup-wallet-session";
+  address: `0x${string}`;
+  domain: string;
+  chainId: number;
   issuedAt: string;
   expiresAt: string;
 };
@@ -55,7 +71,9 @@ function signEncodedPayload(
 }
 
 function encodePayload(
-  payload: WalletChallengePayload,
+  payload:
+    | WalletChallengePayload
+    | WalletSessionPayload,
 ) {
   return Buffer.from(
     JSON.stringify(payload),
@@ -279,6 +297,145 @@ export function readWalletChallenge(
     if (
       parsedUri.host.toLowerCase() !==
       parsedPayload.domain
+    ) {
+      return null;
+    }
+
+    return parsedPayload;
+  } catch {
+    return null;
+  }
+}
+
+function isWalletSessionPayload(
+  value: unknown,
+): value is WalletSessionPayload {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    value.version === 1 &&
+    value.purpose ===
+      "showup-wallet-session" &&
+    typeof value.address === "string" &&
+    isAddress(value.address) &&
+    typeof value.domain === "string" &&
+    value.domain.length > 0 &&
+    value.chainId === arcTestnet.id &&
+    typeof value.issuedAt === "string" &&
+    typeof value.expiresAt === "string"
+  );
+}
+
+export function createWalletSession({
+  address,
+  domain,
+}: {
+  address: string;
+  domain: string;
+}) {
+  if (!isAddress(address)) {
+    throw new Error(
+      "A valid wallet address is required.",
+    );
+  }
+
+  const normalizedDomain =
+    domain.trim().toLowerCase();
+
+  if (!normalizedDomain) {
+    throw new Error(
+      "A valid application domain is required.",
+    );
+  }
+
+  const issuedAtDate = new Date();
+
+  const expiresAtDate = new Date(
+    issuedAtDate.getTime() +
+      WALLET_SESSION_MAX_AGE_SECONDS *
+        1_000,
+  );
+
+  const payload: WalletSessionPayload = {
+    version: 1,
+    purpose: "showup-wallet-session",
+    address: getAddress(address),
+    domain: normalizedDomain,
+    chainId: arcTestnet.id,
+    issuedAt: issuedAtDate.toISOString(),
+    expiresAt: expiresAtDate.toISOString(),
+  };
+
+  const encodedPayload =
+    encodePayload(payload);
+
+  const signature =
+    signEncodedPayload(encodedPayload);
+
+  return {
+    payload,
+    token:
+      `${encodedPayload}.${signature}`,
+  };
+}
+
+export function readWalletSession(
+  token: string | undefined,
+) {
+  if (!token) {
+    return null;
+  }
+
+  const parts = token.split(".");
+
+  if (parts.length !== 2) {
+    return null;
+  }
+
+  const [
+    encodedPayload,
+    actualSignature,
+  ] = parts;
+
+  const expectedSignature =
+    signEncodedPayload(encodedPayload);
+
+  if (
+    !signaturesMatch(
+      actualSignature,
+      expectedSignature,
+    )
+  ) {
+    return null;
+  }
+
+  try {
+    const parsedPayload: unknown =
+      JSON.parse(
+        Buffer.from(
+          encodedPayload,
+          "base64url",
+        ).toString("utf8"),
+      );
+
+    if (
+      !isWalletSessionPayload(
+        parsedPayload,
+      )
+    ) {
+      return null;
+    }
+
+    const expiresAt =
+      Date.parse(
+        parsedPayload.expiresAt,
+      );
+
+    if (
+      !Number.isFinite(expiresAt) ||
+      expiresAt <= Date.now()
     ) {
       return null;
     }
