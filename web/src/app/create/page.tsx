@@ -9,6 +9,15 @@ import {
   useState,
 } from "react";
 import CircleWalletButton from "@/components/circle-wallet-button";
+import {
+  createEventWithBrowserWallet,
+} from "@/lib/browser-create-event";
+import {
+  authorizeBrowserWallet,
+} from "@/lib/browser-wallet-auth";
+import {
+  readActiveWallet,
+} from "@/lib/showup-wallet";
 
 const CIRCLE_USER_ID_KEY = "showup_circle_user_id";
 const CIRCLE_WALLET_READY_KEY = "showup_circle_wallet_ready";
@@ -476,7 +485,7 @@ export default function CreateEventPage() {
         ? `Uploading video... ${videoUploadProgress}%`
         : "Preparing event..."
       : submissionState === "awaiting"
-        ? "Waiting for Circle approval..."
+        ? "Waiting for wallet approval..."
         : submissionState === "submitted"
           ? "Event transaction submitted"
           : "Create event on Arc";
@@ -749,45 +758,81 @@ export default function CreateEventPage() {
           );
       }
 
-      const circleUserId =
-        window.localStorage.getItem(
-          CIRCLE_USER_ID_KEY,
-        ) ?? "";
+      const activeWallet =
+        readActiveWallet();
 
-      const walletReady =
-        window.localStorage.getItem(
-          CIRCLE_WALLET_READY_KEY,
-        ) === "true";
-
-      const walletId =
-        window.localStorage.getItem(
-          CIRCLE_WALLET_ID_KEY,
-        ) ?? "";
-
-      const walletAddress =
-        window.localStorage.getItem(
-          CIRCLE_WALLET_ADDRESS_KEY,
-        ) ?? "";
-
-      if (
-        !circleUserId ||
-        !walletReady ||
-        !walletId ||
-        !walletAddress
-      ) {
+      if (!activeWallet) {
         throw new Error(
-          "Connect your Circle wallet before creating an event.",
+          "Connect a wallet before creating an event.",
         );
       }
 
-      setMessage(
-        "Creating a secure Circle session...",
-      );
+      const walletAddress =
+        activeWallet.address;
 
-      const session =
-        await requestCircleSession(
-          circleUserId,
+      let circleSession:
+        | {
+            userToken: string;
+            encryptionKey: string;
+          }
+        | null = null;
+
+      let circleWalletId = "";
+
+      if (activeWallet.kind === "circle") {
+        const circleUserId =
+          window.localStorage.getItem(
+            CIRCLE_USER_ID_KEY,
+          ) ?? "";
+
+        const walletReady =
+          window.localStorage.getItem(
+            CIRCLE_WALLET_READY_KEY,
+          ) === "true";
+
+        circleWalletId =
+          window.localStorage.getItem(
+            CIRCLE_WALLET_ID_KEY,
+          ) ?? "";
+
+        const circleWalletAddress =
+          window.localStorage.getItem(
+            CIRCLE_WALLET_ADDRESS_KEY,
+          ) ?? "";
+
+        if (
+          !circleUserId ||
+          !walletReady ||
+          !circleWalletId ||
+          !circleWalletAddress ||
+          circleWalletAddress.toLowerCase() !==
+            activeWallet.address.toLowerCase()
+        ) {
+          throw new Error(
+            "Reconnect your Circle wallet before creating an event.",
+          );
+        }
+
+        setMessage(
+          "Creating a secure Circle session...",
         );
+
+        circleSession =
+          await requestCircleSession(
+            circleUserId,
+          );
+      } else {
+        setMessage(
+          `Authorize ${activeWallet.providerName}...`,
+        );
+
+        await authorizeBrowserWallet({
+          providerRdns:
+            activeWallet.providerRdns,
+          expectedAddress:
+            activeWallet.address,
+        });
+      }
 
       if (
         videoMode === "upload" &&
@@ -803,8 +848,28 @@ export default function CreateEventPage() {
             ? "webm"
             : "mp4";
 
+        const videoWalletPathKey =
+          activeWallet.kind === "circle"
+            ? circleWalletId
+            : activeWallet.address
+                .toLowerCase();
+
+        const videoClientPayload =
+          activeWallet.kind === "circle"
+            ? {
+                userToken:
+                  circleSession
+                    ?.userToken,
+                walletId:
+                  circleWalletId,
+              }
+            : {
+                walletAddress:
+                  activeWallet.address,
+              };
+
         const videoPath =
-          `showup/videos/${walletId}/` +
+          `showup/videos/${videoWalletPathKey}/` +
           `${crypto.randomUUID()}.${extension}`;
 
         const videoBlob =
@@ -816,11 +881,9 @@ export default function CreateEventPage() {
               handleUploadUrl:
                 "/api/uploads/event-video",
               clientPayload:
-                JSON.stringify({
-                  userToken:
-                    session.userToken,
-                  walletId,
-                }),
+                JSON.stringify(
+                  videoClientPayload,
+                ),
               multipart: true,
               onUploadProgress: ({
                 percentage,
@@ -845,14 +908,26 @@ export default function CreateEventPage() {
       const metadataFormData =
         new FormData();
 
-      metadataFormData.set(
-        "userToken",
-        session.userToken,
-      );
-      metadataFormData.set(
-        "walletId",
-        walletId,
-      );
+      if (
+        activeWallet.kind === "circle"
+      ) {
+        if (!circleSession) {
+          throw new Error(
+            "The Circle session is missing.",
+          );
+        }
+
+        metadataFormData.set(
+          "userToken",
+          circleSession.userToken,
+        );
+
+        metadataFormData.set(
+          "walletId",
+          circleWalletId,
+        );
+      }
+
       metadataFormData.set(
         "organizerName",
         normalizedOrganizerName,
@@ -882,18 +957,14 @@ export default function CreateEventPage() {
         rules.trim(),
       );
 
-      if (
-        eventImage
-      ) {
+      if (eventImage) {
         metadataFormData.set(
           "eventImage",
           eventImage,
         );
       }
 
-      if (
-        organizerAvatar
-      ) {
+      if (organizerAvatar) {
         metadataFormData.set(
           "organizerAvatar",
           organizerAvatar,
@@ -910,6 +981,7 @@ export default function CreateEventPage() {
             ? "upload"
             : "external",
         );
+
         metadataFormData.set(
           "videoUrl",
           normalizedVideoUrl,
@@ -921,13 +993,15 @@ export default function CreateEventPage() {
           "/api/uploads/event-metadata",
           {
             method: "POST",
+            credentials: "same-origin",
             cache: "no-store",
             body: metadataFormData,
           },
         );
 
       const metadataData =
-        (await metadataResponse.json()) as MetadataResponse;
+        (await metadataResponse
+          .json()) as MetadataResponse;
 
       if (
         !metadataResponse.ok ||
@@ -939,78 +1013,115 @@ export default function CreateEventPage() {
         );
       }
 
-      setMessage(
-        "Creating a secure Circle transaction challenge...",
-      );
+      const createEventInput = {
+        title:
+          normalizedTitle,
+        description:
+          normalizedDescription,
+        metadataURI:
+          metadataData.metadataURI,
+        eventType,
+        accessMode,
+        deposit,
+        totalPrice:
+          eventType === "paid"
+            ? totalPrice
+            : "0",
+        capacity:
+          normalizedCapacity,
+        eventStart:
+          startDate.toISOString(),
+        eventEnd:
+          endDate.toISOString(),
+        cancellationHours,
+        resolutionHours,
+      } as const;
 
-      const challengeResponse =
-        await fetch(
-          "/api/circle/events/create",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
+      let refId = "";
+
+      if (activeWallet.kind === "circle") {
+        if (!circleSession) {
+          throw new Error(
+            "The Circle session is missing.",
+          );
+        }
+
+        setMessage(
+          "Creating a secure Circle transaction challenge...",
+        );
+
+        const challengeResponse =
+          await fetch(
+            "/api/circle/events/create",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              cache: "no-store",
+              body: JSON.stringify({
+                userToken:
+                  circleSession.userToken,
+                walletId:
+                  circleWalletId,
+                ...createEventInput,
+              }),
             },
-            cache: "no-store",
-            body: JSON.stringify({
-              userToken:
-                session.userToken,
-              walletId,
-              title:
-                normalizedTitle,
-              description:
-                normalizedDescription,
-              metadataURI:
-                metadataData.metadataURI,
-              eventType,
-              accessMode,
-              deposit,
-              totalPrice:
-                eventType === "paid"
-                  ? totalPrice
-                  : "0",
-              capacity:
-                normalizedCapacity,
-              eventStart:
-                startDate.toISOString(),
-              eventEnd:
-                endDate.toISOString(),
-              cancellationHours,
-              resolutionHours,
-            }),
-          },
+          );
+
+        const challengeData =
+          (await challengeResponse
+            .json()) as ChallengeResponse;
+
+        if (
+          !challengeResponse.ok ||
+          !challengeData.challengeId
+        ) {
+          throw new Error(
+            challengeData.error ??
+              "Unable to prepare the event transaction.",
+          );
+        }
+
+        setSubmissionState(
+          "awaiting",
+        );
+        setMessage(
+          "Confirm the transaction with your Circle PIN.",
         );
 
-      const challengeData =
-        (await challengeResponse.json()) as ChallengeResponse;
-
-      if (
-        !challengeResponse.ok ||
-        !challengeData.challengeId
-      ) {
-        throw new Error(
-          challengeData.error ??
-            "Unable to prepare the event transaction.",
+        await executeCircleChallenge(
+          challengeData.challengeId,
+          circleSession.userToken,
+          circleSession.encryptionKey,
         );
+
+        refId =
+          challengeData.refId ??
+          `showup-event-${Date.now()}`;
+      } else {
+        setSubmissionState(
+          "awaiting",
+        );
+        setMessage(
+          `Confirm the transaction in ${activeWallet.providerName}.`,
+        );
+
+        const browserTransaction =
+          await createEventWithBrowserWallet({
+            providerRdns:
+              activeWallet.providerRdns,
+            expectedAddress:
+              activeWallet.address,
+            input:
+              createEventInput,
+          });
+
+        refId =
+          browserTransaction
+            .transactionHash;
       }
-
-      setSubmissionState(
-        "awaiting",
-      );
-      setMessage(
-        "Confirm the transaction with your Circle PIN.",
-      );
-
-      await executeCircleChallenge(
-        challengeData.challengeId,
-        session.userToken,
-        session.encryptionKey,
-      );
-
-      const refId =
-        challengeData.refId ??
-        `showup-event-${Date.now()}`;
 
       saveSubmission({
         refId,
@@ -1043,8 +1154,11 @@ export default function CreateEventPage() {
       setSubmissionState(
         "submitted",
       );
+
       setMessage(
-        `Circle authorization completed. Your event transaction was submitted to Arc Testnet. Reference: ${refId}`,
+        activeWallet.kind === "circle"
+          ? `Circle authorization completed. Your event transaction was submitted to Arc Testnet. Reference: ${refId}`
+          : `${activeWallet.providerName} confirmed the event transaction on Arc Testnet. Transaction: ${refId}`,
       );
     } catch (error) {
       console.error(
