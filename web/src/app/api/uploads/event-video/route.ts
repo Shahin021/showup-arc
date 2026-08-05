@@ -3,7 +3,16 @@ import {
   handleUpload,
   type HandleUploadBody,
 } from "@vercel/blob/client";
-import { NextResponse } from "next/server";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+import { isAddress } from "viem";
+
+import {
+  readWalletSession,
+  SHOWUP_WALLET_SESSION_COOKIE,
+} from "@/lib/showup-wallet-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +23,7 @@ const TOKEN_LIFETIME_MS = 10 * 60 * 1000;
 type UploadClientPayload = {
   userToken?: unknown;
   walletId?: unknown;
+  walletAddress?: unknown;
 };
 
 type CircleWallet = {
@@ -30,6 +40,96 @@ type CircleWalletsResponse = {
   code?: number;
   message?: string;
 };
+
+function readForwardedHeader(
+  value: string | null,
+) {
+  return (
+    value
+      ?.split(",")[0]
+      ?.trim() ?? ""
+  );
+}
+
+function getPublicRequestUrl(
+  request: Request,
+) {
+  const internalUrl =
+    new URL(request.url);
+
+  const host =
+    readForwardedHeader(
+      request.headers.get(
+        "x-forwarded-host",
+      ),
+    ) ||
+    request.headers
+      .get("host")
+      ?.trim() ||
+    internalUrl.host;
+
+  const forwardedProtocol =
+    readForwardedHeader(
+      request.headers.get(
+        "x-forwarded-proto",
+      ),
+    ).toLowerCase();
+
+  const protocol =
+    forwardedProtocol === "http" ||
+    forwardedProtocol === "https"
+      ? `${forwardedProtocol}:`
+      : internalUrl.protocol;
+
+  return new URL(
+    `${protocol}//${host}`,
+  );
+}
+
+function readBrowserWallet(
+  request: NextRequest,
+  expectedAddress: `0x${string}`,
+): CircleWallet | null {
+  const session =
+    readWalletSession(
+      request.cookies.get(
+        SHOWUP_WALLET_SESSION_COOKIE,
+      )?.value,
+    );
+
+  if (!session) {
+    return null;
+  }
+
+  const requestUrl =
+    getPublicRequestUrl(request);
+
+  if (
+    session.domain !==
+    requestUrl.host.toLowerCase()
+  ) {
+    throw new Error(
+      "The browser wallet session does not match this application.",
+    );
+  }
+
+  if (
+    session.address.toLowerCase() !==
+    expectedAddress.toLowerCase()
+  ) {
+    throw new Error(
+      "The browser wallet session does not match the requested wallet.",
+    );
+  }
+
+  return {
+    id:
+      `browser:${session.address.toLowerCase()}`,
+    address: session.address,
+    blockchain: "ARC-TESTNET",
+    state: "LIVE",
+  };
+}
 
 function getCircleApiKey() {
   const apiKey = process.env.CIRCLE_API_KEY;
@@ -68,21 +168,49 @@ function parseClientPayload(
       ? parsed.walletId.trim()
       : "";
 
-  if (!userToken || userToken.length > 20_000) {
-    throw new Error(
-      "A valid Circle user token is required.",
-    );
+  const walletAddress =
+    typeof parsed.walletAddress === "string"
+      ? parsed.walletAddress.trim()
+      : "";
+
+  const hasCircleCredentials =
+    Boolean(userToken || walletId);
+
+  if (hasCircleCredentials) {
+    if (
+      !userToken ||
+      userToken.length > 20_000
+    ) {
+      throw new Error(
+        "A valid Circle user token is required.",
+      );
+    }
+
+    if (
+      !walletId ||
+      walletId.length > 200
+    ) {
+      throw new Error(
+        "A valid Circle wallet ID is required.",
+      );
+    }
+
+    return {
+      kind: "circle" as const,
+      userToken,
+      walletId,
+    };
   }
 
-  if (!walletId || walletId.length > 200) {
+  if (!isAddress(walletAddress)) {
     throw new Error(
-      "A valid Circle wallet ID is required.",
+      "A valid browser wallet address is required.",
     );
   }
 
   return {
-    userToken,
-    walletId,
+    kind: "browser" as const,
+    walletAddress,
   };
 }
 
@@ -147,10 +275,10 @@ async function verifyCircleWallet(
 
 function validatePathname(
   pathname: string,
-  walletId: string,
+  walletPathKey: string,
 ) {
   const expectedPrefix =
-    `showup/videos/${walletId}/`;
+    `showup/videos/${walletPathKey}/`;
 
   if (!pathname.startsWith(expectedPrefix)) {
     throw new Error(
@@ -173,7 +301,7 @@ function validatePathname(
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body =
       (await request.json()) as HandleUploadBody;
@@ -186,17 +314,38 @@ export async function POST(request: Request) {
         pathname,
         clientPayload,
       ) => {
-        const {
-          userToken,
-          walletId,
-        } = parseClientPayload(clientPayload);
+        const authorization =
+          parseClientPayload(
+            clientPayload,
+          );
 
-        const wallet = await verifyCircleWallet(
-          userToken,
-          walletId,
+        const wallet =
+          authorization.kind === "circle"
+            ? await verifyCircleWallet(
+                authorization.userToken,
+                authorization.walletId,
+              )
+            : readBrowserWallet(
+                request,
+                authorization.walletAddress,
+              );
+
+        if (!wallet) {
+          throw new Error(
+            "Connect and authorize a wallet before uploading an event video.",
+          );
+        }
+
+        const walletPathKey =
+          authorization.kind === "circle"
+            ? authorization.walletId
+            : authorization.walletAddress
+                .toLowerCase();
+
+        validatePathname(
+          pathname,
+          walletPathKey,
         );
-
-        validatePathname(pathname, walletId);
 
         return {
           allowedContentTypes: [
@@ -215,6 +364,8 @@ export async function POST(request: Request) {
 
           tokenPayload: JSON.stringify({
             purpose: "showup-event-video",
+            walletKind:
+              authorization.kind,
             walletId: wallet.id,
             walletAddress: wallet.address,
             blockchain: wallet.blockchain,
