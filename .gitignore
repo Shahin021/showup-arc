@@ -143,3 +143,6 @@ vite.config.ts.timestamp-*
 .vite/
 artifacts/
 cache/
+
+# Local Vercel project link
+/.vercel/
