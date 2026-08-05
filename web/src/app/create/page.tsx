@@ -2002,7 +2002,7 @@ export default function CreateEventPage() {
             </button>
 
             <p className="mt-4 text-center text-xs text-white/30">
-              No transaction is sent until you approve it inside Circle&apos;s secure PIN window.
+              No transaction is sent until you approve it in your connected wallet.
             </p>
           </form>
 
