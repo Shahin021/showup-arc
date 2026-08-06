@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@circle-fin/adapter-viem-v2": "^1.14.1",
+    "@circle-fin/app-kit": "^1.10.0",
     "@circle-fin/user-controlled-wallets": "^10.8.0",
     "@circle-fin/w3s-pw-web-sdk": "^1.1.11",
     "@vercel/blob": "^2.6.1",
