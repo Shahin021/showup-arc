@@ -421,6 +421,7 @@ export default function CreateEventPage() {
   ] =
     useState<SubmissionState>("idle");
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!eventImage) {
       setEventImagePreview("");
@@ -454,6 +455,7 @@ export default function CreateEventPage() {
       URL.revokeObjectURL(preview);
     };
   }, [organizerAvatar]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const availableSeats = useMemo(() => {
     if (unlimitedCapacity) {

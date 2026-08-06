@@ -535,16 +535,43 @@ export default function OrganizerInvitationPanel({
         organizer.toLowerCase(),
     );
 
-  const startSeconds =
-    Number(eventStart);
+  const [
+    eventStarted,
+    setEventStarted,
+  ] = useState(false);
 
-  const eventStarted =
-    Number.isFinite(
-      startSeconds,
-    ) &&
-    startSeconds > 0 &&
-    Date.now() >=
-      startSeconds * 1000;
+  useEffect(() => {
+    function refreshStartState() {
+      const startSeconds =
+        Number(eventStart);
+
+      setEventStarted(
+        Number.isFinite(
+          startSeconds,
+        ) &&
+          startSeconds > 0 &&
+          Date.now() >=
+            startSeconds * 1000,
+      );
+    }
+
+    const timeoutId =
+      window.setTimeout(
+        refreshStartState,
+        0,
+      );
+
+    const intervalId =
+      window.setInterval(
+        refreshStartState,
+        1_000,
+      );
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
+  }, [eventStart]);
 
   const busy =
     panelState ===

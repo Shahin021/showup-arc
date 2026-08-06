@@ -340,18 +340,6 @@ function chooseActiveWallet(
   );
 }
 
-async function requestCircleWallet(
-  userToken: string,
-  attempts = 1,
-): Promise<WalletDetails> {
-  const wallets = await requestCircleWallets(
-    userToken,
-    attempts,
-  );
-
-  return chooseActiveWallet(wallets);
-}
-
 async function waitForNewCircleWallet(
   userToken: string,
   existingWalletIds: Set<string>,

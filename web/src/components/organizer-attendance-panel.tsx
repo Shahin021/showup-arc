@@ -1097,9 +1097,17 @@ export default function OrganizerAttendancePanel({
   }, [organizer]);
 
   useEffect(() => {
-    if (isOrganizer) {
-      void loadAttendees();
+    if (!isOrganizer) {
+      return;
     }
+
+    const timeoutId = window.setTimeout(() => {
+      void loadAttendees();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [
     isOrganizer,
     loadAttendees,

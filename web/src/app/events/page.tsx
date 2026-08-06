@@ -232,7 +232,13 @@ export default function EventsPage() {
   }, []);
 
   useEffect(() => {
-    void loadEvents();
+    const timeoutId = window.setTimeout(() => {
+      void loadEvents();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [loadEvents]);
 
   return (

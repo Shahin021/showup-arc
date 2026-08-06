@@ -389,16 +389,43 @@ export default function OrganizerCancelEventButton({
     setError,
   ] = useState("");
 
-  const eventStartSeconds =
-    Number(eventStart);
+  const [
+    eventHasStarted,
+    setEventHasStarted,
+  ] = useState(false);
 
-  const eventHasStarted =
-    Number.isFinite(
-      eventStartSeconds,
-    ) &&
-    eventStartSeconds > 0 &&
-    Date.now() >=
-      eventStartSeconds * 1000;
+  useEffect(() => {
+    function refreshStartState() {
+      const eventStartSeconds =
+        Number(eventStart);
+
+      setEventHasStarted(
+        Number.isFinite(
+          eventStartSeconds,
+        ) &&
+          eventStartSeconds > 0 &&
+          Date.now() >=
+            eventStartSeconds * 1000,
+      );
+    }
+
+    const timeoutId =
+      window.setTimeout(
+        refreshStartState,
+        0,
+      );
+
+    const intervalId =
+      window.setInterval(
+        refreshStartState,
+        1_000,
+      );
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
+  }, [eventStart]);
 
   useEffect(() => {
     let active = true;

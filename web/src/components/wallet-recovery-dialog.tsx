@@ -84,26 +84,28 @@ export default function WalletRecoveryDialog({
   }, [open, isWorking, onClose]);
 
   useEffect(() => {
-    if (!open) {
+    const timeoutId = window.setTimeout(() => {
       setRecoveryCode("");
       setRecoveryInput("");
       setStatusMessage("");
       setErrorMessage("");
       setCopied(false);
-      setIsWorking(false);
-      return;
-    }
 
-    setRecoveryCode("");
-    setRecoveryInput("");
-    setStatusMessage("");
-    setErrorMessage("");
-    setCopied(false);
+      if (!open) {
+        setIsWorking(false);
+        return;
+      }
 
-    if (mode === "backup") {
-      void createRecoveryCode();
-    }
-  }, [open, mode]);
+      if (mode === "backup") {
+        void createRecoveryCode();
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode, userId]);
 
   async function createRecoveryCode() {
     if (!userId) {
