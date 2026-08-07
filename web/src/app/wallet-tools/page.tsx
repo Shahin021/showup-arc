@@ -46,6 +46,11 @@ type WalletToolBalances = {
   };
 };
 
+type BridgeExplorerLink = {
+  name: string;
+  url: string;
+};
+
 function getErrorMessage(
   error: unknown,
 ) {
@@ -111,9 +116,9 @@ export default function WalletToolsPage() {
     useState("");
 
   const [
-    bridgeExplorerUrls,
-    setBridgeExplorerUrls,
-  ] = useState<string[]>([]);
+    bridgeExplorerLinks,
+    setBridgeExplorerLinks,
+  ] = useState<BridgeExplorerLink[]>([]);
 
   const [
     swapDirection,
@@ -392,7 +397,7 @@ export default function WalletToolsPage() {
     setBridgeMessage(
       `Preparing the ${bridgeSourceLabel} bridge transaction...`,
     );
-    setBridgeExplorerUrls([]);
+    setBridgeExplorerLinks([]);
 
     try {
       const {
@@ -415,19 +420,39 @@ export default function WalletToolsPage() {
           token: "USDC",
         });
 
-      const explorerUrls = [
-        ...new Set(
-          result.steps.flatMap(
-            (step) =>
-              step.explorerUrl
-                ? [step.explorerUrl]
-                : [],
-          ),
-        ),
-      ];
+      const explorerLinkMap =
+        new Map<string, string[]>();
 
-      setBridgeExplorerUrls(
-        explorerUrls,
+      for (const step of result.steps) {
+        if (!step.explorerUrl) {
+          continue;
+        }
+
+        const names =
+          explorerLinkMap.get(
+            step.explorerUrl,
+          ) ?? [];
+
+        if (!names.includes(step.name)) {
+          names.push(step.name);
+        }
+
+        explorerLinkMap.set(
+          step.explorerUrl,
+          names,
+        );
+      }
+
+      const explorerLinks =
+        [...explorerLinkMap.entries()].map(
+          ([url, names]) => ({
+            url,
+            name: names.join(" + "),
+          }),
+        );
+
+      setBridgeExplorerLinks(
+        explorerLinks,
       );
 
       if (result.state === "error") {
@@ -574,7 +599,7 @@ export default function WalletToolsPage() {
 
     setBridgeStatus("idle");
     setBridgeMessage("");
-    setBridgeExplorerUrls([]);
+    setBridgeExplorerLinks([]);
   }
 
   function handleSwapDirectionChange() {
@@ -609,7 +634,7 @@ export default function WalletToolsPage() {
 
     setBridgeStatus("idle");
     setBridgeMessage("");
-    setBridgeExplorerUrls([]);
+    setBridgeExplorerLinks([]);
 
     setSwapStatus("idle");
     setSwapMessage("");
@@ -938,19 +963,18 @@ export default function WalletToolsPage() {
                 )}
 
                 {isBridge &&
-                  bridgeExplorerUrls.length > 0 && (
+                  bridgeExplorerLinks.length > 0 && (
                     <div className="mt-3 space-y-2">
-                      {bridgeExplorerUrls.map(
-                        (url, index) => (
+                      {bridgeExplorerLinks.map(
+                        (link) => (
                           <a
-                            key={url}
-                            href={url}
+                            key={link.url}
+                            href={link.url}
                             target="_blank"
                             rel="noreferrer"
                             className="block rounded-2xl border border-[#79b7ff]/12 bg-[#0c132a] px-4 py-3 text-sm text-[#8fd8ff] transition hover:border-[#79b7ff]/30"
                           >
-                            View transaction{" "}
-                            {index + 1}
+                            View {link.name} transaction
                           </a>
                         ),
                       )}
