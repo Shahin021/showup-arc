@@ -4,7 +4,17 @@ import {
   SwapChain,
 } from "@circle-fin/app-kit";
 import { createViemAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
-import type { EIP1193Provider } from "viem";
+import {
+  createPublicClient,
+  fallback,
+  http,
+  type Chain,
+  type EIP1193Provider,
+} from "viem";
+import {
+  arcTestnet,
+  sepolia,
+} from "viem/chains";
 
 import { findBrowserWalletProvider } from "./browser-wallet";
 import {
@@ -26,6 +36,45 @@ export const SHOWUP_BRIDGE_CHAINS = {
 
 export const SHOWUP_SWAP_CHAIN =
   SwapChain.Arc_Testnet;
+
+const ARC_TESTNET_RPC_URLS = [
+  "https://rpc.testnet.arc.network",
+  "https://rpc.blockdaemon.testnet.arc.network",
+  "https://rpc.drpc.testnet.arc.network",
+  "https://rpc.quicknode.testnet.arc.network",
+] as const;
+
+const ETHEREUM_SEPOLIA_RPC_URLS = [
+  "https://ethereum-sepolia-rpc.publicnode.com",
+  "https://rpc.sepolia.org",
+] as const;
+
+function createShowUpPublicClient(
+  chain: Chain,
+) {
+  const rpcUrls =
+    chain.id === arcTestnet.id
+      ? ARC_TESTNET_RPC_URLS
+      : chain.id === sepolia.id
+        ? ETHEREUM_SEPOLIA_RPC_URLS
+        : chain.rpcUrls.default.http;
+
+  return createPublicClient({
+    chain,
+    transport: fallback(
+      rpcUrls.map((url) =>
+        http(url, {
+          timeout: 20_000,
+          retryCount: 0,
+        }),
+      ),
+      {
+        retryCount: 2,
+        retryDelay: 300,
+      },
+    ),
+  });
+}
 
 export type ShowUpAppKitContext = {
   wallet: ShowUpBrowserWallet;
@@ -107,6 +156,8 @@ export async function createShowUpAppKitContext():
   const adapter =
     await createViemAdapterFromProvider({
       provider: walletProvider.provider,
+      getPublicClient: ({ chain }) =>
+        createShowUpPublicClient(chain),
       capabilities: {
         addressContext: "user-controlled",
       },
