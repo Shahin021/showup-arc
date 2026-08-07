@@ -36,6 +36,16 @@ type BridgeUiStatus =
   | "success"
   | "error";
 
+type WalletToolBalances = {
+  ethereumSepolia: {
+    USDC: string;
+  };
+  arcTestnet: {
+    USDC: string;
+    EURC: string;
+  };
+};
+
 function getErrorMessage(
   error: unknown,
 ) {
@@ -50,6 +60,31 @@ function shortenWalletAddress(
   address: string,
 ) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+async function fetchWalletToolBalances(
+  address: string,
+): Promise<WalletToolBalances> {
+  const response = await fetch(
+    `/api/wallet-tools/balances?address=${encodeURIComponent(address)}`,
+    {
+      cache: "no-store",
+    },
+  );
+
+  const payload = (await response.json()) as {
+    balances?: WalletToolBalances;
+    error?: string;
+  };
+
+  if (!response.ok || !payload.balances) {
+    throw new Error(
+      payload.error ??
+        "Unable to load wallet balances.",
+    );
+  }
+
+  return payload.balances;
 }
 
 export default function WalletToolsPage() {
@@ -101,6 +136,15 @@ export default function WalletToolsPage() {
   const [swapAmountOut, setSwapAmountOut] =
     useState("");
 
+  const [balances, setBalances] =
+    useState<WalletToolBalances | null>(null);
+
+  const [balancesLoading, setBalancesLoading] =
+    useState(false);
+
+  const [balancesError, setBalancesError] =
+    useState("");
+
   useEffect(() => {
     function syncActiveWallet() {
       setActiveWallet(
@@ -127,6 +171,60 @@ export default function WalletToolsPage() {
       );
     };
   }, []);
+
+  useEffect(() => {
+    const address =
+      activeWallet?.kind === "browser"
+        ? activeWallet.address
+        : null;
+
+    let cancelled = false;
+
+    const timeoutId = window.setTimeout(
+      () => {
+        if (cancelled) {
+          return;
+        }
+
+        if (!address) {
+          setBalances(null);
+          setBalancesLoading(false);
+          setBalancesError("");
+          return;
+        }
+
+        setBalances(null);
+        setBalancesLoading(true);
+        setBalancesError("");
+
+        void fetchWalletToolBalances(address)
+          .then((nextBalances) => {
+            if (!cancelled) {
+              setBalances(nextBalances);
+            }
+          })
+          .catch((error: unknown) => {
+            if (!cancelled) {
+              setBalances(null);
+              setBalancesError(
+                getErrorMessage(error),
+              );
+            }
+          })
+          .finally(() => {
+            if (!cancelled) {
+              setBalancesLoading(false);
+            }
+          });
+      },
+      0,
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeWallet]);
 
   const isBridge =
     activeTab === "bridge";
@@ -165,6 +263,80 @@ export default function WalletToolsPage() {
 
   const browserWalletReady =
     activeWallet?.kind === "browser";
+
+  const ethereumSepoliaUsdcBalance =
+    balances?.ethereumSepolia.USDC;
+
+  const arcTestnetUsdcBalance =
+    balances?.arcTestnet.USDC;
+
+  const arcTestnetEurcBalance =
+    balances?.arcTestnet.EURC;
+
+  const bridgeSourceBalance =
+    bridgeFromEthereum
+      ? ethereumSepoliaUsdcBalance
+      : arcTestnetUsdcBalance;
+
+  const bridgeDestinationBalance =
+    bridgeFromEthereum
+      ? arcTestnetUsdcBalance
+      : ethereumSepoliaUsdcBalance;
+
+  const swapInputBalance =
+    swapFromUsdc
+      ? arcTestnetUsdcBalance
+      : arcTestnetEurcBalance;
+
+  const swapOutputBalance =
+    swapFromUsdc
+      ? arcTestnetEurcBalance
+      : arcTestnetUsdcBalance;
+
+  function getBalanceText(
+    balance: string | undefined,
+    token: string,
+  ) {
+    if (!browserWalletReady) {
+      return "Balance: —";
+    }
+
+    if (balancesLoading && !balances) {
+      return "Balance: Loading...";
+    }
+
+    if (balance === undefined) {
+      return balancesError
+        ? "Balance: Unavailable"
+        : "Balance: —";
+    }
+
+    return `Balance: ${balance} ${token}`;
+  }
+
+  async function refreshBalances() {
+    if (activeWallet?.kind !== "browser") {
+      return;
+    }
+
+    try {
+      setBalancesLoading(true);
+      setBalancesError("");
+
+      const nextBalances =
+        await fetchWalletToolBalances(
+          activeWallet.address,
+        );
+
+      setBalances(nextBalances);
+    } catch (error) {
+      setBalancesError(
+        getErrorMessage(error),
+      );
+    } finally {
+      setBalancesLoading(false);
+    }
+  }
 
   const walletStatus =
     !activeWallet
@@ -283,6 +455,8 @@ export default function WalletToolsPage() {
       setBridgeMessage(
         `${result.amount} USDC was bridged successfully to ${bridgeDestinationLabel}.`,
       );
+
+      await refreshBalances();
     } catch (error) {
       console.error(
         "ShowUp bridge failed:",
@@ -372,6 +546,8 @@ export default function WalletToolsPage() {
           ? `Swap completed. You received approximately ${result.amountOut} ${swapTokenOut}.`
           : `${swapTokenIn} was swapped to ${swapTokenOut} successfully.`,
       );
+
+      await refreshBalances();
     } catch (error) {
       console.error(
         "ShowUp swap failed:",
@@ -593,6 +769,17 @@ export default function WalletToolsPage() {
                       ? bridgeSourceLabel
                       : `${swapTokenIn} on Arc Testnet`}
                   </p>
+
+                  <p className="mt-1 text-xs text-white/45">
+                    {getBalanceText(
+                      isBridge
+                        ? bridgeSourceBalance
+                        : swapInputBalance,
+                      isBridge
+                        ? "USDC"
+                        : swapTokenIn,
+                    )}
+                  </p>
                 </div>
 
                 <div className="flex justify-center">
@@ -630,6 +817,17 @@ export default function WalletToolsPage() {
                     {isBridge
                       ? bridgeDestinationLabel
                       : `${swapTokenOut} on Arc Testnet`}
+                  </p>
+
+                  <p className="mt-1 text-xs text-white/45">
+                    {getBalanceText(
+                      isBridge
+                        ? bridgeDestinationBalance
+                        : swapOutputBalance,
+                      isBridge
+                        ? "USDC"
+                        : swapTokenOut,
+                    )}
                   </p>
                 </div>
 
