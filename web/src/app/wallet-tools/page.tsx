@@ -715,6 +715,17 @@ export default function WalletToolsPage() {
             </p>
           </div>
 
+          <div className="mx-auto mt-8 max-w-xl rounded-[24px] border border-[#79b7ff]/18 bg-[#0b1025]/70 p-5 backdrop-blur-xl">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold text-white/85">Need test USDC?</p>
+                <p className="mt-1 text-sm leading-6 text-white/45">Fund your wallet with the official Circle Arc Testnet faucet.</p>
+              </div>
+
+              <a href="https://faucet.circle.com/?allow=true" target="_blank" rel="noreferrer" className="shrink-0 rounded-2xl border border-[#73d8ff]/25 bg-[#73d8ff]/10 px-4 py-3 text-sm font-semibold text-[#9bddff] transition hover:bg-[#73d8ff]/15">Get test USDC</a>
+            </div>
+          </div>
+
           <div className="mx-auto mt-10 max-w-xl rounded-[30px] border border-[#79b7ff]/18 bg-[#0b1025]/85 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl">
             <div className="grid grid-cols-2 gap-2 rounded-[22px] border border-[#79b7ff]/12 bg-[#070c1d] p-1.5">
               <button
