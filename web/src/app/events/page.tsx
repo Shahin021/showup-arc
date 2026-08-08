@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import CircleWalletButton from "@/components/circle-wallet-button";
+import ShowUpHeader from "@/components/showup-header";
 
 type OnchainEvent = {
   id: string;
@@ -257,52 +257,7 @@ export default function EventsPage() {
 
   return (
     <main className="min-h-screen bg-[#050817] text-white">
-      <header className="sticky top-0 z-[100] overflow-visible border-b border-[#79b7ff]/12 bg-[#050817]/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-5 lg:px-10">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#73d8ff] to-[#9285ff] text-lg font-black text-[#050817] shadow-lg shadow-[#4b9cff]/20">
-              S
-            </div>
-
-            <div>
-              <p className="text-lg font-semibold tracking-tight">
-                ShowUp
-              </p>
-
-              <p className="text-xs text-white/45">
-                Programmable commitment on Arc
-              </p>
-            </div>
-          </Link>
-
-          <nav className="hidden items-center gap-7 text-sm text-white/60 md:flex">
-            <Link
-              href="/"
-              className="transition hover:text-[#8fd8ff]"
-            >
-              Home
-            </Link>
-
-            <Link
-              href="/events"
-              className="font-medium text-[#82d3ff]"
-            >
-              Explore
-            </Link>
-
-              <Link href="/wallet-tools" className="transition hover:text-[#8fd8ff]">Bridge & Swap</Link>
-
-            <Link
-              href="/create"
-              className="transition hover:text-[#8fd8ff]"
-            >
-              Create event
-            </Link>
-          </nav>
-
-          <CircleWalletButton />
-        </div>
-      </header>
+      <ShowUpHeader />
 
       <section className="relative overflow-hidden border-b border-[#79b7ff]/12">
         <div className="pointer-events-none absolute left-[40%] top-[-260px] h-[650px] w-[760px] -translate-x-1/2 rounded-full bg-[#288cff]/15 blur-[180px]" />

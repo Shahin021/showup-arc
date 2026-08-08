@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import {
   useEffect,
   useState,
 } from "react";
 
-import CircleWalletButton from "@/components/circle-wallet-button";
+import ShowUpHeader from "@/components/showup-header";
 import { withCircleBrowserFetch } from "@/lib/circle-browser-fetch";
 import {
   createShowUpAppKitContext,
@@ -645,53 +644,7 @@ export default function WalletToolsPage() {
 
   return (
     <main className="min-h-screen bg-[#050817] text-white">
-      <header className="relative z-20 border-b border-[#73baff]/15 bg-[#050817]/85 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-5 lg:px-10">
-          <Link
-            href="/"
-            className="flex items-center gap-3"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#73d8ff] to-[#9285ff] text-lg font-black text-[#050817] shadow-lg shadow-[#4b9cff]/20">
-              S
-            </div>
-
-            <div>
-              <p className="text-lg font-semibold tracking-tight">
-                ShowUp
-              </p>
-
-              <p className="text-xs text-white/45">
-                Wallet tools on Arc
-              </p>
-            </div>
-          </Link>
-
-          <nav className="hidden items-center gap-7 text-sm text-white/60 md:flex">
-            <Link
-              href="/"
-              className="transition hover:text-[#8fd8ff]"
-            >
-              Home
-            </Link>
-
-            <Link
-              href="/events"
-              className="transition hover:text-[#8fd8ff]"
-            >
-              Events
-            </Link>
-
-            <Link
-              href="/create"
-              className="transition hover:text-[#8fd8ff]"
-            >
-              Create
-            </Link>
-          </nav>
-
-          <CircleWalletButton />
-        </div>
-      </header>
+      <ShowUpHeader />
 
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute left-[28%] top-[-280px] h-[700px] w-[700px] rounded-full bg-[#288cff]/15 blur-[180px]" />

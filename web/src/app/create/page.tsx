@@ -1,14 +1,13 @@
 "use client";
 
 import { upload } from "@vercel/blob/client";
-import Link from "next/link";
 import {
   type FormEvent,
   useEffect,
   useMemo,
   useState,
 } from "react";
-import CircleWalletButton from "@/components/circle-wallet-button";
+import ShowUpHeader from "@/components/showup-header";
 import {
   createEventWithBrowserWallet,
 } from "@/lib/browser-create-event";
@@ -1181,38 +1180,7 @@ export default function CreateEventPage() {
 
   return (
     <main className="min-h-screen bg-[#050817] text-white">
-      <header className="relative z-[100] overflow-visible border-b border-[#79b7ff]/12 bg-[#050817]/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
-          <Link
-            href="/"
-            className="flex items-center gap-3"
-          >
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-[#73d8ff] to-[#9285ff] font-black text-[#050817] shadow-lg shadow-[#4b9cff]/20">
-              S
-            </div>
-
-            <div>
-              <p className="font-semibold">
-                ShowUp
-              </p>
-              <p className="text-xs text-white/35">
-                Programmable commitment on Arc
-              </p>
-            </div>
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="hidden text-sm text-white/45 transition hover:text-[#9bddff] sm:block"
-            >
-              Back home
-            </Link>
-
-            <CircleWalletButton />
-          </div>
-        </div>
-      </header>
+      <ShowUpHeader />
 
       <section className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:py-14">
         <div className="mb-8 max-w-3xl">
