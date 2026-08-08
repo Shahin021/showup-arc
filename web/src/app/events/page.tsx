@@ -193,6 +193,20 @@ export default function EventsPage() {
   const [contractAddress, setContractAddress] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [eventView, setEventView] = useState<"upcoming" | "past">("upcoming");
+
+  const upcomingEvents = events.filter((event) => {
+    const status = getEventStatus(event);
+    return status !== "Ended" && status !== "Cancelled";
+  });
+
+  const pastEvents = events.filter((event) => {
+    const status = getEventStatus(event);
+    return status === "Ended" || status === "Cancelled";
+  });
+
+  const visibleEvents =
+    eventView === "upcoming" ? upcomingEvents : pastEvents;
 
   const loadEvents = useCallback(async () => {
     try {
@@ -243,7 +257,7 @@ export default function EventsPage() {
 
   return (
     <main className="min-h-screen bg-[#050817] text-white">
-      <header className="relative z-[100] overflow-visible border-b border-[#79b7ff]/12 bg-[#050817]/90 backdrop-blur-xl">
+      <header className="sticky top-0 z-[100] overflow-visible border-b border-[#79b7ff]/12 bg-[#050817]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-5 lg:px-10">
           <Link href="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#73d8ff] to-[#9285ff] text-lg font-black text-[#050817] shadow-lg shadow-[#4b9cff]/20">
@@ -275,6 +289,8 @@ export default function EventsPage() {
             >
               Explore
             </Link>
+
+              <Link href="/wallet-tools" className="transition hover:text-[#8fd8ff]">Bridge & Swap</Link>
 
             <Link
               href="/create"
@@ -347,15 +363,15 @@ export default function EventsPage() {
               </p>
 
               <h2 className="mt-3 text-3xl font-semibold tracking-tight">
-                Upcoming commitments
+                {eventView === "upcoming" ? "Upcoming commitments" : "Past commitments"}
               </h2>
             </div>
 
             <div className="flex items-center gap-3">
               {!loading && !error ? (
                 <p className="text-sm text-white/35">
-                  {events.length}{" "}
-                  {events.length === 1
+                  {visibleEvents.length}{" "}
+                  {visibleEvents.length === 1
                     ? "event"
                     : "events"}{" "}
                   found
@@ -375,19 +391,45 @@ export default function EventsPage() {
             </div>
           </div>
 
-          {error ? (
-            <div className="rounded-[28px] border border-red-400/20 bg-red-400/10 p-6 text-red-200">
-              <p className="font-medium">
-                Events could not be loaded.
-              </p>
+          <div className="mb-8 flex w-fit items-center gap-2 rounded-2xl border border-[#79b7ff]/12 bg-[#070c1d] p-1.5">
+        <button
+          type="button"
+          onClick={() => setEventView("upcoming")}
+          className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+            eventView === "upcoming"
+              ? "bg-gradient-to-r from-[#73d8ff] to-[#8195ff] text-[#050817]"
+              : "text-white/45 hover:bg-white/5 hover:text-white/80"
+          }`}
+        >
+          Upcoming
+        </button>
 
-              <p className="mt-2 text-sm leading-6 text-red-200/70">
-                {error}
-              </p>
-            </div>
-          ) : null}
+        <button
+          type="button"
+          onClick={() => setEventView("past")}
+          className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+            eventView === "past"
+              ? "bg-gradient-to-r from-[#73d8ff] to-[#8195ff] text-[#050817]"
+              : "text-white/45 hover:bg-white/5 hover:text-white/80"
+          }`}
+        >
+          Past
+        </button>
+      </div>
 
-          {loading ? (
+      {error ? (
+        <div className="rounded-[28px] border border-red-400/20 bg-red-400/10 p-6 text-red-200">
+          <p className="font-medium">
+            Events could not be loaded.
+          </p>
+
+          <p className="mt-2 text-sm leading-6 text-red-200/70">
+            {error}
+          </p>
+        </div>
+      ) : null}
+
+      {loading ? (
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {[1, 2, 3].map((item) => (
                 <div
@@ -419,9 +461,15 @@ export default function EventsPage() {
             </div>
           ) : null}
 
-          {!loading && !error && events.length > 0 ? (
+          {!loading && !error && events.length > 0 && visibleEvents.length === 0 ? (
+        <div className="rounded-[30px] border border-[#79b7ff]/12 bg-[#0a1025] p-10 text-center">
+          <p className="text-xl font-semibold">{eventView === "upcoming" ? "No upcoming commitments." : "No past commitments yet."}</p>
+        </div>
+      ) : null}
+
+      {!loading && !error && visibleEvents.length > 0 ? (
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {events.map((event) => {
+              {visibleEvents.map((event) => {
                 const status = getEventStatus(event);
                 const date = formatDate(event.eventStart);
                 const capacity = getCapacityDetails(event);

@@ -57,6 +57,10 @@ const flowItems = [
   },
 ];
 
+const fiatOnrampEnabled = process.env.NEXT_PUBLIC_ENABLE_FIAT_ONRAMP === "true";
+const fiatOnrampUrl = process.env.NEXT_PUBLIC_FIAT_ONRAMP_URL ?? "";
+const fiatOnrampReady = fiatOnrampEnabled && Boolean(fiatOnrampUrl);
+
 export default function Home() {
   return (
     <main className="min-h-screen overflow-x-clip bg-[#050817] text-white">
@@ -103,7 +107,7 @@ export default function Home() {
             </a>
           </nav>
 
-          <CircleWalletButton />
+          <div className="flex items-center gap-3">{fiatOnrampReady ? (<a href={fiatOnrampUrl} target="_blank" rel="noreferrer" className="hidden items-center gap-2 rounded-full border border-[#73d8ff]/25 bg-[#73d8ff]/10 px-4 py-2 text-sm font-semibold text-[#9bddff] transition hover:bg-[#73d8ff]/15 lg:inline-flex">Add Funds <span className="font-semibold text-white/45">Mainnet</span></a>) : (<button type="button" disabled title="Available on Arc Mainnet" className="hidden cursor-not-allowed items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/45 lg:inline-flex">Add Funds <span className="font-semibold text-white/45">Mainnet</span></button>)}<CircleWalletButton /></div>
         </div>
       </header>
 
@@ -123,14 +127,14 @@ export default function Home() {
           />
         </div>
 
-        <div className="relative mx-auto grid max-w-7xl gap-14 px-6 py-16 lg:grid-cols-[1.08fr_0.92fr] lg:px-10 lg:py-20">
-          <div className="flex flex-col justify-center">
+        <div className="relative mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[1.18fr_0.82fr] lg:px-10 lg:py-20">
+          <div className="flex h-full flex-col">
             <div className="mb-6 flex w-fit items-center gap-2 rounded-full border border-[#72cfff]/25 bg-[#418cff]/10 px-4 py-2 text-sm text-[#9bddff]">
               <span className="h-2 w-2 rounded-full bg-[#75d7ff] shadow-[0_0_16px_rgba(117,215,255,0.95)]" />
               Live prototype on Arc Testnet
             </div>
 
-            <h1 className="max-w-[680px] text-5xl font-semibold leading-[1.02] tracking-[-0.045em] sm:text-6xl lg:text-[70px]">
+            <h1 className="max-w-[680px] text-5xl font-semibold leading-[1.02] tracking-[-0.045em] sm:text-6xl lg:text-[60px]">
               Turn reservations into
               <span className="block bg-gradient-to-r from-[#75d7ff] via-[#70aaff] to-[#9b89ff] bg-clip-text text-transparent">
                 accountable commitments.
@@ -159,7 +163,7 @@ export default function Home() {
               </Link>
             </div>
 
-            <div className="mt-9 grid max-w-2xl gap-3 sm:grid-cols-2">
+            <div className="mt-auto grid max-w-2xl pt-9 gap-3 sm:grid-cols-2">
               {features.map((feature) => (
                 <div
                   key={feature.title}
