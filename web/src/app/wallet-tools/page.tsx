@@ -93,6 +93,15 @@ async function fetchWalletToolBalances(
 }
 
 export default function WalletToolsPage() {
+  const fiatOnrampEnabled =
+    process.env.NEXT_PUBLIC_ENABLE_FIAT_ONRAMP === "true";
+
+  const fiatOnrampUrl =
+    process.env.NEXT_PUBLIC_FIAT_ONRAMP_URL ?? "";
+
+  const fiatOnrampReady =
+    fiatOnrampEnabled && Boolean(fiatOnrampUrl);
+
   const [activeTab, setActiveTab] =
     useState<WalletToolTab>("bridge");
 
@@ -726,7 +735,42 @@ export default function WalletToolsPage() {
             </div>
           </div>
 
-          <div className="mx-auto mt-10 max-w-xl rounded-[30px] border border-[#79b7ff]/18 bg-[#0b1025]/85 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl">
+          <div className="mx-auto mt-4 max-w-xl rounded-[24px] border border-[#79b7ff]/12 bg-[#0b1025]/55 p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="font-semibold text-white/80">Buy USDC with fiat</p>
+              <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white/35">
+                Mainnet
+              </span>
+            </div>
+            <p className="mt-1 text-sm leading-6 text-white/40">
+              Fiat funding is prepared for the Arc Mainnet launch.
+            </p>
+          </div>
+
+          {fiatOnrampReady ? (
+            <a
+              href={fiatOnrampUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[#080b16] transition hover:bg-white/90"
+            >
+              Buy USDC
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="shrink-0 cursor-not-allowed rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/30"
+            >
+              Mainnet only
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mx-auto mt-10 max-w-xl rounded-[30px] border border-[#79b7ff]/18 bg-[#0b1025]/85 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl">
             <div className="grid grid-cols-2 gap-2 rounded-[22px] border border-[#79b7ff]/12 bg-[#070c1d] p-1.5">
               <button
                 type="button"
