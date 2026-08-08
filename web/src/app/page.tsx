@@ -92,6 +92,8 @@ export default function Home() {
             >
               Explore
             </Link>
+              <Link href="/wallet-tools" className="transition hover:text-[#8fd8ff]">Bridge & Swap</Link>
+
 
             <a
               href="#infrastructure"
