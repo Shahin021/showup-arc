@@ -59,8 +59,8 @@ const flowItems = [
 
 export default function Home() {
   return (
-    <main className="min-h-screen overflow-hidden bg-[#050817] text-white">
-      <header className="z-[100] overflow-visible relative z-20 border-b border-[#73baff]/15 bg-[#050817]/85 backdrop-blur-xl">
+    <main className="min-h-screen overflow-x-clip bg-[#050817] text-white">
+      <header className="sticky top-0 z-[100] overflow-visible border-b border-[#73baff]/15 bg-[#050817]/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-5 lg:px-10">
           <Link href="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#73d8ff] to-[#9285ff] text-lg font-black text-[#050817] shadow-lg shadow-[#4b9cff]/20">
