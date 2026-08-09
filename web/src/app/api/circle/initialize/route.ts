@@ -70,8 +70,11 @@ export async function POST(request: Request) {
     try {
       const response = await circleClient.createUserPinWithWallets({
         userToken,
-        blockchains: ["ARC-TESTNET"],
-        accountType: "SCA",
+        blockchains: [
+          "ARC-TESTNET",
+          "ETH-SEPOLIA",
+        ],
+        accountType: "EOA",
       });
 
       const challengeId = response.data?.challengeId;

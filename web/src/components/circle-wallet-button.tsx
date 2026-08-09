@@ -467,7 +467,8 @@ export default function CircleWalletButton() {
   const [walletChooserOpen, setWalletChooserOpen] =
     useState(false);
 
-  const [copied, setCopied] = useState(false);
+  const [copiedWalletId, setCopiedWalletId] =
+    useState("");
 
   const [recoveryDialogOpen, setRecoveryDialogOpen] =
     useState(false);
@@ -903,32 +904,36 @@ export default function CircleWalletButton() {
 
     setActiveWalletId(wallet.id);
     setWalletAddress(wallet.address);
-    setCopied(false);
+    setCopiedWalletId("");
     setMessage("");
     setMenuOpen(false);
     setWalletChooserOpen(false);
   }
 
-  async function handleCopyAddress() {
-    if (!walletAddress) {
+  async function handleCopyAddress(
+    wallet: WalletDetails,
+  ) {
+    if (!wallet.id || !wallet.address) {
       return;
     }
 
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(walletAddress);
+        await navigator.clipboard.writeText(
+          wallet.address,
+        );
       } else {
-        copyWithFallback(walletAddress);
+        copyWithFallback(wallet.address);
       }
 
-      setCopied(true);
+      setCopiedWalletId(wallet.id);
 
       if (copiedTimeoutRef.current) {
         clearTimeout(copiedTimeoutRef.current);
       }
 
       copiedTimeoutRef.current = setTimeout(() => {
-        setCopied(false);
+        setCopiedWalletId("");
       }, 1800);
     } catch (error) {
       console.error(
@@ -936,8 +941,42 @@ export default function CircleWalletButton() {
         error,
       );
 
+      copyWithFallback(wallet.address);
+      setCopiedWalletId(wallet.id);
+    }
+  }
+
+  async function handleCopyBrowserAddress() {
+    if (!walletAddress) {
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(
+          walletAddress,
+        );
+      } else {
+        copyWithFallback(walletAddress);
+      }
+
+      setCopiedWalletId("browser");
+
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+
+      copiedTimeoutRef.current = setTimeout(() => {
+        setCopiedWalletId("");
+      }, 1800);
+    } catch (error) {
+      console.error(
+        "Unable to copy browser wallet address:",
+        error,
+      );
+
       copyWithFallback(walletAddress);
-      setCopied(true);
+      setCopiedWalletId("browser");
     }
   }
 
@@ -968,7 +1007,7 @@ export default function CircleWalletButton() {
     setMessage("");
     setMenuOpen(false);
     setWalletChooserOpen(false);
-    setCopied(false);
+    setCopiedWalletId("");
   }
 
   async function handleRenameWallet(
@@ -1502,25 +1541,21 @@ export default function CircleWalletButton() {
                               : "border-white/[0.07] bg-white/[0.025] hover:border-white/15 hover:bg-white/[0.06]"
                           }`}
                         >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleSwitchWallet(wallet);
-                            }}
-                            className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-1 py-0.5 text-left"
-                          >
-                            <span className="min-w-0">
-                              <span className="block truncate text-xs font-medium text-white/75">
-                                {displayName}
-                              </span>
-
-                              <span className="mt-1 block font-mono text-[11px] text-white/40">
-                                {shortenAddress(wallet.address)}
-                              </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleSwitchWallet(wallet);
+                        }}
+                        className="min-w-0 flex-1 rounded-lg px-1 py-0.5 text-left"
+                      >
+                        <span className="block min-w-0">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="min-w-0 truncate text-xs font-medium text-white/75">
+                              {displayName}
                             </span>
 
                             <span
-                              className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-medium ${
+                              className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
                                 isActive
                                   ? "bg-[#73d8ff]/15 text-[#b8e8ff]"
                                   : "bg-white/[0.06] text-white/35"
@@ -1528,7 +1563,28 @@ export default function CircleWalletButton() {
                             >
                               {isActive ? "Active" : "Switch"}
                             </span>
-                          </button>
+                          </span>
+
+                          <span className="mt-1 block truncate font-mono text-[11px] text-white/40">
+                            {shortenAddress(wallet.address)}
+                          </span>
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        aria-label={`Copy ${displayName} address`}
+                        onClick={() => {
+                          void handleCopyAddress(
+                            wallet,
+                          );
+                        }}
+                        className="shrink-0 rounded-lg border border-white/10 px-2 py-1.5 text-[10px] font-medium text-white/45 transition hover:border-[#73d8ff]/25 hover:bg-[#73d8ff]/10 hover:text-[#b8e8ff]"
+                      >
+                        {copiedWalletId === wallet.id
+                          ? "Copied"
+                          : "Copy"}
+                      </button>
 
                           <button
                             type="button"
@@ -1553,20 +1609,6 @@ export default function CircleWalletButton() {
                 )}
 
                 <div className="space-y-1 pt-2">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      void handleCopyAddress();
-                    }}
-                    className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
-                  >
-                    <span>Copy address</span>
-
-                    <span className="text-xs text-[#73d8ff]">
-                      {copied ? "Copied" : "Copy"}
-                    </span>
-                  </button>
 
                   {walletKind === "circle" && (
                     <>
@@ -1604,6 +1646,25 @@ export default function CircleWalletButton() {
                       </button>
                     </>
                   )}
+
+              {walletKind === "browser" && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    void handleCopyBrowserAddress();
+                  }}
+                  className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
+                >
+                  <span>Copy address</span>
+
+                  <span className="text-xs text-[#73d8ff]">
+                    {copiedWalletId === "browser"
+                      ? "Copied"
+                      : "Copy"}
+                  </span>
+                </button>
+              )}
 
                   <button
                     type="button"

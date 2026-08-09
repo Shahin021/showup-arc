@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 type CreateWalletRequest = {
   userToken?: unknown;
   walletName?: unknown;
+  blockchain?: unknown;
+  unifiedBridgePair?: unknown;
 };
 
 type CircleCreateWalletResponse = {
@@ -49,6 +51,30 @@ export async function POST(request: Request) {
     const userToken =
       typeof body.userToken === "string" ? body.userToken.trim() : "";
 
+
+    const blockchain =
+      body.blockchain === undefined
+        ? "ARC-TESTNET"
+        : body.blockchain === "ARC-TESTNET" ||
+            body.blockchain === "ETH-SEPOLIA"
+          ? body.blockchain
+          : null;
+
+    if (!blockchain) {
+      return NextResponse.json(
+        {
+          error:
+            "Unsupported blockchain. Use ARC-TESTNET or ETH-SEPOLIA.",
+        },
+        {
+          status: 400,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
+
     if (!userToken) {
       return NextResponse.json(
         {
@@ -65,6 +91,11 @@ export async function POST(request: Request) {
 
     const apiKey = getCircleApiKey();
     const walletName = createWalletName(body.walletName);
+
+    const blockchains =
+      body.unifiedBridgePair === true
+        ? ["ARC-TESTNET", "ETH-SEPOLIA"]
+        : [blockchain];
 
     /*
      * A new idempotency key is generated for every intentional
@@ -91,7 +122,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           idempotencyKey,
-          blockchains: ["ARC-TESTNET"],
+          blockchains,
           accountType: "EOA",
           metadata: [
             {
@@ -148,7 +179,10 @@ export async function POST(request: Request) {
       {
         challengeId,
         walletName,
-        blockchain: "ARC-TESTNET",
+        blockchain,
+        blockchains,
+        unifiedBridgePair:
+          body.unifiedBridgePair === true,
         accountType: "EOA",
       },
       {

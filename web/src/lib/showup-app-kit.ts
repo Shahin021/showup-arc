@@ -21,6 +21,13 @@ import {
   readActiveWallet,
   type ShowUpWallet,
 } from "./showup-wallet";
+import {
+  type CircleToolSession,
+  type CircleToolWallet,
+} from "./circle-wallet-tools";
+import {
+  createCircleSwapProvider,
+} from "./circle-swap-provider";
 
 type ShowUpBrowserWallet = Extract<
   ShowUpWallet,
@@ -166,6 +173,36 @@ export async function createShowUpAppKitContext():
   return {
     wallet,
     provider: walletProvider.provider,
+    adapter,
+    kit: new AppKit(),
+  };
+}
+
+export async function createShowUpCircleSwapAppKitContext({
+  wallet,
+  session,
+}: {
+  wallet: CircleToolWallet;
+  session: CircleToolSession;
+}) {
+  const provider =
+    createCircleSwapProvider({
+      wallet,
+      session,
+    });
+
+  const adapter =
+    await createViemAdapterFromProvider({
+      provider,
+      getPublicClient: ({ chain }) =>
+        createShowUpPublicClient(chain),
+      capabilities: {
+        addressContext: "user-controlled",
+      },
+    });
+
+  return {
+    provider,
     adapter,
     kit: new AppKit(),
   };

@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 type WalletRequest = {
   userToken?: unknown;
+  blockchain?: unknown;
 };
 
 type CircleWallet = {
@@ -70,15 +71,17 @@ function toPublicWallet(wallet: CircleWallet): PublicWallet {
 async function fetchWalletPage({
   apiKey,
   userToken,
+  blockchain,
   pageAfter,
 }: {
   apiKey: string;
   userToken: string;
+  blockchain: "ARC-TESTNET" | "ETH-SEPOLIA";
   pageAfter?: string;
 }) {
   const circleUrl = new URL("https://api.circle.com/v1/w3s/wallets");
 
-  circleUrl.searchParams.set("blockchain", "ARC-TESTNET");
+  circleUrl.searchParams.set("blockchain", blockchain);
   circleUrl.searchParams.set("pageSize", "50");
   circleUrl.searchParams.set("order", "DESC");
 
@@ -110,12 +113,14 @@ async function fetchWalletPage({
   return circleData.data?.wallets ?? [];
 }
 
-async function fetchAllArcWallets({
+async function fetchAllWallets({
   apiKey,
   userToken,
+  blockchain,
 }: {
   apiKey: string;
   userToken: string;
+  blockchain: "ARC-TESTNET" | "ETH-SEPOLIA";
 }) {
   const wallets: CircleWallet[] = [];
   const seenWalletIds = new Set<string>();
@@ -131,6 +136,7 @@ async function fetchAllArcWallets({
     const pageWallets = await fetchWalletPage({
       apiKey,
       userToken,
+      blockchain,
       pageAfter,
     });
 
@@ -163,7 +169,7 @@ async function fetchAllArcWallets({
       (wallet) =>
         wallet.id &&
         wallet.address &&
-        wallet.blockchain === "ARC-TESTNET",
+        wallet.blockchain === blockchain,
     )
     .sort((walletA, walletB) => {
       const walletALive = walletA.state === "LIVE";
@@ -192,6 +198,29 @@ export async function POST(request: Request) {
     const userToken =
       typeof body.userToken === "string" ? body.userToken.trim() : "";
 
+      const blockchain =
+        body.blockchain === undefined
+          ? "ARC-TESTNET"
+          : body.blockchain === "ARC-TESTNET" ||
+              body.blockchain === "ETH-SEPOLIA"
+            ? body.blockchain
+            : null;
+
+      if (!blockchain) {
+        return NextResponse.json(
+          {
+            error:
+              "Unsupported blockchain. Use ARC-TESTNET or ETH-SEPOLIA.",
+          },
+          {
+            status: 400,
+            headers: {
+              "Cache-Control": "no-store",
+            },
+          },
+        );
+      }
+
     if (!userToken) {
       return NextResponse.json(
         {
@@ -208,9 +237,10 @@ export async function POST(request: Request) {
 
     const apiKey = getCircleApiKey();
 
-    const circleWallets = await fetchAllArcWallets({
+    const circleWallets = await fetchAllWallets({
       apiKey,
       userToken,
+        blockchain,
     });
 
     if (circleWallets.length === 0) {
@@ -218,7 +248,7 @@ export async function POST(request: Request) {
         {
           wallets: [],
           wallet: null,
-          error: "No Arc Testnet wallet was found for this user.",
+          error: `No ${blockchain} wallet was found for this user.`,
         },
         {
           status: 404,

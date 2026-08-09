@@ -4,11 +4,21 @@ import {
   useEffect,
   useState,
 } from "react";
+import { isAddress } from "viem";
 
 import ShowUpHeader from "@/components/showup-header";
 import { withCircleBrowserFetch } from "@/lib/circle-browser-fetch";
 import {
+  executeCircleToolChallenge,
+  requestCircleToolSession,
+  requestCircleToolWallets,
+  waitForCircleToolForwarding,
+  waitForCircleToolTransaction,
+  type CircleToolWallet,
+} from "@/lib/circle-wallet-tools";
+import {
   createShowUpAppKitContext,
+  createShowUpCircleSwapAppKitContext,
   SHOWUP_BRIDGE_CHAINS,
   SHOWUP_SWAP_CHAIN,
 } from "@/lib/showup-app-kit";
@@ -17,6 +27,9 @@ import {
   SHOWUP_WALLET_CHANGED_EVENT,
   type ShowUpWallet,
 } from "@/lib/showup-wallet";
+
+const CIRCLE_USER_ID_KEY =
+  "showup_circle_user_id";
 
 type WalletToolTab = "bridge" | "swap";
 
@@ -91,6 +104,64 @@ async function fetchWalletToolBalances(
   return payload.balances;
 }
 
+type CircleBridgeChallengeResponse = {
+  challengeId?: string;
+  refId?: string;
+  createdAfter?: string;
+  error?: string;
+};
+
+async function requestCircleBridgeChallenge(
+  endpoint: string,
+  payload: Record<string, unknown>,
+) {
+  const response = await fetch(
+    endpoint,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  const data =
+    (await response
+      .json()
+      .catch(
+        () => ({}),
+      )) as CircleBridgeChallengeResponse;
+
+  if (
+    !response.ok ||
+    !data.challengeId ||
+    !data.refId ||
+    !data.createdAfter
+  ) {
+    throw new Error(
+      data.error ??
+        "Unable to prepare the Circle bridge transaction.",
+    );
+  }
+
+  return {
+    challengeId: data.challengeId,
+    refId: data.refId,
+    createdAfter: data.createdAfter,
+  };
+}
+
+function getCircleBridgeExplorerUrl(
+  blockchain: "ARC-TESTNET" | "ETH-SEPOLIA",
+  transactionHash: string,
+) {
+  return blockchain === "ARC-TESTNET"
+    ? `https://testnet.arcscan.app/tx/${transactionHash}`
+    : `https://sepolia.etherscan.io/tx/${transactionHash}`;
+}
+
 export default function WalletToolsPage() {
 
   const [activeTab, setActiveTab] =
@@ -108,6 +179,7 @@ export default function WalletToolsPage() {
 
   const [amount, setAmount] =
     useState("");
+  const [recipientAddress, setRecipientAddress] = useState("");
 
   const [bridgeStatus, setBridgeStatus] =
     useState<BridgeUiStatus>("idle");
@@ -150,11 +222,23 @@ export default function WalletToolsPage() {
   const [balancesError, setBalancesError] =
     useState("");
 
+  const [
+    circleArcWallet,
+    setCircleArcWallet,
+  ] = useState<CircleToolWallet | null>(null);
+
+  const [
+    circleSepoliaWallet,
+    setCircleSepoliaWallet,
+  ] = useState<CircleToolWallet | null>(null);
+
   useEffect(() => {
     function syncActiveWallet() {
       setActiveWallet(
         readActiveWallet(),
       );
+
+      setRecipientAddress("");
     }
 
     const timeoutId = window.setTimeout(
@@ -178,11 +262,6 @@ export default function WalletToolsPage() {
   }, []);
 
   useEffect(() => {
-    const address =
-      activeWallet?.kind === "browser"
-        ? activeWallet.address
-        : null;
-
     let cancelled = false;
 
     const timeoutId = window.setTimeout(
@@ -191,26 +270,119 @@ export default function WalletToolsPage() {
           return;
         }
 
-        if (!address) {
+        if (!activeWallet) {
           setBalances(null);
+          setCircleArcWallet(null);
+          setCircleSepoliaWallet(null);
           setBalancesLoading(false);
           setBalancesError("");
           return;
         }
 
         setBalances(null);
+        setCircleArcWallet(null);
+        setCircleSepoliaWallet(null);
         setBalancesLoading(true);
         setBalancesError("");
 
-        void fetchWalletToolBalances(address)
-          .then((nextBalances) => {
-            if (!cancelled) {
-              setBalances(nextBalances);
-            }
-          })
+        if (activeWallet.kind === "browser") {
+          void fetchWalletToolBalances(
+            activeWallet.address,
+          )
+            .then((nextBalances) => {
+              if (!cancelled) {
+                setBalances(nextBalances);
+              }
+            })
+            .catch((error: unknown) => {
+              if (!cancelled) {
+                setBalances(null);
+                setBalancesError(
+                  getErrorMessage(error),
+                );
+              }
+            })
+            .finally(() => {
+              if (!cancelled) {
+                setBalancesLoading(false);
+              }
+            });
+
+          return;
+        }
+
+        const savedUserId =
+          window.localStorage.getItem(
+            CIRCLE_USER_ID_KEY,
+          );
+
+        if (!savedUserId) {
+          setBalancesError(
+            "The Circle user session could not be restored.",
+          );
+          setBalancesLoading(false);
+          return;
+        }
+
+        void (async () => {
+          const session =
+            await requestCircleToolSession(
+              savedUserId,
+            );
+
+          const [
+            arcWallets,
+            sepoliaWallets,
+          ] = await Promise.all([
+            requestCircleToolWallets(
+              session.userToken,
+              "ARC-TESTNET",
+            ),
+            requestCircleToolWallets(
+              session.userToken,
+              "ETH-SEPOLIA",
+            ),
+          ]);
+
+          const arcWallet =
+            arcWallets.find(
+              (wallet) =>
+                wallet.address.toLowerCase() ===
+                activeWallet.address.toLowerCase(),
+            ) ??
+            arcWallets[0] ??
+            null;
+
+          const sepoliaWallet =
+            sepoliaWallets[0] ?? null;
+
+          if (cancelled) {
+            return;
+          }
+
+          setCircleArcWallet(arcWallet);
+          setCircleSepoliaWallet(
+            sepoliaWallet,
+          );
+
+          const connectedBalances =
+            await fetchWalletToolBalances(
+              activeWallet.address,
+            );
+
+          if (cancelled) {
+            return;
+          }
+
+          setBalances(
+            connectedBalances,
+          );
+        })()
           .catch((error: unknown) => {
             if (!cancelled) {
               setBalances(null);
+              setCircleArcWallet(null);
+              setCircleSepoliaWallet(null);
               setBalancesError(
                 getErrorMessage(error),
               );
@@ -269,6 +441,26 @@ export default function WalletToolsPage() {
   const browserWalletReady =
     activeWallet?.kind === "browser";
 
+  const circleWalletReady =
+    activeWallet?.kind === "circle" &&
+    Boolean(
+      circleArcWallet &&
+      circleSepoliaWallet,
+    );
+
+  const circleSwapReady =
+    activeWallet?.kind === "circle" &&
+    Boolean(
+      circleArcWallet &&
+      circleArcWallet.address.toLowerCase() ===
+        activeWallet.address.toLowerCase(),
+    );
+
+  const walletToolInputReady =
+    isBridge
+      ? browserWalletReady || circleWalletReady
+      : browserWalletReady || circleSwapReady;
+
   const ethereumSepoliaUsdcBalance =
     balances?.ethereumSepolia.USDC;
 
@@ -297,14 +489,13 @@ export default function WalletToolsPage() {
     swapFromUsdc
       ? arcTestnetEurcBalance
       : arcTestnetUsdcBalance;
+  const activeSourceBalance = isBridge ? bridgeSourceBalance : swapInputBalance;
+  const numericSourceBalance = Number(activeSourceBalance ?? "0");
 
   function getBalanceText(
     balance: string | undefined,
     token: string,
   ) {
-    if (!browserWalletReady) {
-      return "Balance: —";
-    }
 
     if (balancesLoading && !balances) {
       return "Balance: Loading...";
@@ -356,7 +547,7 @@ export default function WalletToolsPage() {
     !activeWallet
       ? "Connect MetaMask, Rabby, Coinbase Wallet, or OKX."
       : activeWallet.kind === "circle"
-        ? "Switch to a browser wallet to use Bridge and Swap."
+        ? "Circle wallet ready for Bridge. Swap is available on Arc Testnet with PIN confirmation."
         : "Browser wallet ready for transaction setup.";
 
   const parsedAmount =
@@ -366,6 +557,9 @@ export default function WalletToolsPage() {
     /^\d+(\.\d+)?$/.test(amount) &&
     Number.isFinite(parsedAmount) &&
     parsedAmount > 0;
+  const trimmedRecipientAddress = recipientAddress.trim();
+  const validRecipientAddress =
+    trimmedRecipientAddress === "" || isAddress(trimmedRecipientAddress);
 
   const bridgeBusy =
     bridgeStatus === "working" ||
@@ -385,9 +579,10 @@ export default function WalletToolsPage() {
 
   async function handleBridge() {
     if (
-      !browserWalletReady ||
+      !walletToolInputReady ||
       !isBridge ||
       !validBridgeAmount ||
+      !validRecipientAddress ||
       bridgeLocked
     ) {
       return;
@@ -400,6 +595,332 @@ export default function WalletToolsPage() {
     setBridgeExplorerLinks([]);
 
     try {
+        if (activeWallet?.kind === "circle") {
+          const savedUserId =
+            window.localStorage.getItem(
+              CIRCLE_USER_ID_KEY,
+            );
+
+          if (!savedUserId) {
+            throw new Error(
+              "The Circle user session could not be restored.",
+            );
+          }
+
+          const sourceBlockchain =
+            bridgeFromEthereum
+              ? "ETH-SEPOLIA"
+              : "ARC-TESTNET";
+
+          const destinationBlockchain =
+            bridgeFromEthereum
+              ? "ARC-TESTNET"
+              : "ETH-SEPOLIA";
+
+          setBridgeMessage(
+            "Preparing your Circle wallets for the bridge...",
+          );
+
+          if (
+            !circleArcWallet ||
+            !circleSepoliaWallet
+          ) {
+            throw new Error(
+              "Both Circle bridge wallets must be loaded before bridging.",
+            );
+          }
+
+          const session =
+            await requestCircleToolSession(
+              savedUserId,
+            );
+
+          const sourceWallet =
+            sourceBlockchain === "ARC-TESTNET"
+              ? circleArcWallet
+              : circleSepoliaWallet;
+
+          const destinationWallet =
+            destinationBlockchain === "ARC-TESTNET"
+              ? circleArcWallet
+              : circleSepoliaWallet;
+
+          const sourceWalletResult = {
+            session,
+            wallet: sourceWallet,
+            created: false,
+          };
+
+          const destinationWalletResult = {
+            session,
+            wallet: destinationWallet,
+            created: false,
+          };
+
+          const bridgeRecipient =
+            trimmedRecipientAddress ||
+            destinationWalletResult.wallet.address;
+
+          setBridgeMessage(
+            "Calculating the Circle forwarding fee...",
+          );
+
+          const quoteResponse =
+            await fetch(
+              "/api/circle/bridge/forwarding-quote",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                cache: "no-store",
+                body: JSON.stringify({
+                  sourceBlockchain,
+                  amount,
+                }),
+              },
+            );
+
+          const quote =
+            (await quoteResponse
+              .json()
+              .catch(
+                () => ({}),
+              )) as {
+              totalAmount?: string;
+              totalAmountFormatted?: string;
+              maxFee?: string;
+              feeFormatted?: string;
+              error?: string;
+            };
+
+          if (
+            !quoteResponse.ok ||
+            typeof quote.totalAmount !== "string" ||
+            typeof quote.totalAmountFormatted !== "string" ||
+            typeof quote.maxFee !== "string" ||
+            typeof quote.feeFormatted !== "string"
+          ) {
+            throw new Error(
+              quote.error ??
+                "Circle could not calculate the forwarding fee.",
+            );
+          }
+
+          const totalAmountNumber =
+            Number(
+              quote.totalAmountFormatted,
+            );
+
+          if (
+            !Number.isFinite(
+              totalAmountNumber,
+            ) ||
+            totalAmountNumber >
+              numericSourceBalance
+          ) {
+            throw new Error(
+              `You need ${quote.totalAmountFormatted} USDC including the Circle forwarding fee.`,
+            );
+          }
+
+          if (
+            sourceBlockchain === "ARC-TESTNET" &&
+            totalAmountNumber >=
+              numericSourceBalance
+          ) {
+            throw new Error(
+              "Leave a small USDC balance on Arc for transaction gas.",
+            );
+          }
+
+          setBridgeMessage(
+            `Forwarding fee: ${quote.feeFormatted} USDC. Confirm the USDC approval with your Circle PIN.`,
+          );
+
+          const approveChallenge =
+            await requestCircleBridgeChallenge(
+              "/api/circle/bridge/approve",
+              {
+                userToken:
+                  sourceWalletResult.session.userToken,
+                walletId:
+                  sourceWalletResult.wallet.id,
+                blockchain:
+                  sourceBlockchain,
+                amount:
+                  quote.totalAmountFormatted,
+              },
+            );
+
+          await executeCircleToolChallenge(
+            approveChallenge.challengeId,
+            sourceWalletResult.session,
+          );
+
+          setBridgeMessage(
+            "Waiting for the USDC approval to confirm...",
+          );
+
+          await waitForCircleToolTransaction({
+            userToken:
+              sourceWalletResult.session.userToken,
+            walletId:
+              sourceWalletResult.wallet.id,
+            refId:
+              approveChallenge.refId,
+            createdAfter:
+              approveChallenge.createdAfter,
+          });
+
+          setBridgeMessage(
+            "Approval confirmed. Confirm the crosschain transfer with your Circle PIN.",
+          );
+
+          const burnChallenge =
+            await requestCircleBridgeChallenge(
+              "/api/circle/bridge/burn",
+              {
+                userToken:
+                  sourceWalletResult.session.userToken,
+                walletId:
+                  sourceWalletResult.wallet.id,
+                blockchain:
+                  sourceBlockchain,
+                amount,
+                recipient:
+                  bridgeRecipient,
+                totalAmount:
+                  quote.totalAmount,
+                maxFee:
+                  quote.maxFee,
+              },
+            );
+
+          await executeCircleToolChallenge(
+            burnChallenge.challengeId,
+            sourceWalletResult.session,
+          );
+
+          setBridgeMessage(
+            "Waiting for the source transaction to confirm...",
+          );
+
+          const burnTransaction =
+            await waitForCircleToolTransaction({
+              userToken:
+                sourceWalletResult.session.userToken,
+              walletId:
+                sourceWalletResult.wallet.id,
+              refId:
+                burnChallenge.refId,
+              createdAfter:
+                burnChallenge.createdAfter,
+            });
+
+          if (!burnTransaction.txHash) {
+            throw new Error(
+              "Circle did not return the source transaction hash.",
+            );
+          }
+
+          setBridgeExplorerLinks([
+            {
+              name:
+                `Burn on ${bridgeSourceLabel}`,
+              url:
+                getCircleBridgeExplorerUrl(
+                  sourceBlockchain,
+                  burnTransaction.txHash,
+                ),
+            },
+          ]);
+
+          setBridgeStatus("pending");
+
+          setBridgeMessage(
+            `Source transaction confirmed. Circle is forwarding the mint to ${bridgeDestinationLabel}...`,
+          );
+
+          const forwardingResult =
+            await waitForCircleToolForwarding({
+              sourceBlockchain,
+              transactionHash:
+                burnTransaction.txHash,
+            });
+
+          setBridgeExplorerLinks([
+            {
+              name:
+                `Burn on ${bridgeSourceLabel}`,
+              url:
+                getCircleBridgeExplorerUrl(
+                  sourceBlockchain,
+                  burnTransaction.txHash,
+                ),
+            },
+            {
+              name:
+                `Mint on ${bridgeDestinationLabel}`,
+              url:
+                getCircleBridgeExplorerUrl(
+                  destinationBlockchain,
+                  forwardingResult.forwardTxHash,
+                ),
+            },
+          ]);
+
+          setBridgeStatus("success");
+
+          setBridgeMessage(
+            `${amount} USDC was bridged successfully to ${bridgeDestinationLabel}. Forwarding fee: ${quote.feeFormatted} USDC.`,
+          );
+
+          const arcWallet =
+            sourceBlockchain === "ARC-TESTNET"
+              ? sourceWalletResult.wallet
+              : destinationWalletResult.wallet;
+
+          const sepoliaWallet =
+            sourceBlockchain === "ETH-SEPOLIA"
+              ? sourceWalletResult.wallet
+              : destinationWalletResult.wallet;
+
+          try {
+            const [
+              arcBalances,
+              sepoliaBalances,
+            ] = await Promise.all([
+              fetchWalletToolBalances(
+                arcWallet.address,
+              ),
+              fetchWalletToolBalances(
+                sepoliaWallet.address,
+              ),
+            ]);
+
+            setBalances({
+              ethereumSepolia: {
+                USDC:
+                  sepoliaBalances.ethereumSepolia.USDC,
+              },
+              arcTestnet: {
+                USDC:
+                  arcBalances.arcTestnet.USDC,
+                EURC:
+                  arcBalances.arcTestnet.EURC,
+              },
+            });
+          } catch (balanceError) {
+            console.error(
+              "Circle bridge balance refresh failed:",
+              balanceError,
+            );
+          }
+
+          return;
+        }
+
       const {
         adapter,
         kit,
@@ -415,6 +936,10 @@ export default function WalletToolsPage() {
           to: {
             adapter,
             chain: bridgeDestinationChain,
+            useForwarder: true,
+            ...(trimmedRecipientAddress
+              ? { recipientAddress: trimmedRecipientAddress }
+              : {}),
           },
           amount,
           token: "USDC",
@@ -497,7 +1022,7 @@ export default function WalletToolsPage() {
 
   async function handleSwap() {
     if (
-      !browserWalletReady ||
+      !(browserWalletReady || circleSwapReady) ||
       isBridge ||
       !validBridgeAmount ||
       swapLocked
@@ -513,11 +1038,50 @@ export default function WalletToolsPage() {
     setSwapAmountOut("");
 
     try {
+      const swapContext =
+        await (async () => {
+          if (
+            activeWallet?.kind !== "circle"
+          ) {
+            return createShowUpAppKitContext();
+          }
+
+          const savedUserId =
+            window.localStorage.getItem(
+              CIRCLE_USER_ID_KEY,
+            );
+
+          if (!savedUserId) {
+            throw new Error(
+              "The Circle user session could not be restored.",
+            );
+          }
+
+          if (
+            !circleArcWallet ||
+            circleArcWallet.address.toLowerCase() !==
+              activeWallet.address.toLowerCase()
+          ) {
+            throw new Error(
+              "The connected Circle wallet is not available on Arc Testnet.",
+            );
+          }
+
+          const session =
+            await requestCircleToolSession(
+              savedUserId,
+            );
+
+          return createShowUpCircleSwapAppKitContext({
+            wallet: circleArcWallet,
+            session,
+          });
+        })();
+
       const {
         adapter,
         kit,
-      } =
-        await createShowUpAppKitContext();
+      } = swapContext;
 
       const result =
         await withCircleBrowserFetch(
@@ -532,6 +1096,12 @@ export default function WalletToolsPage() {
               amountIn: amount,
               config: {
                 slippageBps: 100,
+                ...(activeWallet?.kind === "circle"
+                  ? {
+                      allowanceStrategy:
+                        "approve" as const,
+                    }
+                  : {}),
               },
             }),
         );
@@ -597,6 +1167,7 @@ export default function WalletToolsPage() {
         : "ethereum-to-arc",
     );
 
+    setRecipientAddress("");
     setBridgeStatus("idle");
     setBridgeMessage("");
     setBridgeExplorerLinks([]);
@@ -641,6 +1212,23 @@ export default function WalletToolsPage() {
     setSwapExplorerUrl("");
     setSwapAmountOut("");
   }
+  function handleAmountPreset(preset: "min" | "half" | "max") {
+    if (!Number.isFinite(numericSourceBalance) || numericSourceBalance <= 0) {
+      return;
+    }
+
+    const nextAmount =
+      preset === "min"
+        ? Math.min(0.1, numericSourceBalance)
+        : preset === "half"
+          ? numericSourceBalance * 0.5
+          : numericSourceBalance;
+
+    handleAmountChange(
+      nextAmount.toFixed(6).replace(/\.?0+$/, ""),
+    );
+  }
+
 
   return (
     <main className="min-h-screen bg-[#050817] text-white">
@@ -729,7 +1317,7 @@ export default function WalletToolsPage() {
                 <p className="mt-2 text-sm leading-6 text-white/42">
                   {isBridge
                     ? "Move testnet USDC between Ethereum Sepolia and Arc Testnet."
-                    : "Exchange supported assets using your connected browser wallet."}
+                    : "Exchange USDC and EURC on Arc Testnet using your connected wallet."}
                 </p>
               </div>
 
@@ -771,6 +1359,12 @@ export default function WalletToolsPage() {
                         : swapTokenIn,
                     )}
                   </p>
+
+                  {isBridge && bridgeFromEthereum && (
+                    <p className="mt-2 text-xs leading-5 text-amber-200/70">
+                      Sepolia ETH is required in the source wallet for network gas.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex justify-center">
@@ -822,10 +1416,89 @@ export default function WalletToolsPage() {
                   </p>
                 </div>
 
+                {isBridge && (
+                  <label className="block">
+                    <span className="text-xs text-white/35">
+                      Recipient address (optional)
+                    </span>
+
+                    <div className="mt-2 rounded-2xl border border-[#79b7ff]/12 bg-[#0c132a] px-4 py-3">
+                      <input
+                        type="text"
+                        inputMode="text"
+                        name="showup-bridge-recipient"
+                        autoComplete="off"
+                        spellCheck={false}
+                        placeholder="0x..."
+                        value={recipientAddress}
+                        onChange={(event) => {
+                          setRecipientAddress(event.target.value);
+                          setBridgeStatus("idle");
+                          setBridgeMessage("");
+                          setBridgeExplorerLinks([]);
+                        }}
+                        disabled={!walletToolInputReady || bridgeBusy}
+                        className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-white/20 disabled:cursor-not-allowed disabled:opacity-45"
+                      />
+                    </div>
+
+                    <p
+                      className={`mt-2 text-xs ${
+                        trimmedRecipientAddress && !validRecipientAddress
+                          ? "text-red-300/80"
+                          : "text-white/35"
+                      }`}
+                    >
+                      {trimmedRecipientAddress
+                        ? validRecipientAddress
+                          ? `Destination: ${trimmedRecipientAddress}`
+                          : "Enter a valid EVM wallet address."
+                        : activeWallet?.kind === "circle"
+                          ? `Default destination: ${
+                              bridgeFromEthereum
+                                ? circleArcWallet?.address ?? "Loading..."
+                                : circleSepoliaWallet?.address ?? "Loading..."
+                            }`
+                          : `Default destination: ${
+                              activeWallet?.address ?? "Loading..."
+                            }`}
+                    </p>
+                  </label>
+                )}
+
                 <label className="block">
-                  <span className="text-xs text-white/35">
-                    Amount
-                  </span>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-white/35">
+                      Amount
+                    </span>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleAmountPreset("min")}
+                        disabled={!walletToolInputReady || numericSourceBalance <= 0}
+                        className="rounded-lg border border-[#79b7ff]/12 bg-white/[0.03] px-2.5 py-1 text-[11px] font-semibold text-white/45 transition hover:border-[#79b7ff]/30 hover:text-[#9bddff] disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        MIN
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAmountPreset("half")}
+                        disabled={!walletToolInputReady || numericSourceBalance <= 0}
+                        className="rounded-lg border border-[#79b7ff]/12 bg-white/[0.03] px-2.5 py-1 text-[11px] font-semibold text-white/45 transition hover:border-[#79b7ff]/30 hover:text-[#9bddff] disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        50%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAmountPreset("max")}
+                        disabled={!walletToolInputReady || numericSourceBalance <= 0}
+                        className="rounded-lg border border-[#79b7ff]/12 bg-white/[0.03] px-2.5 py-1 text-[11px] font-semibold text-white/45 transition hover:border-[#79b7ff]/30 hover:text-[#9bddff] disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        MAX
+                      </button>
+                    </div>
+                  </div>
 
                   <div className="mt-2 flex items-center gap-3 rounded-2xl border border-[#79b7ff]/12 bg-[#0c132a] px-4 py-3">
                     <input
@@ -839,7 +1512,7 @@ export default function WalletToolsPage() {
                         )
                       }
                       disabled={
-                        !browserWalletReady
+                        !walletToolInputReady
                       }
                       className="min-w-0 flex-1 bg-transparent text-lg font-medium outline-none placeholder:text-white/20 disabled:cursor-not-allowed disabled:opacity-45"
                     />
@@ -864,19 +1537,17 @@ export default function WalletToolsPage() {
                     void handleSwap();
                   }}
                   disabled={
-                    !browserWalletReady ||
+                    !walletToolInputReady ||
                     !validBridgeAmount ||
                     (isBridge
-                      ? bridgeLocked
+                      ? !validRecipientAddress || bridgeLocked
                       : swapLocked)
                   }
                   className="mt-6 w-full rounded-full bg-gradient-to-r from-[#73d8ff] to-[#8195ff] px-6 py-3.5 font-semibold text-[#050817] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   {!activeWallet
-                    ? "Connect browser wallet to continue"
-                    : activeWallet.kind === "circle"
-                      ? "Browser wallet required"
-                      : isBridge
+                    ? "Connect wallet to continue"
+                    : isBridge
                         ? bridgeStatus === "working"
                           ? "Confirm in your wallet..."
                           : bridgeStatus === "pending"

@@ -394,9 +394,10 @@ export async function getUsdcAccountState(
   };
 }
 
-export async function verifyCircleArcWallet(
+export async function verifyCircleWallet(
   userTokenValue: unknown,
   walletIdValue: unknown,
+  blockchain: "ARC-TESTNET" | "ETH-SEPOLIA",
 ) {
   const userToken =
     typeof userTokenValue === "string"
@@ -472,13 +473,12 @@ export async function verifyCircleArcWallet(
   if (
     !wallet ||
     wallet.id !== walletId ||
-    wallet.blockchain !==
-      "ARC-TESTNET" ||
+    wallet.blockchain !== blockchain ||
     wallet.state !== "LIVE" ||
     !isAddress(wallet.address)
   ) {
     throw new ShowUpApiError(
-      "The connected Arc Testnet wallet could not be verified.",
+      `The connected ${blockchain} wallet could not be verified.`,
       403,
     );
   }
@@ -488,7 +488,19 @@ export async function verifyCircleArcWallet(
     walletId,
     address:
       getAddress(wallet.address),
+    blockchain,
   };
+}
+
+export async function verifyCircleArcWallet(
+  userTokenValue: unknown,
+  walletIdValue: unknown,
+) {
+  return verifyCircleWallet(
+    userTokenValue,
+    walletIdValue,
+    "ARC-TESTNET",
+  );
 }
 
 export async function createCircleChallenge(
@@ -497,8 +509,9 @@ export async function createCircleChallenge(
     walletId: string;
     contractAddress:
       `0x${string}`;
-    abiFunctionSignature: string;
-    abiParameters: string[];
+    abiFunctionSignature?: string;
+    abiParameters?: string[];
+    callData?: `0x${string}`;
     refPrefix: string;
   },
 ) {
@@ -539,10 +552,17 @@ export async function createCircleChallenge(
           input.walletId,
         contractAddress:
           input.contractAddress,
-        abiFunctionSignature:
-          input.abiFunctionSignature,
-        abiParameters:
-          input.abiParameters,
+        ...(input.callData
+          ? {
+              callData:
+                input.callData,
+            }
+          : {
+              abiFunctionSignature:
+                input.abiFunctionSignature,
+              abiParameters:
+                input.abiParameters ?? [],
+            }),
         feeLevel: "MEDIUM",
         refId,
       }),
