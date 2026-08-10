@@ -1165,6 +1165,25 @@ export default function CircleWalletButton() {
       return;
     }
 
+    const walletReady =
+      window.localStorage.getItem(
+        CIRCLE_WALLET_READY_KEY,
+      ) === "true";
+
+    /*
+     * A saved Circle user ID does not necessarily mean that
+     * PIN setup was completed. This can happen when the user
+     * leaves the initial Circle challenge before completion.
+     *
+     * In that state, resume initialization instead of asking
+     * Circle to create an additional wallet, which would fail
+     * with error 155110 (PIN not set).
+     */
+    if (!walletReady || wallets.length === 0) {
+      await handleConnect(false);
+      return;
+    }
+
     const appId =
       process.env.NEXT_PUBLIC_CIRCLE_APP_ID;
 
