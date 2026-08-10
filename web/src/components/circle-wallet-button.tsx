@@ -778,42 +778,81 @@ export default function CircleWalletButton() {
             setupTimeoutRef.current = null;
           }
 
-          if (error) {
+          console.info(
+            "Circle wallet setup challenge result:",
+            {
+              errorCode: error?.code,
+              errorMessage: error?.message,
+              type: result?.type,
+              status: result?.status,
+            },
+          );
+
+          if (
+            result?.status === "FAILED" ||
+            result?.status === "EXPIRED"
+          ) {
             setStatus("error");
-
             setMessage(
-              error.message ||
-                `Circle wallet setup failed${
-                  error.code ? ` (${error.code})` : ""
-                }.`,
+              error?.message ||
+                `Circle wallet setup ended with status: ${result.status}.`,
             );
-
             return;
           }
 
-          if (!result || result.status !== "COMPLETE") {
+          const errorCode = error?.code;
+
+          const shouldReconcileSdkError =
+            !error ||
+            errorCode === -1 ||
+            errorCode === 9 ||
+            errorCode === 11 ||
+            errorCode === 155706 ||
+            typeof errorCode !== "number";
+
+          if (error && !shouldReconcileSdkError) {
             setStatus("error");
-
             setMessage(
-              "Circle wallet setup was not completed.",
+              error.message ||
+                `Circle wallet setup failed (${errorCode}).`,
             );
-
             return;
+          }
+
+          if (error) {
+            console.warn(
+              "Circle returned a transient or unknown error after wallet setup. Checking the actual wallet state before showing a failure.",
+              {
+                code: errorCode,
+                message: error.message,
+              },
+            );
           }
 
           try {
+            setMessage(
+              "Verifying your Circle wallet...",
+            );
+
+            // Give Circle a short window to index the wallet
+            // after the secure PIN challenge finishes.
+            await wait(2000);
+
             await finishWalletConnection(
               session.userToken,
-              8,
+              12,
             );
           } catch (walletError) {
             console.error(
-              "Circle wallet lookup failed after setup:",
+              "Circle wallet reconciliation failed after setup:",
               walletError,
             );
 
             setStatus("error");
-            setMessage(getErrorMessage(walletError));
+            setMessage(
+              error?.message ||
+                getErrorMessage(walletError),
+            );
           }
         },
       );
