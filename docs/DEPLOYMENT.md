@@ -144,6 +144,7 @@ the result is visible on-chain, not when a transaction hash appears.
 | Reload during a transaction | After reload, the notice names that transaction and then shows its real result: confirmed only with a hash and successful receipt, failed with a reason, or unknown after 30 minutes |
 | Existing testnet user after the upgrade | Opening the upgraded testnet site in the same browser shows the same Circle wallet without a recovery code |
 | Abandoned upload authorization | A video upload started and cancelled does not reduce the quota once its lease (40 minutes) has passed |
+| Failed event upload | Create an event with an image while the metadata step fails (for example disconnect mid-request): no image is left under showup/events/, and a dry run of `npm run blob-cleanup` lists nothing new |
 | Circle smart-contract (SCA) organizer, if you use one | A check-in QR signed by the SCA wallet is accepted by the check-in page and on-chain |
 | A second browser cannot reuse the Circle user ID | Opening the wallet in another browser asks for the recovery code; after restoring it works |
 | Upload limits | A fourth video from the same wallet is refused with the limit message |
@@ -155,9 +156,22 @@ application.
 ## 8. Backups (owner)
 
 Add `BLOB_READ_WRITE_TOKEN` as a GitHub repository secret. The
-`Blob backup` workflow then copies the Blob store every week (and on
-demand from the Actions tab) and keeps each copy for 90 days. To restore
-missing files to their original URLs:
+`Blob backup and cleanup` workflow then copies the Blob store every week
+(and on demand from the Actions tab) and keeps each copy for 90 days.
+
+After this version is live, also add a repository **variable**
+`SHOWUP_CLEANUP_SINCE` set to its first deployment date (for example
+`2026-10-20`). The workflow then removes uploads left behind by failures:
+media that no used quota slot covers. Files older than that date (uploaded
+before quotas existed) and files younger than about two hours are never
+touched. To preview without deleting:
+
+```bash
+cd web
+BLOB_READ_WRITE_TOKEN=... SHOWUP_CLEANUP_SINCE=2026-10-20 npm run blob-cleanup
+```
+
+To restore missing files to their original URLs from a backup:
 
 ```bash
 cd web

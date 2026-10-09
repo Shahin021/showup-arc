@@ -1,4 +1,4 @@
-name: Blob backup
+name: Blob backup and cleanup
 
 # Weekly copy of the Vercel Blob store (event metadata, images, videos).
 # Requires the repository secret BLOB_READ_WRITE_TOKEN. Backups are kept as
@@ -27,6 +27,16 @@ jobs:
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
         run: node scripts/blob-backup.mjs blob-backup
+      # After the backup: remove media that no used quota slot covers
+      # (left behind by failed uploads). Recent files are never touched.
+      - name: Clean up orphaned uploads
+        # Runs only once SHOWUP_CLEANUP_SINCE is set as a repository variable
+        # (the date this version was first deployed).
+        if: ${{ vars.SHOWUP_CLEANUP_SINCE != '' }}
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          SHOWUP_CLEANUP_SINCE: ${{ vars.SHOWUP_CLEANUP_SINCE }}
+        run: npm run blob-cleanup -- --delete
       - uses: actions/upload-artifact@v4
         with:
           name: blob-backup-${{ github.run_id }}

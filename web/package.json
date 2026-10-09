@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "check-contract": "node scripts/verify-contract.mjs",
-    "test": "node --conditions=react-server --import tsx --test tests/*.test.mts"
+    "test": "node --conditions=react-server --import tsx --test tests/*.test.mts",
+    "blob-cleanup": "node --conditions=react-server --import tsx scripts/blob-cleanup.mts"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.14.1",

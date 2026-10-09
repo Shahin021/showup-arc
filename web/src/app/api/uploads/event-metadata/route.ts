@@ -22,6 +22,7 @@ import {
   releaseUploadReservation,
   reserveUploadQuota,
   sniffImageType,
+  UploadTransaction,
   type UploadReservation,
 } from "@/lib/upload-guard";
 
@@ -276,6 +277,8 @@ async function verifyCircleWallet(
 
 export async function POST(request: NextRequest) {
   let reservation: UploadReservation | null = null;
+  // Every file this request creates, so a failure removes all of them.
+  const transaction = new UploadTransaction();
 
   try {
     const formData = await request.formData();
@@ -497,6 +500,7 @@ export async function POST(request: NextRequest) {
         },
       );
 
+      transaction.record(eventImageBlob.url);
       eventImageUrl = eventImageBlob.url;
     }
 
@@ -514,6 +518,7 @@ export async function POST(request: NextRequest) {
         },
       );
 
+      transaction.record(organizerAvatarBlob.url);
       organizerAvatarUrl =
         organizerAvatarBlob.url;
     }
@@ -568,8 +573,31 @@ export async function POST(request: NextRequest) {
       },
     );
 
-    await finalizeUploadReservation(reservation);
+    transaction.record(metadataBlob.url);
+
+    // The files stay only if both quota slots are finalized for them;
+    // otherwise everything this request stored is removed.
+    const finalized = await finalizeUploadReservation(
+      reservation,
+      `${basePath}/`,
+    );
     reservation = null;
+
+    if (!finalized) {
+      await transaction.rollback();
+      return NextResponse.json(
+        {
+          error:
+            "The upload took too long and its quota reservation expired. Please try again.",
+        },
+        {
+          status: 409,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
 
     return NextResponse.json(
       {
@@ -594,7 +622,8 @@ export async function POST(request: NextRequest) {
       },
     );
   } catch (error) {
-    // Give the quota back: nothing was published for this reservation.
+    // Remove any files already stored and give the quota back.
+    await transaction.rollback();
     if (reservation) {
       await releaseUploadReservation(reservation);
     }

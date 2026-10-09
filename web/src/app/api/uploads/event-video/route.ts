@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { del } from "@vercel/blob";
 import {
   handleUpload,
   type HandleUploadBody,
@@ -428,8 +429,31 @@ export async function POST(request: NextRequest) {
           return;
         }
 
-        if (reservation) {
-          await finalizeUploadReservation(reservation);
+        // The video stays only if both quota slots are finalized for it.
+        // Without a reservation, a lost lease or an error, it is deleted, so
+        // no stored video is left uncounted. (The cleanup job also removes
+        // anything a crash leaves behind.)
+        let finalized = false;
+        try {
+          finalized = reservation
+            ? await finalizeUploadReservation(reservation, blob.pathname)
+            : false;
+        } catch (error) {
+          console.error("ShowUp could not finalize a video quota:", error);
+        }
+
+        if (!finalized) {
+          console.warn(
+            "ShowUp removed a video whose quota could not be finalized:",
+            blob.pathname,
+          );
+          await del(blob.url).catch((error: unknown) => {
+            console.error("ShowUp could not delete the video; cleanup will:", error);
+          });
+          if (reservation) {
+            await releaseUploadReservation(reservation);
+          }
+          return;
         }
 
         console.info(

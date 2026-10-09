@@ -43,9 +43,15 @@ export class UploadLimitError extends Error {}
 
 const QUOTA_ROOT = "showup/quota";
 
+async function readText(pathname: string) {
+  const blob = await head(pathname);
+  const response = await fetch(blob.url, { cache: "no-store" });
+  return response.ok ? response.text() : null;
+}
+
 // Indirection so the lease logic can be tested against an in-memory store
-// (see web/tests/upload-quota.test.ts).
-let blobApi = { list, put, del, head };
+// (see web/tests/upload-quota.test.mts).
+let blobApi = { list, put, del, head, readText };
 
 export function setBlobApiForTesting(api: typeof blobApi) {
   blobApi = api;
@@ -62,22 +68,29 @@ export const LEASE_TTL_MS = {
 } as const;
 
 /**
- * A reserved quota slot. Slots work as leases on a Blob store, which has no
- * transactions, using only fresh metadata (never cached file contents):
+ * Quota slots are leases kept in a Blob store, which has no transactions.
+ * Each slot is ONE record, `slot-N`, and every state change is a write
+ * conditioned on that record's ETag, so exactly one request can win it:
  *
- * - `slot-N` exists: the slot is reserved; its upload time is the lease start.
- * - `slot-N.used` exists too: the upload succeeded and the slot is final.
- * - A reserved slot without `.used` whose lease is older than the TTL has
- *   expired and can be taken over.
+ * - reserved:  content "R" (1 byte). The upload time is the lease start.
+ * - used:      content "U:<media path>" (longer than 1 byte). Final.
+ * - free:      no record, or a reserved record older than the TTL.
  *
- * Taking a free slot is a write without overwrite; taking over an expired
- * one is a write conditioned on the old ETag. Either way only one request
- * can win a slot. Releasing deletes the marker only if it is still ours.
+ * The state is told apart by the record's size and upload time, which the
+ * listing returns fresh; cached file contents are never used to decide
+ * ownership. Taking a free slot writes without overwrite; taking over an
+ * expired one, finalizing and releasing all require the ETag we hold, so a
+ * request that lost its lease can neither finalize nor free someone else's
+ * slot. "Used" records are never rewritten, so their contents (the media
+ * path they cover) can be read safely by the cleanup job.
  */
 export type QuotaLease = {
   pathname: string;
   etag: string;
 };
+
+const RESERVED_CONTENT = "R";
+export const USED_PREFIX = "U:";
 
 // Matched by message and name as well as class, so detection does not
 // depend on which build of the SDK module threw the error.
@@ -98,8 +111,31 @@ function isLostRace(error: unknown) {
   return isPreconditionFailed(error) || isAlreadyExists(error);
 }
 
+function isNotFound(error: unknown) {
+  return error instanceof Error && /not found|does not exist/i.test(error.message);
+}
+
 function slotPath(prefix: string, index: number) {
   return `${prefix}slot-${String(index).padStart(5, "0")}`;
+}
+
+type SlotRecord = { etag: string; uploadedAt: Date; size: number };
+
+async function listSlots(prefix: string) {
+  const records = new Map<string, SlotRecord>();
+  let cursor: string | undefined;
+  do {
+    const page = await blobApi.list({ prefix, cursor, limit: 1000 });
+    for (const blob of page.blobs) {
+      records.set(blob.pathname, {
+        etag: blob.etag,
+        uploadedAt: blob.uploadedAt,
+        size: blob.size,
+      });
+    }
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
+  return records;
 }
 
 async function claimSlot(
@@ -107,33 +143,21 @@ async function claimSlot(
   limit: number,
   ttlMs: number,
 ): Promise<QuotaLease | null> {
-  // One listing gives every marker's ETag and upload time.
-  const markers = new Map<string, { etag: string; uploadedAt: Date }>();
-  let cursor: string | undefined;
-  do {
-    const page = await blobApi.list({ prefix, cursor, limit: 1000 });
-    for (const blob of page.blobs) {
-      markers.set(blob.pathname, { etag: blob.etag, uploadedAt: blob.uploadedAt });
-    }
-    cursor = page.hasMore ? page.cursor : undefined;
-  } while (cursor);
-
+  const records = await listSlots(prefix);
   const now = Date.now();
   const free: number[] = [];
   const expired: { index: number; etag: string }[] = [];
 
-  // Consider every slot, not just those after the current count, so a slot
-  // released in the middle is found again.
+  // Consider every slot, so a slot freed in the middle is found again.
   for (let index = 0; index < limit; index++) {
-    const pathname = slotPath(prefix, index);
-    const marker = markers.get(pathname);
-    if (!marker) {
+    const record = records.get(slotPath(prefix, index));
+    if (!record) {
       free.push(index);
     } else if (
-      !markers.has(`${pathname}.used`) &&
-      now - marker.uploadedAt.getTime() > ttlMs
+      record.size === RESERVED_CONTENT.length &&
+      now - record.uploadedAt.getTime() > ttlMs
     ) {
-      expired.push({ index, etag: marker.etag });
+      expired.push({ index, etag: record.etag });
     }
   }
 
@@ -145,7 +169,7 @@ async function claimSlot(
   for (const { index, ifMatch } of attempts) {
     const pathname = slotPath(prefix, index);
     try {
-      const marker = await blobApi.put(pathname, String(now), {
+      const marker = await blobApi.put(pathname, RESERVED_CONTENT, {
         access: "public",
         addRandomSuffix: false,
         contentType: "text/plain",
@@ -167,32 +191,38 @@ async function claimSlot(
 export async function releaseQuotaLease(lease: QuotaLease) {
   try {
     await blobApi.del(lease.pathname, { ifMatch: lease.etag });
-  } catch {
-    // Already taken over or deleted; nothing to release.
+    return true;
+  } catch (error) {
+    if (isLostRace(error) || isNotFound(error)) {
+      return false; // Already taken over or gone.
+    }
+    throw error;
   }
 }
 
 /**
- * Marks a reservation as used once its upload has succeeded. If the lease
- * expired and another request took the slot over meanwhile, the slot is
- * not finalized here (the other request owns it).
+ * Atomically turns our reservation into a used slot covering `mediaPath`.
+ * Returns the new lease (for rollback) or null if the lease was lost: the
+ * slot was taken over after it expired. Unknown errors are thrown.
  */
-export async function finalizeQuotaLease(lease: QuotaLease) {
+export async function finalizeQuotaLease(
+  lease: QuotaLease,
+  mediaPath: string,
+): Promise<QuotaLease | null> {
   try {
-    const current = await blobApi.head(lease.pathname);
-    if (current.etag !== lease.etag) {
-      return;
-    }
-    await blobApi.put(`${lease.pathname}.used`, "1", {
+    const marker = await blobApi.put(lease.pathname, `${USED_PREFIX}${mediaPath}`, {
       access: "public",
       addRandomSuffix: false,
-      allowOverwrite: false,
       contentType: "text/plain",
+      allowOverwrite: true,
+      ifMatch: lease.etag,
     });
+    return { pathname: lease.pathname, etag: marker.etag };
   } catch (error) {
-    if (!isAlreadyExists(error)) {
-      console.error("ShowUp could not finalize an upload quota slot:", error);
+    if (isLostRace(error) || isNotFound(error)) {
+      return null;
     }
+    throw error;
   }
 }
 
@@ -231,10 +261,16 @@ export async function reserveUploadQuota(
     );
   }
 
-  const globalLease = await claimSlot(`${QUOTA_ROOT}/${kind}/all/`, total, ttl);
+  let globalLease: QuotaLease | null;
+  try {
+    globalLease = await claimSlot(`${QUOTA_ROOT}/${kind}/all/`, total, ttl);
+  } catch (error) {
+    await releaseQuotaLease(walletLease).catch(() => false);
+    throw error;
+  }
 
   if (!globalLease) {
-    await releaseQuotaLease(walletLease);
+    await releaseQuotaLease(walletLease).catch(() => false);
     throw new UploadLimitError(
       kind === "videos"
         ? "Video uploads are full for now. Link an external video (for example YouTube) instead."
@@ -245,18 +281,98 @@ export async function reserveUploadQuota(
   return { walletLease, globalLease };
 }
 
-export async function finalizeUploadReservation(reservation: UploadReservation) {
-  await Promise.all([
-    finalizeQuotaLease(reservation.walletLease),
-    finalizeQuotaLease(reservation.globalLease),
-  ]);
+/**
+ * Finalizes both slots for the uploaded media. Returns true only if both
+ * were finalized by us. If either lease was lost, any slot we did finalize
+ * is rolled back and false is returned: the caller must then delete the
+ * media, so no stored file is left without a counted quota slot.
+ */
+export async function finalizeUploadReservation(
+  reservation: UploadReservation,
+  mediaPath: string,
+): Promise<boolean> {
+  const walletFinal = await finalizeQuotaLease(reservation.walletLease, mediaPath);
+  if (!walletFinal) {
+    await releaseQuotaLease(reservation.globalLease).catch(() => false);
+    return false;
+  }
+
+  const globalFinal = await finalizeQuotaLease(reservation.globalLease, mediaPath);
+  if (!globalFinal) {
+    await releaseQuotaLease(walletFinal).catch(() => false);
+    return false;
+  }
+
+  return true;
 }
 
 export async function releaseUploadReservation(reservation: UploadReservation) {
   await Promise.all([
-    releaseQuotaLease(reservation.walletLease),
-    releaseQuotaLease(reservation.globalLease),
+    releaseQuotaLease(reservation.walletLease).catch(() => false),
+    releaseQuotaLease(reservation.globalLease).catch(() => false),
   ]);
+}
+
+/**
+ * Tracks the files one request creates so a failure removes all of them.
+ * Deletion failures are left to the cleanup job (findOrphanedMedia), which
+ * removes media not covered by a used quota slot.
+ */
+export class UploadTransaction {
+  private readonly created: string[] = [];
+
+  record(url: string) {
+    this.created.push(url);
+  }
+
+  async rollback() {
+    if (this.created.length === 0) {
+      return;
+    }
+    try {
+      await blobApi.del([...this.created]);
+    } catch (error) {
+      console.error(
+        "ShowUp could not delete files of a failed upload; the cleanup job will remove them:",
+        error,
+      );
+    }
+  }
+}
+
+/**
+ * Media whose upload never got a used quota slot: left behind by a crash,
+ * a lost lease or a failed deletion. A file is kept if a used slot covers
+ * its path (the slot records the path it was finalized for), or if it is
+ * younger than `graceMs`, so uploads still in flight are never touched.
+ */
+export function findOrphanedMedia(
+  media: { pathname: string; url: string; uploadedAt: Date }[],
+  coveredPaths: string[],
+  now: number,
+  graceMs: number,
+) {
+  return media.filter(
+    (file) =>
+      now - file.uploadedAt.getTime() > graceMs &&
+      !coveredPaths.some((path) => file.pathname.startsWith(path)),
+  );
+}
+
+/** Reads the media paths recorded in used slots (immutable records). */
+export async function readCoveredMediaPaths(kind: "videos" | "events") {
+  const records = await listSlots(`${QUOTA_ROOT}/${kind}/all/`);
+  const paths: string[] = [];
+  for (const [pathname, record] of records) {
+    if (record.size <= RESERVED_CONTENT.length) {
+      continue;
+    }
+    const content = await blobApi.readText(pathname);
+    if (content?.startsWith(USED_PREFIX)) {
+      paths.push(content.slice(USED_PREFIX.length));
+    }
+  }
+  return paths;
 }
 
 // In-memory sliding window per client IP. Serverless instances do not share

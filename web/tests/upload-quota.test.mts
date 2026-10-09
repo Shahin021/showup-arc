@@ -5,7 +5,8 @@ import { BlobError, BlobPreconditionFailedError } from "@vercel/blob";
 /**
  * Tests the upload quota leases against an in-memory model of the Vercel
  * Blob operations they rely on: put without overwrite, put/del conditioned
- * on an ETag, list and head.
+ * on an ETag, list (with size, ETag and upload time), head and reads.
+ * This is a model of the API, not the live service.
  */
 
 process.env.SHOWUP_MAX_TOTAL_VIDEOS = "20";
@@ -13,42 +14,63 @@ process.env.SHOWUP_MAX_TOTAL_EVENT_UPLOADS = "5";
 
 const guard = await import("../src/lib/upload-guard");
 const {
+  finalizeQuotaLease,
   finalizeUploadReservation,
+  findOrphanedMedia,
   LEASE_TTL_MS,
+  readCoveredMediaPaths,
   releaseUploadReservation,
   reserveUploadQuota,
   setBlobApiForTesting,
   UploadLimitError,
+  UploadTransaction,
 } = guard;
 
 let now = 1_800_000_000_000;
 Date.now = () => now;
 
-type Stored = { etag: string; uploadedAt: Date };
+type Stored = { etag: string; uploadedAt: Date; body: string };
 let store: Map<string, Stored>;
 let etagCounter = 0;
+let failDeletes = false;
+
+// Each storage call waits a pseudo-random number of event-loop turns, so
+// concurrent requests interleave in different orders (deterministic seed).
+let seed = 42;
+function random() {
+  seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+  return seed / 2_147_483_648;
+}
+async function tick() {
+  const turns = 1 + Math.floor(random() * 4);
+  for (let turn = 0; turn < turns; turn++) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+}
 
 function fakeBlobApi() {
   return {
     async list({ prefix }: { prefix?: string }) {
+      await tick();
       const blobs = [...store.entries()]
         .filter(([pathname]) => pathname.startsWith(prefix ?? ""))
         .map(([pathname, value]) => ({
           pathname,
           url: `https://blob.test/${pathname}`,
           downloadUrl: "",
-          size: 1,
-          ...value,
+          size: Buffer.byteLength(value.body),
+          etag: value.etag,
+          uploadedAt: value.uploadedAt,
         }));
       return { blobs, hasMore: false, cursor: undefined };
     },
     async put(
       pathname: string,
-      _body: unknown,
+      body: string,
       options: { allowOverwrite?: boolean; ifMatch?: string },
     ) {
       // Yield first so concurrent callers interleave like real requests.
-      await new Promise((resolve) => setImmediate(resolve));
+      await tick();
       const existing = store.get(pathname);
       if (options.ifMatch !== undefined) {
         if (!existing || existing.etag !== options.ifMatch) {
@@ -57,35 +79,44 @@ function fakeBlobApi() {
       } else if (existing && !options.allowOverwrite) {
         throw new BlobError("This blob already exists");
       }
-      const value = { etag: `e${++etagCounter}`, uploadedAt: new Date(now) };
+      const value = { etag: `e${++etagCounter}`, uploadedAt: new Date(now), body: String(body) };
       store.set(pathname, value);
       return { pathname, url: `https://blob.test/${pathname}`, etag: value.etag };
     },
-    async del(pathname: string, options?: { ifMatch?: string }) {
-      await new Promise((resolve) => setImmediate(resolve));
-      const existing = store.get(pathname);
-      if (options?.ifMatch !== undefined && existing?.etag !== options.ifMatch) {
-        throw new BlobPreconditionFailedError();
+    async del(target: string | string[], options?: { ifMatch?: string }) {
+      await tick();
+      if (failDeletes) {
+        throw new BlobError("Service unavailable");
       }
-      store.delete(pathname);
+      for (const item of Array.isArray(target) ? target : [target]) {
+        const pathname = item.replace("https://blob.test/", "");
+        const existing = store.get(pathname);
+        if (options?.ifMatch !== undefined && existing?.etag !== options.ifMatch) {
+          throw new BlobPreconditionFailedError();
+        }
+        store.delete(pathname);
+      }
     },
     async head(pathname: string) {
       const existing = store.get(pathname);
       if (!existing) {
-        throw new BlobError("Not found");
+        throw new BlobError("The requested blob does not exist");
       }
-      return { pathname, ...existing };
+      return { pathname, url: `https://blob.test/${pathname}`, ...existing };
+    },
+    async readText(pathname: string) {
+      return store.get(pathname)?.body ?? null;
     },
   };
 }
 
-function finalizedCount(prefix: string) {
-  return [...store.keys()].filter((key) => key.startsWith(prefix) && key.endsWith(".used"))
-    .length;
-}
+const keysUnder = (prefix: string) => [...store.keys()].filter((key) => key.startsWith(prefix));
+const usedUnder = (prefix: string) =>
+  keysUnder(prefix).filter((key) => store.get(key)!.body.startsWith("U:"));
 
 beforeEach(() => {
   store = new Map();
+  failDeletes = false;
   setBlobApiForTesting(fakeBlobApi() as never);
 });
 
@@ -114,11 +145,12 @@ describe("upload quota leases", () => {
 
   it("keeps finalized uploads counted after the lease time", async () => {
     for (let index = 0; index < 3; index++) {
-      await finalizeUploadReservation(await reserveUploadQuota("videos", "wallet-b"));
+      const reservation = await reserveUploadQuota("videos", "wallet-b");
+      assert.equal(await finalizeUploadReservation(reservation, `showup/videos/b/${index}.mp4`), true);
     }
     now += LEASE_TTL_MS.videos * 10;
     await assert.rejects(reserveUploadQuota("videos", "wallet-b"), UploadLimitError);
-    assert.equal(finalizedCount("showup/quota/videos/wallet/wallet-b/"), 3);
+    assert.equal(usedUnder("showup/quota/videos/wallet/wallet-b/").length, 3);
   });
 
   it("never gives the same slot to concurrent requests", async () => {
@@ -126,21 +158,11 @@ describe("upload quota leases", () => {
     const results = await Promise.allSettled(
       Array.from({ length: 12 }, (_, index) => reserveUploadQuota("events", `racer-${index}`)),
     );
-    const granted = results.filter((result) => result.status === "fulfilled");
+    const granted = results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
     assert.equal(granted.length, 5);
-
-    const slots = granted.map(
-      (result) =>
-        (result as PromiseFulfilledResult<Awaited<ReturnType<typeof reserveUploadQuota>>>)
-          .value.globalLease.pathname,
-    );
-    assert.equal(new Set(slots).size, 5);
-
+    assert.equal(new Set(granted.map((r) => r.globalLease.pathname)).size, 5);
     // Losing wallets got their wallet slot back.
-    const walletMarkers = [...store.keys()].filter((key) =>
-      key.startsWith("showup/quota/events/wallet/"),
-    );
-    assert.equal(walletMarkers.length, 5);
+    assert.equal(keysUnder("showup/quota/events/wallet/").length, 5);
   });
 
   it("lets only one request take over an expired slot", async () => {
@@ -151,28 +173,82 @@ describe("upload quota leases", () => {
     const results = await Promise.allSettled(
       Array.from({ length: 8 }, (_, index) => reserveUploadQuota("events", `new-${index}`)),
     );
-    const granted = results.filter((result) => result.status === "fulfilled");
-    assert.equal(granted.length, 5);
+    assert.equal(results.filter((result) => result.status === "fulfilled").length, 5);
   });
 
-  it("does not finalize a slot that another request took over", async () => {
+  it("cannot finalize a slot after another request took it over", async () => {
     const stale = await reserveUploadQuota("events", "slow-wallet");
     for (let index = 0; index < 4; index++) {
       await reserveUploadQuota("events", `filler-${index}`);
     }
     now += LEASE_TTL_MS.events + 1;
-    // All five expired; a new request takes one of them over.
     const fresh = await reserveUploadQuota("events", "fresh-wallet");
-    await finalizeUploadReservation(stale);
-    await finalizeUploadReservation(fresh);
 
-    const usedGlobal = finalizedCount("showup/quota/events/all/");
-    // Only the slot still owned by its finalizer is marked used.
-    assert.equal(
-      usedGlobal,
-      stale.globalLease.pathname === fresh.globalLease.pathname ? 1 : 2,
-    );
-    assert.ok(store.has(`${fresh.globalLease.pathname}.used`));
+    // Whatever slot the fresh request took, the stale request can only
+    // finalize a slot that is still its own.
+    const staleResult = await finalizeUploadReservation(stale, "showup/events/slow/");
+    const freshResult = await finalizeUploadReservation(fresh, "showup/events/fresh/");
+    assert.equal(freshResult, true);
+    if (stale.globalLease.pathname === fresh.globalLease.pathname) {
+      assert.equal(staleResult, false);
+    }
+    const freshSlot = store.get(fresh.globalLease.pathname)!;
+    assert.equal(freshSlot.body, "U:showup/events/fresh/");
+  });
+
+  it("never lets a stale finalize overwrite a takeover that happens at the same time", async () => {
+    // One slot, lease expired; the stale owner finalizes while a newcomer
+    // takes over. Run many interleavings.
+    let oldWins = 0;
+    let newWins = 0;
+    for (let round = 0; round < 45; round++) {
+      store = new Map();
+      setBlobApiForTesting(fakeBlobApi() as never);
+      const lease = (await reserveUploadQuota("events", "old")).globalLease;
+      now += LEASE_TTL_MS.events + 1;
+      // Fill the other four app-wide slots so the newcomer must take over.
+      for (let index = 0; index < 4; index++) {
+        await reserveUploadQuota("events", `fill-${round}-${index}`);
+      }
+      // Start the stale finalize at a varying point during the takeover.
+      const delayTurns = round % 15;
+      const [finalized, takeover] = await Promise.allSettled([
+        (async () => {
+          for (let turn = 0; turn < delayTurns; turn++) {
+            await new Promise((resolve) => setImmediate(resolve));
+          }
+          return finalizeQuotaLease(lease, "showup/events/old/");
+        })(),
+        reserveUploadQuota("events", `new-${round}`),
+      ]);
+      const oldWon = finalized.status === "fulfilled" && finalized.value !== null;
+      const newWon =
+        takeover.status === "fulfilled" && takeover.value.globalLease.pathname === lease.pathname;
+      assert.ok(!(oldWon && newWon), "both requests own the same slot");
+      oldWins += oldWon ? 1 : 0;
+      newWins += newWon ? 1 : 0;
+      const record = store.get(lease.pathname)!;
+      if (oldWon) {
+        assert.equal(record.body, "U:showup/events/old/");
+      }
+      if (newWon) {
+        assert.equal(record.body, "R");
+      }
+    }
+    // Both orders must actually have happened for the test to mean anything.
+    assert.ok(oldWins > 0 && newWins > 0, `old ${oldWins}, new ${newWins}`);
+  });
+
+  it("rolls back the wallet slot when the app-wide slot was lost", async () => {
+    const reservation = await reserveUploadQuota("events", "wallet-c");
+    // Simulate losing the app-wide lease to a takeover.
+    store.set(reservation.globalLease.pathname, {
+      etag: "someone-else",
+      uploadedAt: new Date(now),
+      body: "R",
+    });
+    assert.equal(await finalizeUploadReservation(reservation, "showup/events/c/"), false);
+    assert.equal(keysUnder("showup/quota/events/wallet/wallet-c/").length, 0);
   });
 
   it("releases the wallet slot when the app-wide quota is full", async () => {
@@ -180,10 +256,51 @@ describe("upload quota leases", () => {
       await reserveUploadQuota("events", `fill-${index}`);
     }
     await assert.rejects(reserveUploadQuota("events", "extra"), UploadLimitError);
-    assert.equal(
-      [...store.keys()].filter((key) => key.startsWith("showup/quota/events/wallet/extra/"))
-        .length,
-      0,
+    assert.equal(keysUnder("showup/quota/events/wallet/extra/").length, 0);
+  });
+});
+
+describe("upload rollback and cleanup", () => {
+  it("removes every file of a failed upload", async () => {
+    const api = fakeBlobApi();
+    const transaction = new UploadTransaction();
+    for (const name of ["event-image.png", "organizer-avatar.png"]) {
+      const blob = await api.put(`showup/events/w/1/${name}`, "x", {});
+      transaction.record(blob.url);
+    }
+    await transaction.rollback();
+    assert.equal(keysUnder("showup/events/").length, 0);
+  });
+
+  it("does not throw when deletion fails, leaving the files to the cleanup job", async () => {
+    const api = fakeBlobApi();
+    const transaction = new UploadTransaction();
+    transaction.record((await api.put("showup/events/w/2/event-image.png", "x", {})).url);
+    failDeletes = true;
+    const originalError = console.error;
+    console.error = () => undefined;
+    await transaction.rollback();
+    console.error = originalError;
+    assert.equal(keysUnder("showup/events/").length, 1);
+  });
+
+  it("finds media not covered by a used slot, but leaves recent uploads alone", async () => {
+    const api = fakeBlobApi();
+    const reservation = await reserveUploadQuota("events", "wallet-d");
+    await finalizeUploadReservation(reservation, "showup/events/wallet-d/kept/");
+    const covered = await readCoveredMediaPaths("events");
+
+    const media = [
+      { pathname: "showup/events/wallet-d/kept/metadata.json", uploadedAt: new Date(now - 3_600_000) },
+      { pathname: "showup/events/wallet-d/orphan/event-image.png", uploadedAt: new Date(now - 3_600_000) },
+      { pathname: "showup/events/wallet-d/in-flight/event-image.png", uploadedAt: new Date(now - 1_000) },
+    ].map((file) => ({ ...file, url: `https://blob.test/${file.pathname}` }));
+    await api.put("unused", "x", {});
+
+    const orphans = findOrphanedMedia(media, covered, now, 60 * 60 * 1000 - 1);
+    assert.deepEqual(
+      orphans.map((file) => file.pathname),
+      ["showup/events/wallet-d/orphan/event-image.png"],
     );
   });
 });

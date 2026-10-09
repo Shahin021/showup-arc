@@ -118,21 +118,30 @@ deadline (at most 7 days after the event ends).
   authorized, the server reserves a per-wallet slot (3 videos, 25 event
   uploads) and an app-wide slot (20 videos and 100 event uploads by default,
   set with `SHOWUP_MAX_TOTAL_VIDEOS` and `SHOWUP_MAX_TOTAL_EVENT_UPLOADS`).
-  Reservations are leases: a slot is taken with a write that cannot
-  overwrite, or, if its lease expired, with a write conditioned on the old
-  ETag, so concurrent requests never share a slot. A successful upload
-  finalizes its slots; a failed one releases them; an abandoned
-  authorization expires (40 minutes for videos, 5 for event uploads) and
-  its slots become free again, so unused authorizations cannot close
-  uploads for good. Every slot is searched, so a slot freed in the middle is
-  found again. Only file metadata (ETag, upload time) is read, never cached
-  contents. A per-IP rate limit adds burst protection, but it is per server
-  instance, so it is best effort. The lease logic is tested against an
-  in-memory model of the Blob operations (`web/tests`), not against a live
-  store. Files are checked by their leading bytes, which rejects renamed or
+  Each slot is a single record whose state (reserved, used, or free once a
+  reservation expires) changes only through writes conditioned on the ETag
+  the request holds, so concurrent requests never share a slot, and a
+  request whose lease expired can neither finalize nor free a slot someone
+  else has taken over. Abandoned authorizations expire (40 minutes for
+  videos, 5 for event uploads) and free their slots.
+- **No uncounted files.** Stored media must end up covered by a used slot.
+  A failed event upload deletes every file it stored and releases its
+  slots; if finalizing fails because a lease was lost, the files are
+  deleted and any slot already finalized is rolled back. A video whose
+  slots cannot be finalized is deleted. If a deletion itself fails (or the
+  server crashes mid-upload), the weekly cleanup job removes media that no
+  used slot covers, ignoring files younger than about two hours and files
+  uploaded before `SHOWUP_CLEANUP_SINCE`. The opposite case is possible but
+  safe: an unexpected error after one slot was finalized can leave that
+  slot counted without media, which slightly over-counts the quota.
+- **Testing and limits of the guarantees.** The lease logic is tested
+  against an in-memory model of the Blob operations, including randomized
+  interleavings of a stale finalize with a takeover (`web/tests`); it has
+  not yet been run against a live Blob store. A per-IP rate limit adds
+  burst protection, but it is per server instance, so it is best effort.
+  Files are checked by their leading bytes, which rejects renamed or
   mislabelled files; this is a format check and does not prove a video is
-  complete or playable. Uploaded videos that fail it are deleted and their
-  slots released.
+  complete or playable.
 - **Hosting limits.** Vercel's free (Hobby) plan includes limited Blob
   storage (1 GB), operations and data transfer. Exceeding any of them pauses
   Blob for 30 days rather than billing; the app-wide caps keep storage
