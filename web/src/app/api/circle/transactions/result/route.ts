@@ -16,6 +16,10 @@ import {
 import {
   ShowUpApiError,
 } from "@/lib/showup-server";
+import {
+  CIRCLE_ARC_BLOCKCHAIN,
+  FEATURES,
+} from "@/lib/showup-network";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,7 +99,7 @@ async function getOnchainReceipt(
   try {
     if (
       transaction.blockchain ===
-      "ARC-TESTNET"
+      CIRCLE_ARC_BLOCKCHAIN
     ) {
       return await arcPublicClient
         .getTransactionReceipt({
@@ -105,6 +109,7 @@ async function getOnchainReceipt(
     }
 
     if (
+      FEATURES.testnetBridgeAndSwap &&
       transaction.blockchain ===
       "ETH-SEPOLIA"
     ) {

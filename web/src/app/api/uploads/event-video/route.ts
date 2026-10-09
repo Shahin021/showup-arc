@@ -13,11 +13,20 @@ import {
   readWalletSession,
   SHOWUP_WALLET_SESSION_COOKIE,
 } from "@/lib/showup-wallet-auth";
+import {
+  ARC_NETWORK_LABEL,
+  CIRCLE_ARC_BLOCKCHAIN,
+} from "@/lib/showup-network";
+import {
+  countBlobs,
+  UPLOAD_LIMITS,
+  verifyUploadedVideo,
+} from "@/lib/upload-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_VIDEO_BYTES = 50_000_000;
+const MAX_VIDEO_BYTES = UPLOAD_LIMITS.maxVideoBytes;
 const TOKEN_LIFETIME_MS = 10 * 60 * 1000;
 
 type UploadClientPayload = {
@@ -126,7 +135,7 @@ function readBrowserWallet(
     id:
       `browser:${session.address.toLowerCase()}`,
     address: session.address,
-    blockchain: "ARC-TESTNET",
+    blockchain: CIRCLE_ARC_BLOCKCHAIN,
     state: "LIVE",
   };
 }
@@ -226,7 +235,7 @@ async function verifyCircleWallet(
 
   circleUrl.searchParams.set(
     "blockchain",
-    "ARC-TESTNET",
+    CIRCLE_ARC_BLOCKCHAIN,
   );
 
   circleUrl.searchParams.set("pageSize", "10");
@@ -260,13 +269,13 @@ async function verifyCircleWallet(
   const wallet = wallets.find(
     (item) =>
       item.id === walletId &&
-      item.blockchain === "ARC-TESTNET" &&
+      item.blockchain === CIRCLE_ARC_BLOCKCHAIN &&
       item.state === "LIVE",
   );
 
   if (!wallet) {
     throw new Error(
-      "The connected Arc Testnet wallet could not be verified.",
+      `The connected ${ARC_NETWORK_LABEL} wallet could not be verified.`,
     );
   }
 
@@ -347,6 +356,17 @@ export async function POST(request: NextRequest) {
           walletPathKey,
         );
 
+        const existingVideos = await countBlobs(
+          `showup/videos/${walletPathKey}/`,
+          UPLOAD_LIMITS.videosPerWallet,
+        );
+
+        if (existingVideos >= UPLOAD_LIMITS.videosPerWallet) {
+          throw new Error(
+            `This wallet has reached the limit of ${UPLOAD_LIMITS.videosPerWallet} uploaded videos. Link an external video instead.`,
+          );
+        }
+
         return {
           allowedContentTypes: [
             "video/mp4",
@@ -377,6 +397,16 @@ export async function POST(request: NextRequest) {
         blob,
         tokenPayload,
       }) => {
+        const genuine = await verifyUploadedVideo(blob.url);
+
+        if (!genuine) {
+          console.warn(
+            "ShowUp removed an upload that is not a valid video:",
+            blob.pathname,
+          );
+          return;
+        }
+
         let authorization:
           | Record<string, unknown>
           | null = null;

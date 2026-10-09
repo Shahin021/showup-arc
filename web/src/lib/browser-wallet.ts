@@ -3,7 +3,12 @@ import {
   custom,
   type EIP1193Provider,
 } from "viem";
-import { arcTestnet } from "viem/chains";
+import {
+  ARC_CHAIN,
+  ARC_EXPLORER_URL,
+  ARC_MIN_MAX_FEE_PER_GAS,
+  ARC_RPC_URLS,
+} from "@/lib/showup-network";
 
 export type BrowserWalletProviderInfo = {
   uuid: string;
@@ -106,11 +111,12 @@ export async function discoverBrowserWallets(
   return [...providers.values()];
 }
 
-export async function ensureArcTestnet(
+/** Switches the browser wallet to the configured Arc network (adding it if needed). */
+export async function ensureArcNetwork(
   provider: EIP1193Provider,
 ) {
   const requiredChainId =
-    `0x${arcTestnet.id.toString(16)}`;
+    `0x${ARC_CHAIN.id.toString(16)}`;
 
   const currentChainId =
     await provider.request({
@@ -145,19 +151,11 @@ export async function ensureArcTestnet(
       params: [
         {
           chainId: requiredChainId,
-          chainName: arcTestnet.name,
+          chainName: ARC_CHAIN.name,
           nativeCurrency:
-            arcTestnet.nativeCurrency,
-          rpcUrls: [
-            ...arcTestnet.rpcUrls.default.http,
-          ],
-          blockExplorerUrls:
-            arcTestnet.blockExplorers
-              ? [
-                  arcTestnet.blockExplorers
-                    .default.url,
-                ]
-              : [],
+            ARC_CHAIN.nativeCurrency,
+          rpcUrls: [...ARC_RPC_URLS],
+          blockExplorerUrls: [ARC_EXPLORER_URL],
         },
       ],
     });
@@ -172,7 +170,7 @@ export async function connectBrowserWallet(
     params: undefined,
   });
 
-  await ensureArcTestnet(provider);
+  await ensureArcNetwork(provider);
 
   const accounts =
     await provider.request({
@@ -194,7 +192,7 @@ export async function connectBrowserWallet(
   const walletClient =
     createWalletClient({
       account: address,
-      chain: arcTestnet,
+      chain: ARC_CHAIN,
       transport: custom(provider),
     });
 
@@ -287,4 +285,35 @@ export async function signBrowserWalletMessage({
     providerRdns:
       walletProvider.info.rdns,
   };
+}
+
+/**
+ * Fee parameters for browser-wallet transactions on Arc. Wallet fee
+ * estimates can fall below Arc's 20 gwei mempool floor, and such
+ * transactions are dropped without an error, so the floor is enforced here.
+ */
+export async function getArcFeeOverrides(
+  estimate: () => Promise<{ maxFeePerGas?: bigint; maxPriorityFeePerGas?: bigint }>,
+) {
+  let estimated: { maxFeePerGas?: bigint; maxPriorityFeePerGas?: bigint } = {};
+
+  try {
+    estimated = await estimate();
+  } catch {
+    // Fall back to the floor below.
+  }
+
+  const maxFeePerGas =
+    estimated.maxFeePerGas !== undefined &&
+    estimated.maxFeePerGas > ARC_MIN_MAX_FEE_PER_GAS
+      ? estimated.maxFeePerGas
+      : ARC_MIN_MAX_FEE_PER_GAS;
+
+  const maxPriorityFeePerGas =
+    estimated.maxPriorityFeePerGas !== undefined &&
+    estimated.maxPriorityFeePerGas <= maxFeePerGas
+      ? estimated.maxPriorityFeePerGas
+      : BigInt(0);
+
+  return { maxFeePerGas, maxPriorityFeePerGas };
 }

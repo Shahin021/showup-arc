@@ -13,6 +13,9 @@ import ReserveSeatButton from "@/components/reserve-seat-button";
 import PayRemainingBalanceButton from "@/components/pay-remaining-balance-button";
 import OrganizerAttendancePanel from "@/components/organizer-attendance-panel";
 import OrganizerInvitationPanel from "@/components/organizer-invitation-panel";
+import OrganizerCheckInPanel from "@/components/organizer-check-in-panel";
+import OrganizerRecord from "@/components/organizer-record";
+import { ARC_NETWORK_LABEL, explorerAddressUrl } from "@/lib/showup-network";
 
 type OnchainEvent = {
   id: string;
@@ -403,7 +406,7 @@ export default function EventDetailsPage() {
 
         if (!selectedEvent) {
           throw new Error(
-            "This event could not be found on Arc Testnet.",
+            `This event could not be found on ${ARC_NETWORK_LABEL}.`,
           );
         }
 
@@ -638,7 +641,7 @@ export default function EventDetailsPage() {
 
         {loading ? (
           <div className="mt-8 rounded-[30px] border border-[#79b7ff]/12 bg-[#0a1025] p-10 text-center text-white/45">
-            Loading event from Arc Testnet...
+            Loading event from {ARC_NETWORK_LABEL}...
           </div>
         ) : null}
 
@@ -714,7 +717,7 @@ export default function EventDetailsPage() {
                     ) : null}
 
                     <span className="rounded-full border border-[#79b7ff]/12 bg-[#0d142b] px-3 py-1 text-xs text-white/40">
-                      Arc Testnet
+                      {ARC_NETWORK_LABEL}
                     </span>
                   </div>
 
@@ -1080,6 +1083,8 @@ export default function EventDetailsPage() {
                   </div>
                 ) : null}
 
+                <OrganizerRecord organizer={event.organizer} />
+
                 <ReserveSeatButton
                   eventId={event.id}
                   depositFormatted={
@@ -1186,6 +1191,14 @@ export default function EventDetailsPage() {
                   accessMode={
                     event.accessMode
                   }
+                />
+
+                <OrganizerCheckInPanel
+                  eventId={event.id}
+                  organizer={event.organizer}
+                  eventStart={event.eventStart}
+                  eventEnd={event.eventEnd}
+                  cancelled={event.cancelled}
                 />
 
                 <OrganizerAttendancePanel
@@ -1327,14 +1340,17 @@ export default function EventDetailsPage() {
                     <div className="my-4 h-px bg-white/10" />
 
                     <p className="text-xs text-white/30">
-                      ShowUp V5 contract
+                      ShowUp V6 contract
                     </p>
 
-                    <p className="mt-2 break-all font-mono text-xs leading-5 text-white/50">
-                      {
-                        contractAddress
-                      }
-                    </p>
+                    <a
+                      href={explorerAddressUrl(contractAddress)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 block break-all font-mono text-xs leading-5 text-white/50 underline decoration-white/20 hover:text-[#9bddff]"
+                    >
+                      {contractAddress}
+                    </a>
                   </>
                 ) : null}
 

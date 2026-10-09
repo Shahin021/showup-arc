@@ -12,6 +12,15 @@ import {
   readWalletSession,
   SHOWUP_WALLET_SESSION_COOKIE,
 } from "@/lib/showup-wallet-auth";
+import {
+  ARC_NETWORK_LABEL,
+  CIRCLE_ARC_BLOCKCHAIN,
+} from "@/lib/showup-network";
+import {
+  countFolders,
+  sniffImageType,
+  UPLOAD_LIMITS,
+} from "@/lib/upload-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -115,7 +124,7 @@ function readBrowserWallet(
     id:
       `browser:${session.address.toLowerCase()}`,
     address: session.address,
-    blockchain: "ARC-TESTNET",
+    blockchain: CIRCLE_ARC_BLOCKCHAIN,
     state: "LIVE",
   };
 }
@@ -215,7 +224,7 @@ async function verifyCircleWallet(
 
   circleUrl.searchParams.set(
     "blockchain",
-    "ARC-TESTNET",
+    CIRCLE_ARC_BLOCKCHAIN,
   );
 
   circleUrl.searchParams.set("pageSize", "10");
@@ -249,13 +258,13 @@ async function verifyCircleWallet(
   const wallet = wallets.find(
     (item) =>
       item.id === walletId &&
-      item.blockchain === "ARC-TESTNET" &&
+      item.blockchain === CIRCLE_ARC_BLOCKCHAIN &&
       item.state === "LIVE",
   );
 
   if (!wallet) {
     throw new Error(
-      "The connected Arc Testnet wallet could not be verified.",
+      `The connected ${ARC_NETWORK_LABEL} wallet could not be verified.`,
     );
   }
 
@@ -437,6 +446,34 @@ export async function POST(request: NextRequest) {
       throw new Error(
         "Connect and authorize a wallet before uploading event metadata.",
       );
+    }
+
+    const existingUploads = await countFolders(
+      `showup/events/${wallet.address.toLowerCase()}/`,
+      UPLOAD_LIMITS.metadataUploadsPerWallet,
+    );
+
+    if (existingUploads >= UPLOAD_LIMITS.metadataUploadsPerWallet) {
+      throw new Error(
+        `This wallet has reached the limit of ${UPLOAD_LIMITS.metadataUploadsPerWallet} event uploads.`,
+      );
+    }
+
+    for (const [label, image] of [
+      ["Event image", eventImage],
+      ["Organizer avatar", organizerAvatar],
+    ] as const) {
+      if (!image) {
+        continue;
+      }
+      const header = new Uint8Array(
+        await image.slice(0, 16).arrayBuffer(),
+      );
+      if (sniffImageType(header) !== image.type) {
+        throw new Error(
+          `${label} is not a valid ${image.type.replace("image/", "").toUpperCase()} file.`,
+        );
+      }
     }
 
     const metadataId = randomUUID();

@@ -11,18 +11,23 @@ import type {
 } from "react";
 
 import OrganizerCancelEventButton from "@/components/organizer-cancel-event-button";
+import {
+  ARC_NETWORK_LABEL,
+  networkStorageKey,
+} from "@/lib/showup-network";
+import { markPendingTransaction } from "@/lib/pending-transactions";
 
 const CIRCLE_USER_ID_KEY =
-  "showup_circle_user_id";
+  networkStorageKey("circle_user_id");
 
 const CIRCLE_WALLET_READY_KEY =
-  "showup_circle_wallet_ready";
+  networkStorageKey("circle_wallet_ready");
 
 const CIRCLE_WALLET_ADDRESS_KEY =
-  "showup_circle_wallet_address";
+  networkStorageKey("circle_wallet_address");
 
 const CIRCLE_WALLET_ID_KEY =
-  "showup_circle_wallet_id";
+  networkStorageKey("circle_wallet_id");
 
 const CIRCLE_WALLET_CHANGED_EVENT =
   "showup-circle-wallet-changed";
@@ -412,6 +417,8 @@ async function executeCircleChallenge(
   userToken: string,
   encryptionKey: string,
 ) {
+  markPendingTransaction();
+
   const appId =
     process.env
       .NEXT_PUBLIC_CIRCLE_APP_ID;
@@ -1224,7 +1231,7 @@ export default function OrganizerAttendancePanel({
         setMessage(
           `Enter your Circle PIN to confirm ${shortenAddress(
             attendee,
-          )}. Their remaining payment will become due for three days.`,
+          )}. Their ticket payment will be released to you.`,
         );
       } else if (
         hasDeposit
@@ -1249,13 +1256,10 @@ export default function OrganizerAttendancePanel({
       );
 
       setMessage(
-        "Waiting for attendance confirmation on Arc Testnet...",
+        `Waiting for attendance confirmation on ${ARC_NETWORK_LABEL}...`,
       );
 
-      const expectedStatus =
-        isPaidEvent
-          ? 7
-          : 3;
+      const expectedStatus = 3;
 
       let confirmed = false;
 
@@ -1302,7 +1306,7 @@ export default function OrganizerAttendancePanel({
         setMessage(
           `Attendance confirmed for ${shortenAddress(
             attendee,
-          )}. The remaining balance is now due within three days.`,
+          )}. The ticket payment was released to you.`,
         );
       } else if (
         hasDeposit
@@ -1430,7 +1434,7 @@ export default function OrganizerAttendancePanel({
         setMessage(
           `Enter your Circle PIN to mark ${shortenAddress(
             attendee,
-          )} as a no-show. Their ${currentDeposit} USDC upfront payment will be transferred to the organizer.`,
+          )} as a no-show. Their full ticket payment will be transferred to you.`,
         );
       } else {
         setMessage(
@@ -1447,7 +1451,7 @@ export default function OrganizerAttendancePanel({
       );
 
       setMessage(
-        "Waiting for no-show settlement on Arc Testnet...",
+        `Waiting for no-show settlement on ${ARC_NETWORK_LABEL}...`,
       );
 
       let settled = false;
@@ -1610,7 +1614,7 @@ export default function OrganizerAttendancePanel({
       );
 
       setMessage(
-        "Waiting for payment default confirmation on Arc Testnet...",
+        `Waiting for payment default confirmation on ${ARC_NETWORK_LABEL}...`,
       );
 
       let confirmed = false;
@@ -1979,7 +1983,7 @@ export default function OrganizerAttendancePanel({
 
       {isPaidEvent ? (
         <div className="mt-3 rounded-2xl border border-amber-300/15 bg-amber-300/[0.055] px-4 py-3 text-xs leading-5 text-amber-100/70">
-          Paid attendees receive three days after attendance confirmation to pay the remaining balance. Payment default can only be marked after that individual deadline.
+          Paid reservations must be fully paid before the payment deadline. Confirming attendance or settling a no-show releases the full ticket price to you; attendees who check themselves in are settled automatically. Unpaid reservations can be marked as defaulted after the payment deadline.
         </div>
       ) : null}
 
@@ -2192,7 +2196,7 @@ export default function OrganizerAttendancePanel({
                   </div>
 
                   {attendee.status ===
-                  1 ? (
+                  (isPaidEvent ? 8 : 1) ? (
                     <div className="grid w-full grid-cols-1 gap-2">
                       <button
                         type="button"
@@ -2214,7 +2218,7 @@ export default function OrganizerAttendancePanel({
                           "attendance"
                           ? "Confirming..."
                           : isPaidEvent
-                            ? "Confirm attendance and open payment"
+                            ? "Confirm attendance (releases payment)"
                             : "Confirm attendance"}
                       </button>
 

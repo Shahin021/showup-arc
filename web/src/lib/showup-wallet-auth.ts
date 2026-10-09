@@ -10,7 +10,7 @@ import {
   getAddress,
   isAddress,
 } from "viem";
-import { arcTestnet } from "viem/chains";
+import { ARC_CHAIN_ID } from "@/lib/showup-network";
 
 export const SHOWUP_WALLET_CHALLENGE_COOKIE =
   "showup_wallet_challenge";
@@ -131,7 +131,7 @@ function isWalletChallengePayload(
     value.domain.length > 0 &&
     typeof value.uri === "string" &&
     value.uri.length > 0 &&
-    value.chainId === arcTestnet.id &&
+    value.chainId === ARC_CHAIN_ID &&
     typeof value.nonce === "string" &&
     value.nonce.length >= 16 &&
     typeof value.issuedAt === "string" &&
@@ -206,7 +206,7 @@ export function createWalletChallenge({
     address: getAddress(address),
     domain: normalizedDomain,
     uri: parsedUri.origin,
-    chainId: arcTestnet.id,
+    chainId: ARC_CHAIN_ID,
     nonce:
       randomBytes(24).toString(
         "base64url",
@@ -322,7 +322,7 @@ function isWalletSessionPayload(
     isAddress(value.address) &&
     typeof value.domain === "string" &&
     value.domain.length > 0 &&
-    value.chainId === arcTestnet.id &&
+    value.chainId === ARC_CHAIN_ID &&
     typeof value.issuedAt === "string" &&
     typeof value.expiresAt === "string"
   );
@@ -363,7 +363,7 @@ export function createWalletSession({
     purpose: "showup-wallet-session",
     address: getAddress(address),
     domain: normalizedDomain,
-    chainId: arcTestnet.id,
+    chainId: ARC_CHAIN_ID,
     issuedAt: issuedAtDate.toISOString(),
     expiresAt: expiresAtDate.toISOString(),
   };

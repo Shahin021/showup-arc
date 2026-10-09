@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ShowUpHeader from "@/components/showup-header";
+import { ARC_NETWORK_LABEL } from "@/lib/showup-network";
 
 type OnchainEvent = {
   id: string;
@@ -223,7 +224,7 @@ export default function EventsPage() {
       if (!response.ok) {
         throw new Error(
           data.error ??
-            "Unable to load events from Arc Testnet.",
+            `Unable to load events from ${ARC_NETWORK_LABEL}.`,
         );
       }
 
@@ -238,7 +239,7 @@ export default function EventsPage() {
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "Unable to load events from Arc Testnet.",
+          : `Unable to load events from ${ARC_NETWORK_LABEL}.`,
       );
     } finally {
       setLoading(false);
@@ -269,7 +270,7 @@ export default function EventsPage() {
             <div className="max-w-3xl">
               <div className="mb-5 flex w-fit items-center gap-2 rounded-full border border-[#72cfff]/25 bg-[#288cff]/10 px-4 py-2 text-sm text-[#a8e2ff]">
                 <span className="h-2 w-2 rounded-full bg-[#75d7ff] shadow-[0_0_16px_rgba(117,215,255,0.95)]" />
-                Live events from Arc Testnet
+                Live events from {ARC_NETWORK_LABEL}
               </div>
 
               <h1 className="text-4xl font-semibold tracking-[-0.04em] sm:text-5xl lg:text-6xl">
@@ -281,7 +282,7 @@ export default function EventsPage() {
 
               <p className="mt-5 max-w-2xl text-lg leading-8 text-white/52">
                 Explore public and invite-only events read directly from
-                the deployed ShowUp V5 smart contract on Arc.
+                the deployed ShowUp V6 smart contract on Arc.
               </p>
             </div>
 
@@ -404,7 +405,7 @@ export default function EventsPage() {
               </h3>
 
               <p className="mt-3 text-white/45">
-                Create the first accountable event on Arc Testnet.
+                Create the first accountable event on {ARC_NETWORK_LABEL}.
               </p>
 
               <Link
@@ -613,7 +614,7 @@ export default function EventsPage() {
           {contractAddress ? (
             <div className="mt-10 rounded-2xl border border-[#79b7ff]/12 bg-[#0a1025] px-5 py-4">
               <p className="text-xs text-white/30">
-                ShowUp V5 contract on Arc Testnet
+                ShowUp V6 contract on {ARC_NETWORK_LABEL}
               </p>
 
               <p className="mt-2 break-all font-mono text-xs text-white/55">

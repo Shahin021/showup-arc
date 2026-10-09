@@ -1,8 +1,11 @@
 import {
   connectBrowserWallet,
   findBrowserWalletProvider,
+  getArcFeeOverrides,
 } from "@/lib/browser-wallet";
 import { arcPublicClient } from "@/lib/arc-public-client";
+import { assertWithinReservationCap } from "@/lib/showup-cap";
+import { ARC_NETWORK_LABEL } from "@/lib/showup-network";
 import {
   buildCreateEventArgs,
   getShowUpContractAddress,
@@ -44,6 +47,16 @@ export async function createEventWithBrowserWallet({
   const args =
     buildCreateEventArgs(input);
 
+  await assertWithinReservationCap(
+    Number(args[3]),
+    args[5],
+    args[6],
+  );
+
+  const fees = await getArcFeeOverrides(() =>
+    arcPublicClient.estimateFeesPerGas(),
+  );
+
   const transactionHash =
     await connection.walletClient.writeContract({
       account: connection.address,
@@ -51,6 +64,7 @@ export async function createEventWithBrowserWallet({
       abi: SHOWUP_CREATE_EVENT_ABI,
       functionName: "createEvent",
       args,
+      ...fees,
     });
 
   const receipt =
@@ -62,7 +76,7 @@ export async function createEventWithBrowserWallet({
 
   if (receipt.status !== "success") {
     throw new Error(
-      "The event transaction failed on Arc Testnet.",
+      `The event transaction failed on ${ARC_NETWORK_LABEL}.`,
     );
   }
 

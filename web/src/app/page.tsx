@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import ShowUpHeader from "@/components/showup-header";
+import { ARC_NETWORK_LABEL, IS_MAINNET } from "@/lib/showup-network";
 
 const steps = [
   {
@@ -83,7 +84,7 @@ export default function Home() {
           <div className="flex h-full flex-col">
             <div className="mb-6 flex w-fit items-center gap-2 rounded-full border border-[#72cfff]/25 bg-[#418cff]/10 px-4 py-2 text-sm text-[#9bddff]">
               <span className="h-2 w-2 rounded-full bg-[#75d7ff] shadow-[0_0_16px_rgba(117,215,255,0.95)]" />
-              Live prototype on Arc Testnet
+              {IS_MAINNET ? `Live on ${ARC_NETWORK_LABEL} mainnet` : `Live prototype on ${ARC_NETWORK_LABEL}`}
             </div>
 
             <h1 className="max-w-[680px] text-5xl font-semibold leading-[1.02] tracking-[-0.045em] sm:text-6xl lg:text-[60px]">
@@ -147,7 +148,7 @@ export default function Home() {
                         </span>
 
                         <span className="rounded-full border border-[#9e8dff]/20 bg-[#8a72ff]/10 px-3 py-1 text-xs text-[#c4baff]">
-                          V5
+                          V6
                         </span>
                       </div>
 
@@ -235,7 +236,7 @@ export default function Home() {
                   </Link>
 
                   <p className="mt-3 text-center text-xs text-white/30">
-                    Circle wallets · USDC · Arc Testnet
+                    Circle wallets · USDC · {ARC_NETWORK_LABEL}
                   </p>
                 </div>
               </div>
@@ -348,7 +349,7 @@ export default function Home() {
 
               <p className="mt-3 leading-7 text-white/48">
                 Event rules and financial outcomes are enforced by the
-                deployed ShowUp smart contract on Arc Testnet.
+                deployed ShowUp smart contract on {ARC_NETWORK_LABEL}.
               </p>
             </div>
           </div>

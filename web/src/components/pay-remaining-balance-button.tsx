@@ -4,18 +4,23 @@ import {
   useEffect,
   useState,
 } from "react";
+import {
+  ARC_NETWORK_LABEL,
+  networkStorageKey,
+} from "@/lib/showup-network";
+import { markPendingTransaction } from "@/lib/pending-transactions";
 
 const CIRCLE_USER_ID_KEY =
-  "showup_circle_user_id";
+  networkStorageKey("circle_user_id");
 
 const CIRCLE_WALLET_READY_KEY =
-  "showup_circle_wallet_ready";
+  networkStorageKey("circle_wallet_ready");
 
 const CIRCLE_WALLET_ADDRESS_KEY =
-  "showup_circle_wallet_address";
+  networkStorageKey("circle_wallet_address");
 
 const CIRCLE_WALLET_ID_KEY =
-  "showup_circle_wallet_id";
+  networkStorageKey("circle_wallet_id");
 
 const CIRCLE_WALLET_CHANGED_EVENT =
   "showup-circle-wallet-changed";
@@ -172,6 +177,8 @@ async function executeCircleChallenge(
   userToken: string,
   encryptionKey: string,
 ) {
+  markPendingTransaction();
+
   const appId =
     process.env
       .NEXT_PUBLIC_CIRCLE_APP_ID;
@@ -803,7 +810,7 @@ export default function PayRemainingBalanceButton({
         }
 
         setMessage(
-          "Waiting for the USDC approval to be confirmed on Arc Testnet...",
+          `Waiting for the USDC approval to be confirmed on ${ARC_NETWORK_LABEL}...`,
         );
 
         status =
@@ -884,7 +891,7 @@ export default function PayRemainingBalanceButton({
       );
 
       setMessage(
-        "Waiting for the payment to be confirmed on Arc Testnet...",
+        `Waiting for the payment to be confirmed on ${ARC_NETWORK_LABEL}...`,
       );
 
       await waitForStatus(

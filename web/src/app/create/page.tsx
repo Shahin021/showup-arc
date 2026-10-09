@@ -17,17 +17,25 @@ import {
 import {
   readActiveWallet,
 } from "@/lib/showup-wallet";
+import {
+  ARC_NETWORK_LABEL,
+  SHOWUP_CONTRACT_ADDRESS,
+  contractStorageKey,
+  explorerAddressUrl,
+  networkStorageKey,
+} from "@/lib/showup-network";
+import { markPendingTransaction } from "@/lib/pending-transactions";
 
-const CIRCLE_USER_ID_KEY = "showup_circle_user_id";
-const CIRCLE_WALLET_READY_KEY = "showup_circle_wallet_ready";
+const CIRCLE_USER_ID_KEY = networkStorageKey("circle_user_id");
+const CIRCLE_WALLET_READY_KEY = networkStorageKey("circle_wallet_ready");
 const CIRCLE_WALLET_ADDRESS_KEY =
-  "showup_circle_wallet_address";
-const CIRCLE_WALLET_ID_KEY = "showup_circle_wallet_id";
-const EVENT_SUBMISSIONS_KEY = "showup_event_submissions";
+  networkStorageKey("circle_wallet_address");
+const CIRCLE_WALLET_ID_KEY = networkStorageKey("circle_wallet_id");
+const EVENT_SUBMISSIONS_KEY = contractStorageKey("event_submissions");
 
 const MAX_EVENT_IMAGE_BYTES = 3_000_000;
 const MAX_AVATAR_BYTES = 750_000;
-const MAX_VIDEO_BYTES = 50_000_000;
+const MAX_VIDEO_BYTES = 25_000_000;
 
 const inputClassName =
   "mt-2 w-full rounded-2xl border border-[#79b7ff]/14 bg-[#0d142b] px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-[#73d8ff]/55 focus:bg-[#101a35] focus:shadow-[0_0_0_3px_rgba(115,216,255,0.08)] disabled:cursor-not-allowed disabled:opacity-40";
@@ -222,6 +230,8 @@ async function executeCircleChallenge(
   userToken: string,
   encryptionKey: string,
 ) {
+  markPendingTransaction();
+
   const appId =
     process.env.NEXT_PUBLIC_CIRCLE_APP_ID;
 
@@ -736,7 +746,7 @@ export default function CreateEventPage() {
           MAX_VIDEO_BYTES
         ) {
           throw new Error(
-            "Promo video must be 50 MB or smaller.",
+            "Promo video must be 25 MB or smaller.",
           );
         }
       }
@@ -1158,8 +1168,8 @@ export default function CreateEventPage() {
 
       setMessage(
         activeWallet.kind === "circle"
-          ? `Circle authorization completed. Your event transaction was submitted to Arc Testnet. Reference: ${refId}`
-          : `${activeWallet.providerName} confirmed the event transaction on Arc Testnet. Transaction: ${refId}`,
+          ? `Circle authorization completed. Your event transaction was submitted to ${ARC_NETWORK_LABEL}. Reference: ${refId}`
+          : `${activeWallet.providerName} confirmed the event transaction on ${ARC_NETWORK_LABEL}. Transaction: ${refId}`,
       );
     } catch (error) {
       console.error(
@@ -1185,7 +1195,7 @@ export default function CreateEventPage() {
       <section className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:py-14">
         <div className="mb-8 max-w-3xl">
           <div className="inline-flex rounded-full border border-[#73d8ff]/20 bg-[#73d8ff]/10 px-4 py-2 text-xs font-medium text-[#a9e3ff]">
-            Live on Arc Testnet
+            Live on {ARC_NETWORK_LABEL}
           </div>
 
           <h1 className="mt-5 text-4xl font-semibold tracking-tight sm:text-5xl">
@@ -1218,7 +1228,7 @@ export default function CreateEventPage() {
                 </div>
 
                 <span className="rounded-full border border-[#79b7ff]/12 px-3 py-1 text-xs text-white/40">
-                  Arc Testnet
+                  {ARC_NETWORK_LABEL}
                 </span>
               </div>
 
@@ -1508,7 +1518,7 @@ export default function CreateEventPage() {
                   </label>
 
                   <p className="mt-2 text-xs text-white/30">
-                    MP4 or WebM — maximum 50 MB.
+                    MP4 or WebM — maximum 25 MB.
                   </p>
 
                   {videoFile ? (
@@ -2150,19 +2160,24 @@ export default function CreateEventPage() {
                   <div className="mt-4 rounded-2xl border border-[#73d8ff]/20 bg-[#73d8ff]/10 p-4">
                     <p className="text-sm font-medium leading-6 text-[#b8e8ff]">
                       {eventType === "paid"
-                        ? "The upfront payment secures the reservation. After attendance is confirmed, the remaining balance becomes due."
+                        ? "The upfront payment secures the seat. The rest is due before the payment deadline. The full price is released to the organizer at check-in, or if the attendee is marked as a no-show."
                         : "Attend or cancel on time and the full commitment deposit returns."}
                     </p>
                   </div>
 
                   <div className="mt-6 rounded-2xl border border-[#79b7ff]/12 bg-[#0b1228] px-4 py-3">
                     <p className="text-xs text-white/30">
-                      ShowUp V5 contract
+                      ShowUp V6 contract
                     </p>
 
-                    <p className="mt-1 break-all font-mono text-xs leading-5 text-white/55">
-                      0x916fe65099332a613afb7413464D50183De7C263
-                    </p>
+                    <a
+                      href={explorerAddressUrl(SHOWUP_CONTRACT_ADDRESS)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 block break-all font-mono text-xs leading-5 text-white/55 underline decoration-white/20 hover:text-[#9bddff]"
+                    >
+                      {SHOWUP_CONTRACT_ADDRESS}
+                    </a>
                   </div>
                 </div>
               </div>

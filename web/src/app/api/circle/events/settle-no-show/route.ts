@@ -97,13 +97,20 @@ export async function POST(
       );
     }
 
+    // Free events settle "Reserved" reservations; paid events settle only
+    // fully paid ("Completed") ones, as ShowUpV6 requires.
+    const settleableStatus =
+      Number(eventDetails.eventType) === 1 ? 8 : 1;
+
     if (
       Number(
         reservation.status,
-      ) !== 1
+      ) !== settleableStatus
     ) {
       throw new ShowUpApiError(
-        "This attendee does not have an active reservation.",
+        settleableStatus === 8
+          ? "This attendee does not have a fully paid reservation."
+          : "This attendee does not have an active reservation.",
       );
     }
 

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { initiateUserControlledWalletsClient } from "@circle-fin/user-controlled-wallets";
+import {
+  CIRCLE_WALLET_BLOCKCHAINS,
+} from "@/lib/showup-network";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,10 +73,7 @@ export async function POST(request: Request) {
     try {
       const response = await circleClient.createUserPinWithWallets({
         userToken,
-        blockchains: [
-          "ARC-TESTNET",
-          "ETH-SEPOLIA",
-        ],
+        blockchains: [...CIRCLE_WALLET_BLOCKCHAINS],
         accountType: "EOA",
       });
 

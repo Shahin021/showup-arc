@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Contracts (tests, ABI sync, static analysis)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Unit, regression and randomized invariant tests
+        run: npx hardhat test
+      - name: Web ABI matches the compiled contract
+        run: |
+          node scripts/sync-web-abi.mjs
+          git diff --exit-code -- web/src/lib/showup-abi.ts
+      - name: Web contract calls match the ABI
+        run: node scripts/check-web-contract-calls.mjs
+      - name: Slither
+        run: |
+          pip install --quiet slither-analyzer solc-select
+          solc-select install 0.8.24
+          solc-select use 0.8.24
+          # Timestamp comparisons are intended (deadlines); costly-loop is
+          # informational for the bounded batch functions.
+          slither contracts/ShowUpV6.sol \
+            --solc-remaps "@openzeppelin/=node_modules/@openzeppelin/" \
+            --solc-args "--via-ir --optimize --evm-version cancun" \
+            --filter-paths node_modules \
+            --exclude timestamp,costly-loop
+
+  web:
+    name: Web (${{ matrix.network }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - network: testnet
+            chain: "5042002"
+          - network: mainnet
+            chain: "5042"
+    defaults:
+      run:
+        working-directory: web
+    env:
+      NEXT_PUBLIC_SHOWUP_NETWORK: ${{ matrix.network }}
+      NEXT_PUBLIC_SHOWUP_CHAIN_ID: ${{ matrix.chain }}
+      # Placeholder address: the build only needs a valid address.
+      NEXT_PUBLIC_SHOWUP_CONTRACT_ADDRESS: "0x000000000000000000000000000000000000dEaD"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run build

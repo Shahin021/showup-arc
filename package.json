@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "hardhat test",
-    "compile": "hardhat compile"
+    "compile": "hardhat compile",
+    "sync-abi": "hardhat compile && node scripts/sync-web-abi.mjs",
+    "deploy:testnet": "hardhat ignition deploy ignition/modules/ShowUpV6.ts --network arcTestnet --parameters ignition/parameters/arc-testnet.json",
+    "deploy:mainnet": "hardhat ignition deploy ignition/modules/ShowUpV6.ts --network arcMainnet --parameters ignition/parameters/arc-mainnet.json"
   },
   "repository": {
     "type": "git",
@@ -13,7 +16,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "module",
   "bugs": {
     "url": "https://github.com/Shahin021/showup-arc/issues"

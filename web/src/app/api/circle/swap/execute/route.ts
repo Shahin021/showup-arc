@@ -12,6 +12,7 @@ import {
   ShowUpApiError,
   verifyCircleArcWallet,
 } from "@/lib/showup-server";
+import { testnetToolsDisabledResponse } from "@/lib/feature-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +43,11 @@ function isCallData(
 export async function POST(
   request: Request,
 ) {
+  const disabled = testnetToolsDisabledResponse();
+  if (disabled) {
+    return disabled;
+  }
+
   try {
     const body =
       (await request

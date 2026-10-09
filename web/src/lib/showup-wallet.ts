@@ -1,23 +1,27 @@
+import {
+  networkStorageKey,
+} from "@/lib/showup-network";
+
 export const SHOWUP_WALLET_KIND_KEY =
-  "showup_wallet_kind";
+  networkStorageKey("wallet_kind");
 
 export const SHOWUP_WALLET_ADDRESS_KEY =
-  "showup_wallet_address";
+  networkStorageKey("wallet_address");
 
 export const SHOWUP_BROWSER_WALLET_RDNS_KEY =
-  "showup_browser_wallet_rdns";
+  networkStorageKey("browser_wallet_rdns");
 
 export const SHOWUP_BROWSER_WALLET_NAME_KEY =
-  "showup_browser_wallet_name";
+  networkStorageKey("browser_wallet_name");
 
 export const SHOWUP_WALLET_CHANGED_EVENT =
   "showup-wallet-changed";
 
 const LEGACY_CIRCLE_WALLET_READY_KEY =
-  "showup_circle_wallet_ready";
+  networkStorageKey("circle_wallet_ready");
 
 const LEGACY_CIRCLE_WALLET_ADDRESS_KEY =
-  "showup_circle_wallet_address";
+  networkStorageKey("circle_wallet_address");
 
 export type ShowUpWalletKind =
   | "circle"

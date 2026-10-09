@@ -9,15 +9,14 @@ import {
 import { sepolia } from "viem/chains";
 
 import { arcPublicClient } from "@/lib/arc-public-client";
+import {
+  ARC_EURC_ADDRESS,
+  ARC_USDC_ADDRESS,
+  FEATURES,
+} from "@/lib/showup-network";
 
 const ETHEREUM_SEPOLIA_USDC_ADDRESS =
   "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
-
-const ARC_TESTNET_USDC_ADDRESS =
-  "0x3600000000000000000000000000000000000000";
-
-const ARC_TESTNET_EURC_ADDRESS =
-  "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
 
 const ERC20_BALANCE_ABI = [
   {
@@ -93,28 +92,31 @@ export async function GET(
   const owner = getAddress(rawAddress);
 
   try {
+    // Sepolia balances are only relevant to the testnet bridge.
     const [
       ethereumSepoliaUsdc,
-      arcTestnetUsdc,
-      arcTestnetEurc,
+      arcUsdc,
+      arcEurc,
     ] = await Promise.all([
-      sepoliaPublicClient.readContract({
-        address:
-          ETHEREUM_SEPOLIA_USDC_ADDRESS,
+      FEATURES.testnetBridgeAndSwap
+        ? sepoliaPublicClient.readContract({
+            address:
+              ETHEREUM_SEPOLIA_USDC_ADDRESS,
+            abi: ERC20_BALANCE_ABI,
+            functionName: "balanceOf",
+            args: [owner],
+          })
+        : Promise.resolve(null),
+
+      arcPublicClient.readContract({
+        address: ARC_USDC_ADDRESS,
         abi: ERC20_BALANCE_ABI,
         functionName: "balanceOf",
         args: [owner],
       }),
 
       arcPublicClient.readContract({
-        address: ARC_TESTNET_USDC_ADDRESS,
-        abi: ERC20_BALANCE_ABI,
-        functionName: "balanceOf",
-        args: [owner],
-      }),
-
-      arcPublicClient.readContract({
-        address: ARC_TESTNET_EURC_ADDRESS,
+        address: ARC_EURC_ADDRESS,
         abi: ERC20_BALANCE_ABI,
         functionName: "balanceOf",
         args: [owner],
@@ -126,16 +128,19 @@ export async function GET(
         address: owner,
         balances: {
           ethereumSepolia: {
-            USDC: formatStablecoinBalance(
-              ethereumSepoliaUsdc,
-            ),
+            USDC:
+              ethereumSepoliaUsdc === null
+                ? null
+                : formatStablecoinBalance(
+                    ethereumSepoliaUsdc,
+                  ),
           },
-          arcTestnet: {
+          arc: {
             USDC: formatStablecoinBalance(
-              arcTestnetUsdc,
+              arcUsdc,
             ),
             EURC: formatStablecoinBalance(
-              arcTestnetEurc,
+              arcEurc,
             ),
           },
         },

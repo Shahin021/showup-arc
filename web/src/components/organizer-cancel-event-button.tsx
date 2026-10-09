@@ -4,18 +4,23 @@ import {
   useEffect,
   useState,
 } from "react";
+import {
+  ARC_NETWORK_LABEL,
+  networkStorageKey,
+} from "@/lib/showup-network";
+import { markPendingTransaction } from "@/lib/pending-transactions";
 
 const CIRCLE_USER_ID_KEY =
-  "showup_circle_user_id";
+  networkStorageKey("circle_user_id");
 
 const CIRCLE_WALLET_READY_KEY =
-  "showup_circle_wallet_ready";
+  networkStorageKey("circle_wallet_ready");
 
 const CIRCLE_WALLET_ADDRESS_KEY =
-  "showup_circle_wallet_address";
+  networkStorageKey("circle_wallet_address");
 
 const CIRCLE_WALLET_ID_KEY =
-  "showup_circle_wallet_id";
+  networkStorageKey("circle_wallet_id");
 
 type OrganizerCancelEventButtonProps = {
   eventId: string;
@@ -223,6 +228,8 @@ async function executeCircleChallenge(
   userToken: string,
   encryptionKey: string,
 ) {
+  markPendingTransaction();
+
   const appId =
     process.env
       .NEXT_PUBLIC_CIRCLE_APP_ID;
@@ -510,7 +517,7 @@ export default function OrganizerCancelEventButton({
       );
 
       setMessage(
-        "Cancellation submitted. Waiting for Arc Testnet confirmation...",
+        `Cancellation submitted. Waiting for ${ARC_NETWORK_LABEL} confirmation...`,
       );
 
       let confirmed = false;

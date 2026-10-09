@@ -20,11 +20,16 @@ import {
   SHOWUP_WALLET_CHANGED_EVENT,
   type ShowUpWalletKind,
 } from "@/lib/showup-wallet";
+import {
+  ARC_NETWORK_LABEL,
+  CIRCLE_ARC_BLOCKCHAIN,
+  networkStorageKey,
+} from "@/lib/showup-network";
 
-const CIRCLE_USER_ID_KEY = "showup_circle_user_id";
-const CIRCLE_WALLET_READY_KEY = "showup_circle_wallet_ready";
-const CIRCLE_WALLET_ADDRESS_KEY = "showup_circle_wallet_address";
-const CIRCLE_WALLET_ID_KEY = "showup_circle_wallet_id";
+const CIRCLE_USER_ID_KEY = networkStorageKey("circle_user_id");
+const CIRCLE_WALLET_READY_KEY = networkStorageKey("circle_wallet_ready");
+const CIRCLE_WALLET_ADDRESS_KEY = networkStorageKey("circle_wallet_address");
+const CIRCLE_WALLET_ID_KEY = networkStorageKey("circle_wallet_id");
 
 const CIRCLE_WALLET_CHANGED_EVENT =
   "showup-circle-wallet-changed";
@@ -299,7 +304,7 @@ async function requestCircleWallets(
       (wallet) =>
         wallet.id &&
         wallet.address &&
-        wallet.blockchain === "ARC-TESTNET",
+        wallet.blockchain === CIRCLE_ARC_BLOCKCHAIN,
     );
 
     if (response.ok && validWallets.length > 0) {
@@ -650,7 +655,7 @@ export default function CircleWalletButton() {
     userToken: string,
     attempts: number,
   ) {
-    setMessage("Loading your Arc Testnet wallet...");
+    setMessage(`Loading your ${ARC_NETWORK_LABEL} wallet...`);
 
     const availableWallets = await requestCircleWallets(
       userToken,
@@ -1209,7 +1214,7 @@ export default function CircleWalletButton() {
     }
 
     const confirmed = window.confirm(
-      "Create a new Arc Testnet wallet inside your current Circle account? Your existing wallets will remain available.",
+      `Create a new ${ARC_NETWORK_LABEL} wallet inside your current Circle account? Your existing wallets will remain available.`,
     );
 
     if (!confirmed) {
@@ -1557,7 +1562,7 @@ export default function CircleWalletButton() {
                     </p>
 
                     <span className="rounded-full bg-[#73d8ff]/10 px-2 py-1 text-[10px] font-medium text-[#b8e8ff]">
-                      Arc Testnet
+                      {ARC_NETWORK_LABEL}
                     </span>
                   </div>
 
@@ -1798,7 +1803,7 @@ export default function CircleWalletButton() {
 
                       <p className="mt-2 text-sm leading-6 text-white/45">
                         Choose how you want to connect to ShowUp
-                        on Arc Testnet.
+                        on {ARC_NETWORK_LABEL}.
                       </p>
                     </div>
 
@@ -1821,7 +1826,7 @@ export default function CircleWalletButton() {
                       </p>
 
                       <span className="rounded-full bg-[#73d8ff]/10 px-2.5 py-1 text-[10px] font-medium text-[#b8e8ff]">
-                        Arc Testnet
+                        {ARC_NETWORK_LABEL}
                       </span>
                     </div>
 
@@ -1990,13 +1995,13 @@ export default function CircleWalletButton() {
 
                       <span className="mt-1 block text-xs leading-5 text-white/40">
                         Create a PIN-secured wallet directly on
-                        Arc Testnet.
+                        {ARC_NETWORK_LABEL}.
                       </span>
                     </button>
                   </div>
 
                   <p className="mt-6 text-center text-[11px] text-white/25">
-                    ShowUp · Circle Wallets · USDC · Arc Testnet
+                    ShowUp · Circle Wallets · USDC · {ARC_NETWORK_LABEL}
                   </p>
                 </div>
               </div>,
