@@ -18,7 +18,7 @@
     "@circle-fin/user-controlled-wallets": "^10.8.0",
     "@circle-fin/w3s-pw-web-sdk": "^1.1.11",
     "@vercel/blob": "^2.6.1",
-    "next": "16.2.10",
+    "next": "16.4.0",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -32,9 +32,15 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"
+  },
+  "overrides": {
+    "firebase": {
+      "undici": "6.29.0",
+      "@grpc/grpc-js": "1.13.6"
+    }
   }
 }
