@@ -171,7 +171,11 @@ function CheckInContent() {
           throw new Error(data.error ?? "Unable to prepare the check-in.");
         }
         setMessage("Confirm the check-in with your Circle PIN.");
-        await runCircleChallenge(data.challengeId, session, { isTransaction: true });
+        await runCircleChallenge(data.challengeId, session, {
+          isTransaction: true,
+          pending: data,
+          label: "Check-in",
+        });
       } else {
         setMessage(`Confirm the check-in in ${wallet.providerName}.`);
         txHash = await checkInWithBrowserWallet(wallet.providerRdns, wallet.address, code);

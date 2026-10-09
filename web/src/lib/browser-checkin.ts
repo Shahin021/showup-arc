@@ -8,7 +8,7 @@ import {
   findBrowserWalletProvider,
   getArcFeeOverrides,
 } from "@/lib/browser-wallet";
-import { markPendingTransaction } from "@/lib/pending-transactions";
+import { markPendingBrowserTransaction } from "@/lib/pending-transactions";
 import { SHOWUP_ABI } from "@/lib/showup-abi";
 import {
   getViemCheckInTypedData,
@@ -54,7 +54,7 @@ export async function checkInWithBrowserWallet(
     arcPublicClient.estimateFeesPerGas(),
   );
 
-  markPendingTransaction();
+  markPendingBrowserTransaction(connection.address, "Check-in");
 
   const hash = await connection.walletClient.writeContract({
     account: connection.address,
@@ -64,6 +64,8 @@ export async function checkInWithBrowserWallet(
     args: [code.eventId, code.attendee, code.issuedAt, code.expiry, code.signature],
     ...fees,
   });
+
+  markPendingBrowserTransaction(connection.address, "Check-in", hash);
 
   const receipt = await arcPublicClient.waitForTransactionReceipt({
     hash,

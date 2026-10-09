@@ -59,6 +59,9 @@ jobs:
       # Placeholder address: the build only needs a valid address.
       NEXT_PUBLIC_SHOWUP_CONTRACT_ADDRESS: "0x000000000000000000000000000000000000dEaD"
       NEXT_TELEMETRY_DISABLED: "1"
+      # CI has no deployed contract at the placeholder address; real deploys
+      # run the on-chain contract check (see docs/DEPLOYMENT.md).
+      SHOWUP_SKIP_CONTRACT_CHECK: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

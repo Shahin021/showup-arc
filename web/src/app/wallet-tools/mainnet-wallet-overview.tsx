@@ -6,7 +6,6 @@ import { formatUnits, parseUnits } from "viem";
 import {
   ARC_NETWORK_LABEL,
   explorerAddressUrl,
-  GAS_RESERVE_USDC,
 } from "@/lib/showup-network";
 import {
   readActiveWallet,
@@ -17,7 +16,7 @@ import {
 const fiatOnrampEnabled = process.env.NEXT_PUBLIC_ENABLE_FIAT_ONRAMP === "true";
 const fiatOnrampUrl = process.env.NEXT_PUBLIC_FIAT_ONRAMP_URL ?? "";
 
-type Balances = { USDC: string; EURC: string };
+type Balances = { USDC: string; EURC: string; gasReserve: string };
 
 /**
  * Mainnet wallet page: real balances, the gas reserve, and how to add funds.
@@ -59,7 +58,10 @@ export default function MainnetWalletOverview() {
           throw new Error(data.error || "Unable to load balances.");
         }
         if (!cancelled) {
-          setResult({ address, balances: data.balances.arc as Balances });
+          setResult({
+            address,
+            balances: { ...data.balances.arc, gasReserve: data.gasReserve } as Balances,
+          });
         }
       })
       .catch((loadError: unknown) => {
@@ -86,13 +88,15 @@ export default function MainnetWalletOverview() {
   const loading = Boolean(wallet) && current === null;
 
   const usdcUnits = balances ? parseUnits(balances.USDC, 6) : null;
+  const reserveUnits = balances ? parseUnits(balances.gasReserve, 6) : null;
   const spendable =
-    usdcUnits === null
+    usdcUnits === null || reserveUnits === null
       ? null
-      : usdcUnits > GAS_RESERVE_USDC
-        ? usdcUnits - GAS_RESERVE_USDC
+      : usdcUnits > reserveUnits
+        ? usdcUnits - reserveUnits
         : BigInt(0);
-  const lowBalance = usdcUnits !== null && usdcUnits <= GAS_RESERVE_USDC;
+  const lowBalance =
+    usdcUnits !== null && reserveUnits !== null && usdcUnits <= reserveUnits;
 
   return (
     <section className="relative overflow-hidden">
@@ -145,9 +149,9 @@ export default function MainnetWalletOverview() {
               </div>
 
               <p className="mt-4 text-sm leading-6 text-white/45">
-                {formatUnits(GAS_RESERVE_USDC, 6)} USDC is kept aside for
-                network fees, so you can always pay for a refund or
-                cancellation later.
+                About {balances?.gasReserve ?? "…"} USDC (estimated from current
+                network fees) is kept aside so you can pay for the
+                reservation and for a later refund or cancellation.
               </p>
 
               {lowBalance ? (

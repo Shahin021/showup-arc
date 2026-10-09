@@ -18,7 +18,8 @@ import {
   CIRCLE_ARC_BLOCKCHAIN,
 } from "@/lib/showup-network";
 import {
-  countBlobs,
+  enforceUploadRateLimit,
+  reserveUploadQuota,
   UPLOAD_LIMITS,
   verifyUploadedVideo,
 } from "@/lib/upload-guard";
@@ -356,16 +357,8 @@ export async function POST(request: NextRequest) {
           walletPathKey,
         );
 
-        const existingVideos = await countBlobs(
-          `showup/videos/${walletPathKey}/`,
-          UPLOAD_LIMITS.videosPerWallet,
-        );
-
-        if (existingVideos >= UPLOAD_LIMITS.videosPerWallet) {
-          throw new Error(
-            `This wallet has reached the limit of ${UPLOAD_LIMITS.videosPerWallet} uploaded videos. Link an external video instead.`,
-          );
-        }
+        enforceUploadRateLimit(request);
+        await reserveUploadQuota("videos", walletPathKey);
 
         return {
           allowedContentTypes: [

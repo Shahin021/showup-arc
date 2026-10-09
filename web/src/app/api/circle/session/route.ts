@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { initiateUserControlledWalletsClient } from "@circle-fin/user-controlled-wallets";
+import type { NextRequest } from "next/server";
+import {
+  isBoundToCircleUser,
+  setCircleUserCookie,
+} from "@/lib/circle-user-binding";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +30,7 @@ function isValidUserId(userId: string) {
   return userId.length >= 5 && userId.length <= 50;
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as SessionRequest;
 
@@ -39,6 +44,23 @@ export async function POST(request: Request) {
         },
         {
           status: 400,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
+
+    // An existing user ID is only honoured from the browser it is bound to.
+    if (existingUserId && !isBoundToCircleUser(request, existingUserId)) {
+      return NextResponse.json(
+        {
+          error:
+            "This browser is not authorized for that wallet. Restore it with your recovery code.",
+          code: "circle_user_not_bound",
+        },
+        {
+          status: 401,
           headers: {
             "Cache-Control": "no-store",
           },
@@ -74,7 +96,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         userId,
         userToken,
@@ -88,6 +110,12 @@ export async function POST(request: Request) {
         },
       },
     );
+
+    if (isNewUser) {
+      setCircleUserCookie(response, request, userId);
+    }
+
+    return response;
   } catch (error) {
     console.error("Circle session creation failed:", error);
 

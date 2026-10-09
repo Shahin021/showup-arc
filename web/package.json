@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/verify-contract.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check-contract": "node scripts/verify-contract.mjs"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.14.1",

@@ -17,9 +17,9 @@ import {
   CIRCLE_ARC_BLOCKCHAIN,
 } from "@/lib/showup-network";
 import {
-  countFolders,
+  enforceUploadRateLimit,
+  reserveUploadQuota,
   sniffImageType,
-  UPLOAD_LIMITS,
 } from "@/lib/upload-guard";
 
 export const runtime = "nodejs";
@@ -448,17 +448,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existingUploads = await countFolders(
-      `showup/events/${wallet.address.toLowerCase()}/`,
-      UPLOAD_LIMITS.metadataUploadsPerWallet,
-    );
-
-    if (existingUploads >= UPLOAD_LIMITS.metadataUploadsPerWallet) {
-      throw new Error(
-        `This wallet has reached the limit of ${UPLOAD_LIMITS.metadataUploadsPerWallet} event uploads.`,
-      );
-    }
-
     for (const [label, image] of [
       ["Event image", eventImage],
       ["Organizer avatar", organizerAvatar],
@@ -475,6 +464,9 @@ export async function POST(request: NextRequest) {
         );
       }
     }
+
+    enforceUploadRateLimit(request);
+    await reserveUploadQuota("events", wallet.address);
 
     const metadataId = randomUUID();
 

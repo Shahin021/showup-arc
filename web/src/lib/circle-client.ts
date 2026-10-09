@@ -1,6 +1,6 @@
 "use client";
 
-import { markPendingTransaction } from "@/lib/pending-transactions";
+import { markPendingCircleTransaction } from "@/lib/pending-transactions";
 import { networkStorageKey } from "@/lib/showup-network";
 
 /**
@@ -54,7 +54,12 @@ export async function getCircleSession(userId: string) {
 export async function runCircleChallenge(
   challengeId: string,
   session: { userToken: string; encryptionKey: string },
-  options: { isTransaction: boolean },
+  options: {
+    isTransaction: boolean;
+    /** The API route's challenge response (with refId), for transactions. */
+    pending?: unknown;
+    label?: string;
+  },
 ) {
   const appId = process.env.NEXT_PUBLIC_CIRCLE_APP_ID;
   if (!appId) {
@@ -62,7 +67,7 @@ export async function runCircleChallenge(
   }
 
   if (options.isTransaction) {
-    markPendingTransaction();
+    markPendingCircleTransaction(options.pending, options.label);
   }
 
   const { W3SSdk } = await import("@circle-fin/w3s-pw-web-sdk");

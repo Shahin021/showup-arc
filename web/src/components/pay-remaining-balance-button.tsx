@@ -8,7 +8,7 @@ import {
   ARC_NETWORK_LABEL,
   networkStorageKey,
 } from "@/lib/showup-network";
-import { markPendingTransaction } from "@/lib/pending-transactions";
+import { markPendingCircleTransaction } from "@/lib/pending-transactions";
 
 const CIRCLE_USER_ID_KEY =
   networkStorageKey("circle_user_id");
@@ -177,8 +177,6 @@ async function executeCircleChallenge(
   userToken: string,
   encryptionKey: string,
 ) {
-  markPendingTransaction();
-
   const appId =
     process.env
       .NEXT_PUBLIC_CIRCLE_APP_ID;
@@ -802,6 +800,8 @@ export default function PayRemainingBalanceButton({
             `Enter your Circle PIN to approve ${payment.formatted} USDC.`,
           );
 
+          markPendingCircleTransaction(approvalData, "USDC approval");
+
           await executeCircleChallenge(
             approvalData.challengeId,
             session.userToken,
@@ -883,6 +883,8 @@ export default function PayRemainingBalanceButton({
       setMessage(
         `Enter your Circle PIN to pay the remaining ${remainingFormatted} USDC.`,
       );
+
+      markPendingCircleTransaction(paymentData, "Remaining balance payment");
 
       await executeCircleChallenge(
         paymentData.challengeId,

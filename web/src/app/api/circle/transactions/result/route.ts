@@ -81,6 +81,14 @@ function readString(
     : "";
 }
 
+function singleUnlabelled(
+  candidates: CircleTransaction[],
+) {
+  return candidates.length === 1
+    ? candidates[0]
+    : undefined;
+}
+
 async function getOnchainReceipt(
   transaction: CircleTransaction,
 ) {
@@ -257,13 +265,18 @@ export async function POST(
           item.refId === refId &&
           item.walletId === walletId,
       ) ??
-      transactions.find(
-        (item) =>
-          item.walletId === walletId &&
-          !item.refId &&
-          typeof item.createDate === "string" &&
-          Date.parse(item.createDate) >=
-            Date.parse(createdAfter),
+      // Fallback for listings that omit refId: accept an unlabelled
+      // transaction only when it is the single one from this wallet since
+      // the challenge was created, so a result is never misattributed.
+      singleUnlabelled(
+        transactions.filter(
+          (item) =>
+            item.walletId === walletId &&
+            !item.refId &&
+            typeof item.createDate === "string" &&
+            Date.parse(item.createDate) >=
+              Date.parse(createdAfter),
+        ),
       );
 
     console.log("[circle-tx-poll]", {

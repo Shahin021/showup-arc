@@ -9,6 +9,7 @@ import {
 import { sepolia } from "viem/chains";
 
 import { arcPublicClient } from "@/lib/arc-public-client";
+import { estimateGasReserveUsdc } from "@/lib/gas-reserve";
 import {
   ARC_EURC_ADDRESS,
   ARC_USDC_ADDRESS,
@@ -126,6 +127,9 @@ export async function GET(
     return Response.json(
       {
         address: owner,
+        gasReserve: formatStablecoinBalance(
+          await estimateGasReserveUsdc(),
+        ),
         balances: {
           ethereumSepolia: {
             USDC:

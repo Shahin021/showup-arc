@@ -74,8 +74,11 @@ deadline (at most 7 days after the event ends).
 
 - USDC is both the gas token (18 decimals natively) and an ERC-20 at
   `0x3600…0000` (6 decimals) over the same balance. The contract only uses
-  the ERC-20 interface. The app never adds the two representations and
-  keeps 0.10 USDC aside for fees when checking whether a wallet can pay.
+  the ERC-20 interface. The app never adds the two representations. When
+  checking whether a wallet can pay, it keeps aside an estimate of the fees
+  for the approval, the payment and one follow-up transaction, computed
+  from the current fee level (minimum 0.02 USDC). It is an estimate, not a
+  guarantee, because fees can change before the transaction is sent.
 - USDC transfers to or from a blocklisted address revert. A refund to a
   blocklisted attendee therefore cannot be paid out; a batch that includes
   such an attendee reverts as a whole, and the organizer can retry without
@@ -85,27 +88,41 @@ deadline (at most 7 days after the event ends).
   and the no-show window (`end <= t <= resolution`) never overlap.
 - Browser-wallet transactions set at least Arc's 20 gwei fee floor, below
   which transactions are dropped without an error.
+- Organizers may use smart contract wallets: invitations and check-in codes
+  are verified with ERC-1271 both on-chain and in the app, and tests cover a
+  smart-wallet organizer.
 
 ## Web application
 
 - **Wallet verification.** Every API route that prepares a transaction or
   accepts an upload verifies the Circle wallet with Circle, or a signed
   browser-wallet session cookie bound to the domain and chain ID.
-- **Circle sessions.** A Circle session is obtained from a Circle user ID
-  stored in the browser. That ID therefore acts as a bearer credential for
-  reading the user's wallets; every transaction still requires the user's
-  PIN, so funds cannot be moved with the ID alone. Treat a shared or public
-  computer accordingly.
-- **Uploads.** Uploads require a verified wallet, are limited per wallet
-  (3 videos up to 25 MB, 25 event uploads), and are checked by their actual
-  file bytes, not only the declared type. Uploaded videos that are not real
-  MP4 or WebM files are deleted.
-- **Hosting limits.** On Vercel's free (Hobby) plan, exceeding the included
-  Blob storage pauses uploads and media for 30 days rather than billing.
-  Event titles, descriptions, prices and all funds are on-chain and keep
-  working; only images, video and long descriptions would be unavailable.
-  A weekly backup workflow copies the Blob store, and a restore script puts
-  files back at the same URLs.
+- **Circle sessions.** Circle sessions are issued from a Circle user ID.
+  The server only accepts an ID together with an httpOnly cookie it signed
+  for that ID, set when the user was created in that browser or restored
+  with a recovery code. Knowing someone's user ID is therefore not enough to
+  open their session or to mint a recovery code, and every transaction
+  still requires the user's PIN. A new browser needs the recovery code.
+- **Uploads.** Uploads require a verified wallet. Before an upload is
+  authorized, the server atomically reserves a per-wallet slot (3 videos,
+  25 event uploads) and an app-wide slot (20 videos and 100 event uploads by
+  default, set with `SHOWUP_MAX_TOTAL_VIDEOS` and
+  `SHOWUP_MAX_TOTAL_EVENT_UPLOADS`). A slot is a marker file written without
+  overwrite, so concurrent requests cannot share one; the app-wide cap holds
+  however many wallets someone creates. A per-IP rate limit adds burst
+  protection, but it is per server instance, so it is best effort. Files are
+  checked by their leading bytes, which rejects renamed or mislabelled
+  files; this is a format check and does not prove a video is complete or
+  playable. Uploaded videos that fail it are deleted.
+- **Hosting limits.** Vercel's free (Hobby) plan includes limited Blob
+  storage (1 GB), operations and data transfer. Exceeding any of them pauses
+  Blob for 30 days rather than billing; the app-wide caps keep storage
+  within the limit, and quota checks themselves use Blob operations. Event
+  titles, descriptions, prices and all funds are on-chain and keep working;
+  only images, video and long descriptions would be unavailable. A weekly
+  backup workflow copies the Blob store, and a restore script puts files
+  back at the same URLs. Hobby is for personal, non-commercial use; move to
+  a paid plan before ShowUp earns revenue.
 - **No secrets in the browser.** The Circle API key and the server secrets
   are only used in API routes. Never commit `.env` files or private keys;
   use the Hardhat keystore for the deployer key.

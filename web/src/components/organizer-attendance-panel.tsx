@@ -15,7 +15,7 @@ import {
   ARC_NETWORK_LABEL,
   networkStorageKey,
 } from "@/lib/showup-network";
-import { markPendingTransaction } from "@/lib/pending-transactions";
+import { markPendingCircleTransaction } from "@/lib/pending-transactions";
 
 const CIRCLE_USER_ID_KEY =
   networkStorageKey("circle_user_id");
@@ -417,8 +417,6 @@ async function executeCircleChallenge(
   userToken: string,
   encryptionKey: string,
 ) {
-  markPendingTransaction();
-
   const appId =
     process.env
       .NEXT_PUBLIC_CIRCLE_APP_ID;
@@ -1249,6 +1247,8 @@ export default function OrganizerAttendancePanel({
         );
       }
 
+      markPendingCircleTransaction(data, "Attendance confirmation");
+
       await executeCircleChallenge(
         data.challengeId,
         session.userToken,
@@ -1444,6 +1444,8 @@ export default function OrganizerAttendancePanel({
         );
       }
 
+      markPendingCircleTransaction(data, "No-show settlement");
+
       await executeCircleChallenge(
         data.challengeId,
         session.userToken,
@@ -1606,6 +1608,8 @@ export default function OrganizerAttendancePanel({
           attendee,
         )} as payment defaulted. Their upfront payment will be transferred to the organizer.`,
       );
+
+      markPendingCircleTransaction(data, "Payment default");
 
       await executeCircleChallenge(
         data.challengeId,

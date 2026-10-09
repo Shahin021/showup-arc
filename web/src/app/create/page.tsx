@@ -24,7 +24,7 @@ import {
   explorerAddressUrl,
   networkStorageKey,
 } from "@/lib/showup-network";
-import { markPendingTransaction } from "@/lib/pending-transactions";
+import { markPendingCircleTransaction } from "@/lib/pending-transactions";
 
 const CIRCLE_USER_ID_KEY = networkStorageKey("circle_user_id");
 const CIRCLE_WALLET_READY_KEY = networkStorageKey("circle_wallet_ready");
@@ -230,8 +230,6 @@ async function executeCircleChallenge(
   userToken: string,
   encryptionKey: string,
 ) {
-  markPendingTransaction();
-
   const appId =
     process.env.NEXT_PUBLIC_CIRCLE_APP_ID;
 
@@ -1101,6 +1099,8 @@ export default function CreateEventPage() {
         setMessage(
           "Confirm the transaction with your Circle PIN.",
         );
+
+        markPendingCircleTransaction(challengeData, "Event creation");
 
         await executeCircleChallenge(
           challengeData.challengeId,

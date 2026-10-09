@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { readShowUpRecoveryCode } from "@/lib/showup-recovery";
+import type { NextRequest } from "next/server";
+import { setCircleUserCookie } from "@/lib/circle-user-binding";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,7 +10,7 @@ type RestoreRequest = {
   recoveryCode?: unknown;
 };
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = (await request
       .json()
@@ -36,7 +38,7 @@ export async function POST(request: Request) {
     const recoveryPayload =
       readShowUpRecoveryCode(recoveryCode);
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         userId: recoveryPayload.userId,
         createdAt: recoveryPayload.createdAt,
@@ -48,6 +50,11 @@ export async function POST(request: Request) {
         },
       },
     );
+
+    // A valid recovery code authorizes this browser for the user.
+    setCircleUserCookie(response, request, recoveryPayload.userId);
+
+    return response;
   } catch (error) {
     console.error(
       "ShowUp wallet restoration failed:",

@@ -118,7 +118,7 @@ Requires Node.js 22.
 ```bash
 # Contracts
 npm ci
-npm test                    # 127 tests, including randomized invariants
+npm test                    # 132 tests, including randomized invariants
 
 # Web app
 cd web

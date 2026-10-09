@@ -5,12 +5,12 @@ import {
   isAddress,
 } from "viem";
 import { arcPublicClient } from "@/lib/arc-public-client";
+import { estimateGasReserveUsdc } from "@/lib/gas-reserve";
 import { SHOWUP_ABI } from "@/lib/showup-abi";
 import {
   ARC_NETWORK_LABEL,
   ARC_USDC_ADDRESS,
   CIRCLE_ARC_BLOCKCHAIN,
-  GAS_RESERVE_USDC,
   SHOWUP_CONTRACT_ADDRESS,
   type CircleWalletBlockchain,
 } from "@/lib/showup-network";
@@ -238,18 +238,20 @@ export async function getUsdcAccountState(
   ]);
 
   // `balance` is what can be spent on ShowUp payments: the ERC-20 USDC
-  // balance minus a small reserve for network fees, which on Arc are paid
-  // from the same USDC. Every sufficiency check uses it, so a payment never
-  // leaves a wallet unable to pay for its next transaction.
+  // balance minus an estimated reserve for network fees, which on Arc are
+  // paid from the same USDC (see lib/gas-reserve.ts). Every sufficiency
+  // check uses it, so a payment does not leave the wallet unable to pay for
+  // the approval, the payment and the transaction that follows.
+  const gasReserve = await estimateGasReserveUsdc();
   const spendable =
-    balance > GAS_RESERVE_USDC
-      ? balance - GAS_RESERVE_USDC
+    balance > gasReserve
+      ? balance - gasReserve
       : BigInt(0);
 
   return {
     balance: spendable,
     totalBalance: balance,
-    gasReserve: GAS_RESERVE_USDC,
+    gasReserve,
     allowance,
   };
 }

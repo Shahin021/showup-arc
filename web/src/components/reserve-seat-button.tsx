@@ -13,7 +13,7 @@ import {
   ARC_NETWORK_LABEL,
   networkStorageKey,
 } from "@/lib/showup-network";
-import { markPendingTransaction } from "@/lib/pending-transactions";
+import { markPendingCircleTransaction } from "@/lib/pending-transactions";
 
 const CIRCLE_USER_ID_KEY =
   networkStorageKey("circle_user_id");
@@ -333,8 +333,6 @@ async function executeCircleChallenge(
   userToken: string,
   encryptionKey: string,
 ) {
-  markPendingTransaction();
-
   const appId =
     process.env
       .NEXT_PUBLIC_CIRCLE_APP_ID;
@@ -1415,6 +1413,8 @@ export default function ReserveSeatButton({
               `Enter your Circle PIN to approve ${currentTotalPriceFormatted} USDC for full payment.`,
             );
 
+            markPendingCircleTransaction(approvalData, "USDC approval");
+
             await executeCircleChallenge(
               approvalData.challengeId,
               session.userToken,
@@ -1500,6 +1500,8 @@ export default function ReserveSeatButton({
         setMessage(
           `Enter your Circle PIN to pay ${currentTotalPriceFormatted} USDC in full and reserve your seat.`,
         );
+
+        markPendingCircleTransaction(reserveData, "Full-payment reservation");
 
         await executeCircleChallenge(
           reserveData.challengeId,
@@ -1622,6 +1624,8 @@ export default function ReserveSeatButton({
               : `Enter your Circle PIN to approve the ${currentDepositFormatted} USDC refundable deposit.`,
           );
 
+          markPendingCircleTransaction(approvalData, "USDC approval");
+
           await executeCircleChallenge(
             approvalData.challengeId,
             session.userToken,
@@ -1720,6 +1724,8 @@ export default function ReserveSeatButton({
           `Enter your Circle PIN to lock the ${currentDepositFormatted} USDC refundable deposit and reserve your seat.`,
         );
       }
+
+      markPendingCircleTransaction(reserveData, "Reservation");
 
       await executeCircleChallenge(
         reserveData.challengeId,
@@ -1907,6 +1913,8 @@ export default function ReserveSeatButton({
       setMessage(
         "Enter your Circle PIN to claim the available USDC refund.",
       );
+
+      markPendingCircleTransaction(data, "Refund claim");
 
       await executeCircleChallenge(
         data.challengeId,

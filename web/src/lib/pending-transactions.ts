@@ -1,48 +1,126 @@
 import {
   networkStorageKey,
+  SHOWUP_CONTRACT_ADDRESS,
+  SHOWUP_NETWORK,
 } from "@/lib/showup-network";
 
 /**
- * Remembers that the user approved a transaction, so that if the page is
- * refreshed or the connection drops before it confirms, the next page load
- * can say so and keep re-reading on-chain state until it settles.
+ * Remembers the transaction the user just approved, with enough detail to
+ * look up *that* transaction's result later: the Circle reference (wallet,
+ * refId, start time) or the transaction hash for browser wallets, plus the
+ * wallet, network and contract it belongs to.
  *
- * The chain stays the source of truth: nothing here marks a transaction as
- * successful. Components always re-read reservation and event state.
+ * If the page is reloaded or the connection drops before the transaction
+ * settles, the next page load resumes tracking it (see
+ * components/pending-transaction-notice.tsx) and shows its real outcome.
+ * Nothing here marks a transaction as successful by itself.
  */
 
 const PENDING_KEY = networkStorageKey("pending_transaction");
 
-/** How long after approval a transaction is treated as possibly pending. */
-export const PENDING_TRANSACTION_WINDOW_MS = 3 * 60 * 1000;
+/** After this long without a result, the notice says the status is unknown. */
+export const PENDING_TRANSACTION_GIVE_UP_MS = 30 * 60 * 1000;
 
 export type PendingTransaction = {
+  network: string;
+  contract: string;
+  label: string;
+  walletAddress: string | null;
   startedAt: number;
-  /** Identifies the page load that started it, to detect a refresh. */
   pageLoadId: string;
-};
+} & (
+  | {
+      kind: "circle";
+      walletId: string;
+      refId: string;
+      createdAfter: string;
+    }
+  | {
+      kind: "browser";
+      txHash: string | null;
+    }
+);
 
-// A random id per page load. A marker written by a different page load
-// means the page was reloaded while the transaction was in flight.
+// A random id per page load, to tell a reload apart from the same session.
 const PAGE_LOAD_ID =
   typeof window === "undefined"
     ? "server"
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-export function markPendingTransaction() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
+function write(value: PendingTransaction) {
   try {
-    const value: PendingTransaction = {
-      startedAt: Date.now(),
-      pageLoadId: PAGE_LOAD_ID,
-    };
     window.localStorage.setItem(PENDING_KEY, JSON.stringify(value));
   } catch {
     // Storage can be unavailable (private mode); the flow still works.
   }
+}
+
+function readStoredWallet() {
+  try {
+    return {
+      address: window.localStorage.getItem(networkStorageKey("circle_wallet_address")),
+      walletId: window.localStorage.getItem(networkStorageKey("circle_wallet_id")),
+    };
+  } catch {
+    return { address: null, walletId: null };
+  }
+}
+
+function base(label: string, walletAddress: string | null) {
+  return {
+    network: SHOWUP_NETWORK,
+    contract: SHOWUP_CONTRACT_ADDRESS,
+    label,
+    walletAddress,
+    startedAt: Date.now(),
+    pageLoadId: PAGE_LOAD_ID,
+  };
+}
+
+/**
+ * Records a Circle transaction before the PIN dialog opens. `challenge` is
+ * the response of the API route that created it, which includes the
+ * transaction's reference ID and start time.
+ */
+export function markPendingCircleTransaction(
+  challenge: unknown,
+  label = "Transaction",
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const data = (challenge ?? {}) as { refId?: unknown; createdAfter?: unknown };
+  const wallet = readStoredWallet();
+
+  if (
+    typeof data.refId !== "string" ||
+    typeof data.createdAfter !== "string" ||
+    !wallet.walletId
+  ) {
+    return;
+  }
+
+  write({
+    ...base(label, wallet.address),
+    kind: "circle",
+    walletId: wallet.walletId,
+    refId: data.refId,
+    createdAfter: data.createdAfter,
+  });
+}
+
+/** Records a browser-wallet transaction; call again with the hash once known. */
+export function markPendingBrowserTransaction(
+  walletAddress: string,
+  label: string,
+  txHash: string | null = null,
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  write({ ...base(label, walletAddress), kind: "browser", txHash });
 }
 
 export function clearPendingTransaction() {
@@ -53,7 +131,10 @@ export function clearPendingTransaction() {
   }
 }
 
-/** Returns a pending transaction started before this page load, if recent. */
+/**
+ * Returns a transaction recorded by an earlier page load on this network
+ * and contract. Records for another network or contract are discarded.
+ */
 export function readInterruptedTransaction(): PendingTransaction | null {
   if (typeof window === "undefined") {
     return null;
@@ -66,9 +147,11 @@ export function readInterruptedTransaction(): PendingTransaction | null {
     }
 
     const value = JSON.parse(raw) as PendingTransaction;
-    const age = Date.now() - value.startedAt;
 
-    if (!Number.isFinite(age) || age > PENDING_TRANSACTION_WINDOW_MS) {
+    if (
+      value.network !== SHOWUP_NETWORK ||
+      value.contract?.toLowerCase() !== SHOWUP_CONTRACT_ADDRESS.toLowerCase()
+    ) {
       clearPendingTransaction();
       return null;
     }

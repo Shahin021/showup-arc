@@ -4,6 +4,7 @@ import {
   getArcFeeOverrides,
 } from "@/lib/browser-wallet";
 import { arcPublicClient } from "@/lib/arc-public-client";
+import { markPendingBrowserTransaction } from "@/lib/pending-transactions";
 import { assertWithinReservationCap } from "@/lib/showup-cap";
 import { ARC_NETWORK_LABEL } from "@/lib/showup-network";
 import {
@@ -57,6 +58,8 @@ export async function createEventWithBrowserWallet({
     arcPublicClient.estimateFeesPerGas(),
   );
 
+  markPendingBrowserTransaction(connection.address, "Event creation");
+
   const transactionHash =
     await connection.walletClient.writeContract({
       account: connection.address,
@@ -66,6 +69,12 @@ export async function createEventWithBrowserWallet({
       args,
       ...fees,
     });
+
+  markPendingBrowserTransaction(
+    connection.address,
+    "Event creation",
+    transactionHash,
+  );
 
   const receipt =
     await arcPublicClient.waitForTransactionReceipt({

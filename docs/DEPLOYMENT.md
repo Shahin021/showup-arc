@@ -14,8 +14,11 @@ anyone else. Never paste a private key into chat, an issue or a commit.
 - A dedicated **deployer wallet** used only for deployments. On Arc, gas is
   paid in USDC, so it needs a little USDC on each network (test USDC from
   https://faucet.circle.com for testnet; a few real USDC on mainnet).
-- A Circle Developer account and a Vercel account (the free Hobby plan is
-  enough; it never bills, it pauses a service that exceeds its quota).
+- A Circle Developer account and a Vercel account. The free Hobby plan is
+  enough for the demo: it never bills and instead pauses a service that
+  exceeds its quota (Blob has storage, operation and transfer quotas). Hobby
+  is for personal, non-commercial use, so check Vercel's terms for your case
+  and move to a paid plan before ShowUp earns revenue.
 
 ## 1. Test the contract
 
@@ -99,7 +102,15 @@ production key and App ID so wallets are created on `ARC`.
 | `CIRCLE_API_KEY`, `NEXT_PUBLIC_CIRCLE_APP_ID` | testnet values | production values |
 | `SHOWUP_WALLET_AUTH_SECRET`, `SHOWUP_RECOVERY_SECRET` | `openssl rand -hex 32` | new values (do not reuse) |
 
-4. Deploy a **preview** first, run the checklist below against it, then
+4. Optional: `SHOWUP_MAX_TOTAL_VIDEOS` and `SHOWUP_MAX_TOTAL_EVENT_UPLOADS`
+   cap all uploads together (defaults 20 and 100, sized for a 1 GB store).
+5. Every build first runs `npm run check-contract` (the `prebuild` step). It
+   reads the configured address from the network and stops the deploy unless
+   it is a ShowUpV6 with Arc USDC, a non-zero cap, the expected check-in TTL
+   and the right EIP-712 domain for that chain. You can run it yourself in
+   `web/` with the same variables. Only builds without network access (CI)
+   set `SHOWUP_SKIP_CONTRACT_CHECK=1`.
+6. Deploy a **preview** first, run the checklist below against it, then
    promote it to production.
 
 The app refuses to start if the network or contract address is missing or
@@ -124,7 +135,10 @@ the result is visible on-chain, not when a transaction hash appears.
 | No-show is blocked after check-in | Settling a no-show for the checked-in attendee is refused, and their status stays Attended |
 | Paid event: pay in full, check in | Status Attended; the price arrived in the organizer wallet |
 | Fallback refund | For a reservation left unsettled, the attendee reclaims it after the resolution deadline |
-| Reload during a transaction | After reload, the notice appears and the status updates by itself |
+| Reload during a transaction | After reload, the notice names that transaction and then shows its real result (confirmed, failed with a reason, or unknown) with an explorer link |
+| Circle smart-contract (SCA) organizer, if you use one | A check-in QR signed by the SCA wallet is accepted by the check-in page and on-chain |
+| A second browser cannot reuse the Circle user ID | Opening the wallet in another browser asks for the recovery code; after restoring it works |
+| Upload limits | A fourth video from the same wallet is refused with the limit message |
 | Escrow is consistent | The contract's USDC balance on the explorer equals `totalEscrowed()` |
 
 Write down every transaction hash as you go; they are the evidence for the

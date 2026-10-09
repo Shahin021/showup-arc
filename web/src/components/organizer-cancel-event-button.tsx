@@ -8,7 +8,7 @@ import {
   ARC_NETWORK_LABEL,
   networkStorageKey,
 } from "@/lib/showup-network";
-import { markPendingTransaction } from "@/lib/pending-transactions";
+import { markPendingCircleTransaction } from "@/lib/pending-transactions";
 
 const CIRCLE_USER_ID_KEY =
   networkStorageKey("circle_user_id");
@@ -220,7 +220,7 @@ async function requestCancelChallenge(
     );
   }
 
-  return data.challengeId;
+  return data;
 }
 
 async function executeCircleChallenge(
@@ -228,8 +228,6 @@ async function executeCircleChallenge(
   userToken: string,
   encryptionKey: string,
 ) {
-  markPendingTransaction();
-
   const appId =
     process.env
       .NEXT_PUBLIC_CIRCLE_APP_ID;
@@ -497,7 +495,7 @@ export default function OrganizerCancelEventButton({
         "Preparing the cancellation transaction...",
       );
 
-      const challengeId =
+      const cancelChallenge =
         await requestCancelChallenge({
           userToken:
             session.userToken,
@@ -510,8 +508,10 @@ export default function OrganizerCancelEventButton({
         "Approve the cancellation with your Circle PIN.",
       );
 
+      markPendingCircleTransaction(cancelChallenge, "Event cancellation");
+
       await executeCircleChallenge(
-        challengeId,
+        cancelChallenge.challengeId!,
         session.userToken,
         session.encryptionKey,
       );

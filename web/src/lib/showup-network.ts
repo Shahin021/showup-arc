@@ -179,12 +179,6 @@ export const SHOWUP_EIP712_DOMAIN = {
  */
 export const ARC_MIN_MAX_FEE_PER_GAS = BigInt(20_000_000_000); // 20 gwei
 
-/**
- * USDC kept aside for gas when deciding whether a wallet can afford a
- * payment, so a reservation never leaves the wallet unable to pay for its
- * next transaction (for example a refund claim). 6-decimal ERC-20 units.
- */
-export const GAS_RESERVE_USDC = BigInt(100_000); // 0.10 USDC
 
 /** Arc on the configured network, or Ethereum Sepolia for the testnet bridge. */
 export type CircleWalletBlockchain = CircleArcBlockchain | "ETH-SEPOLIA";
