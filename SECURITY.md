@@ -48,8 +48,8 @@ V6 limits and exposes this trust:
    the event ID, an optional attendee address, an issue time and an expiry,
    bound to Arc's chain ID and the contract address. Codes are valid for at
    most 15 minutes and only between the event start and end.
-2. **Per-reservation cap.** `maxReservationAmount` (set at deployment, 100
-   USDC by default) bounds the deposit of a free event and the full ticket
+2. **Per-reservation cap.** `maxReservationAmount` (set at deployment; 20 USDC on
+   mainnet) bounds the deposit of a free event and the full ticket
    price of a paid event, so it bounds what one attendee can lose.
 3. **Public record.** `getOrganizerStats` exposes how many no-shows an
    organizer has settled and how much they collected, and the event page

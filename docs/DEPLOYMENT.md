@@ -47,13 +47,12 @@ cd ..
 Everything must pass. Push the branch and let CI run as well (it also runs
 Slither and checks the web ABI against the contract).
 
-## 2. Choose the reservation cap
+## 2. The reservation cap: 20 USDC
 
 `ignition/parameters/arc-mainnet.json` sets `maxReservationAmount`, the most
-USDC a single reservation can ever lock (6 decimals, `100000000n` = 100
-USDC). It is fixed for the life of the contract. For a first launch a lower
-cap is reasonable, for example `20000000n` (20 USDC). Edit it before
-deploying if you want a different value.
+USDC a single reservation can ever lock, to `20000000n` (20 USDC, 6
+decimals). It is fixed for the life of the contract, and the verify command
+in step 5 uses the same value (`20000000`).
 
 ## 3. Store the deployer key (owner)
 
@@ -94,7 +93,7 @@ npx hardhat verify --network arcMainnet <CONTRACT_ADDRESS> \
   0x3600000000000000000000000000000000000000 <CAP_IN_UNITS>
 ```
 
-`<CAP_IN_UNITS>` is the cap without the `n`, for example `100000000`.
+`<CAP_IN_UNITS>` is the cap without the `n`: `20000000`.
 
 If API verification is rejected, use the explorer's web form:
 

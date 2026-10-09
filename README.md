@@ -60,7 +60,7 @@ every reservation is refundable if the organizer cancels the event.
   their wallet; attendees scan it and check in from their own wallet. A
   checked-in reservation can no longer be marked as a no-show.
 - **Per-reservation cap (new in V6).** The contract enforces the maximum
-  amount any single reservation can lock (100 USDC by default), which bounds
+  amount any single reservation can lock (20 USDC on mainnet), which bounds
   what an attendee can lose to a dishonest organizer.
 - **Public organizer record (new in V6).** Events created and cancelled,
   attendances, self check-ins, and no-shows settled with the amount
