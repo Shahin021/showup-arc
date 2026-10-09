@@ -41,10 +41,20 @@ async function listAll(prefix: string) {
   return files;
 }
 
-const covered = [
-  ...(await readCoveredMediaPaths("events")),
-  ...(await readCoveredMediaPaths("videos")),
-];
+// If any used quota record cannot be read, stop: an unreadable record must
+// never make the media it protects look orphaned.
+let covered: string[];
+try {
+  covered = [
+    ...(await readCoveredMediaPaths("events")),
+    ...(await readCoveredMediaPaths("videos")),
+  ];
+} catch (error) {
+  console.error(
+    `Aborting cleanup, nothing was deleted: ${error instanceof Error ? error.message : error}`,
+  );
+  process.exit(1);
+}
 const media = [
   ...(await listAll("showup/events/")),
   ...(await listAll("showup/videos/")),

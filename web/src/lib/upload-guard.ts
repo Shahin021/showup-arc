@@ -43,10 +43,14 @@ export class UploadLimitError extends Error {}
 
 const QUOTA_ROOT = "showup/quota";
 
-async function readText(pathname: string) {
+/** Reads a quota record. Any failure throws; it never reads as "empty". */
+async function readText(pathname: string): Promise<string> {
   const blob = await head(pathname);
   const response = await fetch(blob.url, { cache: "no-store" });
-  return response.ok ? response.text() : null;
+  if (!response.ok) {
+    throw new Error(`Could not read ${pathname}: HTTP ${response.status}`);
+  }
+  return response.text();
 }
 
 // Indirection so the lease logic can be tested against an in-memory store
@@ -202,15 +206,22 @@ export async function releaseQuotaLease(lease: QuotaLease) {
 
 /**
  * Atomically turns our reservation into a used slot covering `mediaPath`.
- * Returns the new lease (for rollback) or null if the lease was lost: the
- * slot was taken over after it expired. Unknown errors are thrown.
+ *
+ * Idempotent: if the slot is already finalized for this same media path
+ * (a repeated or concurrent upload-completed callback for the same file),
+ * that counts as success. Returns the current lease (for rollback), or null
+ * only when the slot definitely belongs to someone else: it was taken over
+ * after our lease expired, finalized for other media, or removed. Any
+ * failure to determine this is thrown, never reported as null.
  */
 export async function finalizeQuotaLease(
   lease: QuotaLease,
   mediaPath: string,
 ): Promise<QuotaLease | null> {
+  const usedContent = `${USED_PREFIX}${mediaPath}`;
+
   try {
-    const marker = await blobApi.put(lease.pathname, `${USED_PREFIX}${mediaPath}`, {
+    const marker = await blobApi.put(lease.pathname, usedContent, {
       access: "public",
       addRandomSuffix: false,
       contentType: "text/plain",
@@ -219,11 +230,32 @@ export async function finalizeQuotaLease(
     });
     return { pathname: lease.pathname, etag: marker.etag };
   } catch (error) {
-    if (isLostRace(error) || isNotFound(error)) {
-      return null;
+    if (!isLostRace(error) && !isNotFound(error)) {
+      throw error;
+    }
+  }
+
+  // Our ETag no longer matches. Find out whether that is because this same
+  // file was already finalized (success) or because someone else owns it.
+  let current: { etag: string; size: number };
+  try {
+    current = await blobApi.head(lease.pathname);
+  } catch (error) {
+    if (isNotFound(error)) {
+      return null; // Released or never ours.
     }
     throw error;
   }
+
+  if (current.size !== Buffer.byteLength(usedContent)) {
+    return null; // Reserved by someone else, or used for other media.
+  }
+
+  // Used records are immutable, so reading the content is safe.
+  const content = await blobApi.readText(lease.pathname);
+  return content === usedContent
+    ? { pathname: lease.pathname, etag: current.etag }
+    : null;
 }
 
 export type UploadReservation = {
@@ -359,7 +391,14 @@ export function findOrphanedMedia(
   );
 }
 
-/** Reads the media paths recorded in used slots (immutable records). */
+export class QuotaReadError extends Error {}
+
+/**
+ * Reads the media paths recorded in used slots (immutable records).
+ * If any used record cannot be read or does not hold a valid path, this
+ * throws instead of skipping it: an unreadable record must never make the
+ * media it protects look orphaned.
+ */
 export async function readCoveredMediaPaths(kind: "videos" | "events") {
   const records = await listSlots(`${QUOTA_ROOT}/${kind}/all/`);
   const paths: string[] = [];
@@ -367,10 +406,23 @@ export async function readCoveredMediaPaths(kind: "videos" | "events") {
     if (record.size <= RESERVED_CONTENT.length) {
       continue;
     }
-    const content = await blobApi.readText(pathname);
-    if (content?.startsWith(USED_PREFIX)) {
-      paths.push(content.slice(USED_PREFIX.length));
+    let content: string;
+    try {
+      content = await blobApi.readText(pathname);
+    } catch (error) {
+      throw new QuotaReadError(
+        `Could not read used quota record ${pathname}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
+    const mediaPath = content.startsWith(USED_PREFIX)
+      ? content.slice(USED_PREFIX.length)
+      : "";
+    if (!mediaPath.startsWith("showup/")) {
+      throw new QuotaReadError(`Used quota record ${pathname} has invalid content.`);
+    }
+    paths.push(mediaPath);
   }
   return paths;
 }

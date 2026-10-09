@@ -36,7 +36,12 @@ jobs:
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
           SHOWUP_CLEANUP_SINCE: ${{ vars.SHOWUP_CLEANUP_SINCE }}
-        run: npm run blob-cleanup -- --delete
+        # Dry run (lists candidates) unless the repository variable
+        # SHOWUP_CLEANUP_DELETE is "true". Keep it off until a dry run on
+        # the live store has been reviewed.
+        run: >-
+          npm run blob-cleanup --
+          ${{ vars.SHOWUP_CLEANUP_DELETE == 'true' && '--delete' || '' }}
       - uses: actions/upload-artifact@v4
         with:
           name: blob-backup-${{ github.run_id }}

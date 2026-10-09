@@ -433,15 +433,24 @@ export async function POST(request: NextRequest) {
         // Without a reservation, a lost lease or an error, it is deleted, so
         // no stored video is left uncounted. (The cleanup job also removes
         // anything a crash leaves behind.)
-        let finalized = false;
+        // Finalizing is idempotent, so a repeated or concurrent callback for
+        // this same video succeeds again. If finalizing fails with an error
+        // (state unknown), the video is kept; the cleanup job removes it
+        // later only if no used slot covers it.
+        let finalized: boolean;
         try {
           finalized = reservation
             ? await finalizeUploadReservation(reservation, blob.pathname)
             : false;
         } catch (error) {
-          console.error("ShowUp could not finalize a video quota:", error);
+          console.error(
+            "ShowUp could not finalize a video quota; keeping the video for the cleanup job:",
+            error,
+          );
+          return;
         }
 
+        // Only a definite "the slots belong to someone else" deletes it.
         if (!finalized) {
           console.warn(
             "ShowUp removed a video whose quota could not be finalized:",

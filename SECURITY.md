@@ -127,11 +127,17 @@ deadline (at most 7 days after the event ends).
 - **No uncounted files.** Stored media must end up covered by a used slot.
   A failed event upload deletes every file it stored and releases its
   slots; if finalizing fails because a lease was lost, the files are
-  deleted and any slot already finalized is rolled back. A video whose
-  slots cannot be finalized is deleted. If a deletion itself fails (or the
-  server crashes mid-upload), the weekly cleanup job removes media that no
-  used slot covers, ignoring files younger than about two hours and files
-  uploaded before `SHOWUP_CLEANUP_SINCE`. The opposite case is possible but
+  deleted and any slot already finalized is rolled back. Finalizing is
+  idempotent: a repeated or concurrent upload-completed callback for the
+  same video counts as success, so a redelivered webhook never deletes a
+  good upload. A video is deleted only when its slots definitely belong to
+  someone else; if finalizing fails with an error, the video is kept. If a
+  deletion fails (or the server crashes mid-upload), the cleanup job
+  removes media that no used slot covers, ignoring files younger than about
+  two hours and files uploaded before `SHOWUP_CLEANUP_SINCE`. If any used
+  slot cannot be read or holds invalid content, the job stops without
+  deleting anything. It runs as a dry run until `SHOWUP_CLEANUP_DELETE` is
+  set to `true`. The opposite case is possible but
   safe: an unexpected error after one slot was finalized can leave that
   slot counted without media, which slightly over-counts the quota.
 - **Testing and limits of the guarantees.** The lease logic is tested

@@ -33,6 +33,7 @@ type Stored = { etag: string; uploadedAt: Date; body: string };
 let store: Map<string, Stored>;
 let etagCounter = 0;
 let failDeletes = false;
+let failReads = false;
 
 // Each storage call waits a pseudo-random number of event-loop turns, so
 // concurrent requests interleave in different orders (deterministic seed).
@@ -102,10 +103,23 @@ function fakeBlobApi() {
       if (!existing) {
         throw new BlobError("The requested blob does not exist");
       }
-      return { pathname, url: `https://blob.test/${pathname}`, ...existing };
+      return {
+        pathname,
+        url: `https://blob.test/${pathname}`,
+        size: Buffer.byteLength(existing.body),
+        ...existing,
+      };
     },
     async readText(pathname: string) {
-      return store.get(pathname)?.body ?? null;
+      await tick();
+      if (failReads) {
+        throw new Error("HTTP 503");
+      }
+      const value = store.get(pathname);
+      if (!value) {
+        throw new Error("not found");
+      }
+      return value.body;
     },
   };
 }
@@ -117,6 +131,7 @@ const usedUnder = (prefix: string) =>
 beforeEach(() => {
   store = new Map();
   failDeletes = false;
+  failReads = false;
   setBlobApiForTesting(fakeBlobApi() as never);
 });
 
@@ -239,6 +254,52 @@ describe("upload quota leases", () => {
     assert.ok(oldWins > 0 && newWins > 0, `old ${oldWins}, new ${newWins}`);
   });
 
+  it("treats a repeated completion callback for the same file as success", async () => {
+    const reservation = await reserveUploadQuota("videos", "wallet-r");
+    const path = "showup/videos/wallet-r/clip-abc123.mp4";
+    assert.equal(await finalizeUploadReservation(reservation, path), true);
+    // The webhook is delivered again with the same token payload.
+    assert.equal(await finalizeUploadReservation(reservation, path), true);
+    assert.equal(store.get(reservation.globalLease.pathname)!.body, `U:${path}`);
+  });
+
+  it("treats concurrent completion callbacks for the same file as success", async () => {
+    for (let round = 0; round < 20; round++) {
+      store = new Map();
+      setBlobApiForTesting(fakeBlobApi() as never);
+      const reservation = await reserveUploadQuota("videos", "wallet-c2");
+      const path = `showup/videos/wallet-c2/clip-${round}.mp4`;
+      const results = await Promise.all([
+        finalizeUploadReservation(reservation, path),
+        finalizeUploadReservation(reservation, path),
+        finalizeUploadReservation(reservation, path),
+      ]);
+      assert.deepEqual(results, [true, true, true]);
+      assert.equal(store.get(reservation.walletLease.pathname)!.body, `U:${path}`);
+      assert.equal(store.get(reservation.globalLease.pathname)!.body, `U:${path}`);
+    }
+  });
+
+  it("does not count a slot finalized for a different file as ours", async () => {
+    const reservation = await reserveUploadQuota("videos", "wallet-x");
+    assert.equal(
+      await finalizeUploadReservation(reservation, "showup/videos/wallet-x/one.mp4"),
+      true,
+    );
+    assert.equal(
+      await finalizeUploadReservation(reservation, "showup/videos/wallet-x/two.mp4"),
+      false,
+    );
+  });
+
+  it("throws instead of reporting a lost lease when the slot cannot be read", async () => {
+    const reservation = await reserveUploadQuota("videos", "wallet-f");
+    const path = "showup/videos/wallet-f/clip.mp4";
+    await finalizeUploadReservation(reservation, path);
+    failReads = true;
+    await assert.rejects(finalizeUploadReservation(reservation, path));
+  });
+
   it("rolls back the wallet slot when the app-wide slot was lost", async () => {
     const reservation = await reserveUploadQuota("events", "wallet-c");
     // Simulate losing the app-wide lease to a takeover.
@@ -282,6 +343,20 @@ describe("upload rollback and cleanup", () => {
     await transaction.rollback();
     console.error = originalError;
     assert.equal(keysUnder("showup/events/").length, 1);
+  });
+
+  it("aborts instead of treating an unreadable used record as missing", async () => {
+    const reservation = await reserveUploadQuota("events", "wallet-e");
+    await finalizeUploadReservation(reservation, "showup/events/wallet-e/kept/");
+    failReads = true;
+    await assert.rejects(readCoveredMediaPaths("events"), guard.QuotaReadError);
+  });
+
+  it("aborts on a used record with invalid content", async () => {
+    const reservation = await reserveUploadQuota("events", "wallet-g");
+    await finalizeUploadReservation(reservation, "showup/events/wallet-g/kept/");
+    store.get(reservation.globalLease.pathname)!.body = "U:garbage";
+    await assert.rejects(readCoveredMediaPaths("events"), guard.QuotaReadError);
   });
 
   it("finds media not covered by a used slot, but leaves recent uploads alone", async () => {
