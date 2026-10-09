@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { del } from "@vercel/blob";
 import {
   handleUpload,
   type HandleUploadBody,
@@ -19,12 +18,10 @@ import {
   CIRCLE_ARC_BLOCKCHAIN,
 } from "@/lib/showup-network";
 import {
+  completeVideoUpload,
   enforceUploadRateLimit,
-  finalizeUploadReservation,
-  releaseUploadReservation,
   reserveUploadQuota,
   UPLOAD_LIMITS,
-  verifyUploadedVideo,
   type UploadReservation,
 } from "@/lib/upload-guard";
 
@@ -416,52 +413,17 @@ export async function POST(request: NextRequest) {
           authorization?.quota ?? null
         ) as UploadReservation | null;
 
-        const genuine = await verifyUploadedVideo(blob.url);
+        const outcome = await completeVideoUpload({
+          url: blob.url,
+          pathname: blob.pathname,
+          reservation,
+        });
 
-        if (!genuine) {
-          console.warn(
-            "ShowUp removed an upload that is not a valid video:",
-            blob.pathname,
-          );
-          if (reservation) {
-            await releaseUploadReservation(reservation);
-          }
-          return;
-        }
-
-        // The video stays only if both quota slots are finalized for it.
-        // Without a reservation, a lost lease or an error, it is deleted, so
-        // no stored video is left uncounted. (The cleanup job also removes
-        // anything a crash leaves behind.)
-        // Finalizing is idempotent, so a repeated or concurrent callback for
-        // this same video succeeds again. If finalizing fails with an error
-        // (state unknown), the video is kept; the cleanup job removes it
-        // later only if no used slot covers it.
-        let finalized: boolean;
-        try {
-          finalized = reservation
-            ? await finalizeUploadReservation(reservation, blob.pathname)
-            : false;
-        } catch (error) {
-          console.error(
-            "ShowUp could not finalize a video quota; keeping the video for the cleanup job:",
-            error,
-          );
-          return;
-        }
-
-        // Only a definite "the slots belong to someone else" deletes it.
-        if (!finalized) {
-          console.warn(
-            "ShowUp removed a video whose quota could not be finalized:",
-            blob.pathname,
-          );
-          await del(blob.url).catch((error: unknown) => {
-            console.error("ShowUp could not delete the video; cleanup will:", error);
+        if (outcome !== "kept") {
+          console.warn("ShowUp video upload completion:", {
+            outcome,
+            pathname: blob.pathname,
           });
-          if (reservation) {
-            await releaseUploadReservation(reservation);
-          }
           return;
         }
 

@@ -43,19 +43,15 @@ export class UploadLimitError extends Error {}
 
 const QUOTA_ROOT = "showup/quota";
 
-/** Reads a quota record. Any failure throws; it never reads as "empty". */
-async function readText(pathname: string): Promise<string> {
-  const blob = await head(pathname);
-  const response = await fetch(blob.url, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Could not read ${pathname}: HTTP ${response.status}`);
-  }
-  return response.text();
-}
-
 // Indirection so the lease logic can be tested against an in-memory store
-// (see web/tests/upload-quota.test.mts).
-let blobApi = { list, put, del, head, readText };
+// and a simulated CDN (see web/tests/upload-quota.test.mts).
+let blobApi = {
+  list,
+  put,
+  del,
+  head,
+  fetch: (url: string, init?: RequestInit) => fetch(url, init),
+};
 
 export function setBlobApiForTesting(api: typeof blobApi) {
   blobApi = api;
@@ -92,6 +88,60 @@ export type QuotaLease = {
   pathname: string;
   etag: string;
 };
+
+/** Raised when a record's current content cannot be established. */
+export class QuotaReadError extends Error {}
+
+function normalizeEtag(etag: string) {
+  return etag.replace(/^W\//, "").replace(/"/g, "").trim();
+}
+
+/**
+ * Reads a quota record's content and proves it is the current version.
+ *
+ * File contents are served through a CDN, which can return an older
+ * version even with `cache: "no-store"`. So the request carries the
+ * current ETag (from the store's metadata API) as a cache-busting query,
+ * and the response must carry that same ETag. A failed, stale, or
+ * unverifiable response throws QuotaReadError: it means "unknown", never
+ * "empty" or "someone else's".
+ */
+async function readCurrentRecord(pathname: string) {
+  let meta: { url: string; etag: string; size: number };
+  try {
+    meta = await blobApi.head(pathname);
+  } catch (error) {
+    throw new QuotaReadError(
+      `Could not read ${pathname}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const expected = normalizeEtag(meta.etag);
+  let response: Response;
+  try {
+    response = await blobApi.fetch(
+      `${meta.url}?showup_v=${encodeURIComponent(expected)}`,
+      { cache: "no-store" },
+    );
+  } catch (error) {
+    throw new QuotaReadError(
+      `Could not read ${pathname}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  if (!response.ok) {
+    throw new QuotaReadError(`Could not read ${pathname}: HTTP ${response.status}`);
+  }
+
+  const served = response.headers.get("etag");
+  if (!served || normalizeEtag(served) !== expected) {
+    throw new QuotaReadError(
+      `The content served for ${pathname} could not be verified as current.`,
+    );
+  }
+
+  return { text: await response.text(), etag: meta.etag, size: meta.size };
+}
 
 const RESERVED_CONTENT = "R";
 export const USED_PREFIX = "U:";
@@ -237,23 +287,30 @@ export async function finalizeQuotaLease(
 
   // Our ETag no longer matches. Find out whether that is because this same
   // file was already finalized (success) or because someone else owns it.
+  // Only verified evidence returns null; anything uncertain throws.
   let current: { etag: string; size: number };
   try {
     current = await blobApi.head(lease.pathname);
   } catch (error) {
     if (isNotFound(error)) {
-      return null; // Released or never ours.
+      return null; // The record is gone: released, so not ours.
     }
     throw error;
   }
 
   if (current.size !== Buffer.byteLength(usedContent)) {
-    return null; // Reserved by someone else, or used for other media.
+    // The store's metadata shows a different record: reserved by another
+    // request ("R") or used for media with a different path.
+    return null;
   }
 
-  // Used records are immutable, so reading the content is safe.
-  const content = await blobApi.readText(lease.pathname);
-  return content === usedContent
+  // Same size: read the content, verified to be the current version.
+  const record = await readCurrentRecord(lease.pathname);
+  if (normalizeEtag(record.etag) !== normalizeEtag(current.etag)) {
+    throw new QuotaReadError(`${lease.pathname} changed while it was being checked.`);
+  }
+
+  return record.text === usedContent
     ? { pathname: lease.pathname, etag: current.etag }
     : null;
 }
@@ -391,8 +448,6 @@ export function findOrphanedMedia(
   );
 }
 
-export class QuotaReadError extends Error {}
-
 /**
  * Reads the media paths recorded in used slots (immutable records).
  * If any used record cannot be read or does not hold a valid path, this
@@ -406,16 +461,8 @@ export async function readCoveredMediaPaths(kind: "videos" | "events") {
     if (record.size <= RESERVED_CONTENT.length) {
       continue;
     }
-    let content: string;
-    try {
-      content = await blobApi.readText(pathname);
-    } catch (error) {
-      throw new QuotaReadError(
-        `Could not read used quota record ${pathname}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    }
+    // Throws QuotaReadError if the content cannot be verified as current.
+    const content = (await readCurrentRecord(pathname)).text;
     const mediaPath = content.startsWith(USED_PREFIX)
       ? content.slice(USED_PREFIX.length)
       : "";
@@ -493,17 +540,83 @@ export function sniffVideoType(bytes: Uint8Array) {
 
 /**
  * Client uploads go straight to Blob, so their leading bytes are checked
- * after the upload completes and the file is deleted if it is not an
- * MP4/WebM container. (A format check, not proof the video plays.)
+ * after the upload completes. "invalid" is returned only when the bytes
+ * were actually read and are not an MP4/WebM container; a failed or short
+ * read is "unknown". (A format check, not proof the video plays.)
  */
-export async function verifyUploadedVideo(url: string) {
-  const response = await fetch(url, { headers: { Range: "bytes=0-15" } });
-  const bytes = new Uint8Array(await response.arrayBuffer());
+export async function checkUploadedVideo(
+  url: string,
+): Promise<"valid" | "invalid" | "unknown"> {
+  try {
+    const response = await blobApi.fetch(url, {
+      headers: { Range: "bytes=0-15" },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return "unknown";
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length < 12) {
+      return "unknown";
+    }
+    return sniffVideoType(bytes) === null ? "invalid" : "valid";
+  } catch {
+    return "unknown";
+  }
+}
 
-  if (sniffVideoType(bytes) === null) {
-    await del(url);
-    return false;
+export type VideoCompletion =
+  | "kept"
+  | "kept-unknown"
+  | "deleted-invalid"
+  | "deleted-lost-quota";
+
+/**
+ * Handles an upload-completed callback for a video. Safe to run more than
+ * once, concurrently, for the same video (webhooks can be redelivered).
+ *
+ * The video is deleted only on verified evidence: its bytes were read and
+ * are not a video, or its quota slots verifiably belong to someone else.
+ * Any uncertainty (failed read, stale CDN content, store errors, a missing
+ * reservation) keeps the video; the cleanup job later removes it only if
+ * no used slot covers it.
+ */
+export async function completeVideoUpload(input: {
+  url: string;
+  pathname: string;
+  reservation: UploadReservation | null;
+}): Promise<VideoCompletion> {
+  const check = await checkUploadedVideo(input.url);
+
+  if (check === "invalid") {
+    await blobApi.del(input.url).catch((error: unknown) => {
+      console.error("ShowUp could not delete an invalid video; cleanup will:", error);
+    });
+    if (input.reservation) {
+      await releaseUploadReservation(input.reservation);
+    }
+    return "deleted-invalid";
   }
 
-  return true;
+  if (check === "unknown" || !input.reservation) {
+    return "kept-unknown";
+  }
+
+  let finalized: boolean;
+  try {
+    finalized = await finalizeUploadReservation(input.reservation, input.pathname);
+  } catch (error) {
+    console.error("ShowUp could not finalize a video quota; keeping the video:", error);
+    return "kept-unknown";
+  }
+
+  if (finalized) {
+    return "kept";
+  }
+
+  await blobApi.del(input.url).catch((error: unknown) => {
+    console.error("ShowUp could not delete the video; cleanup will:", error);
+  });
+  await releaseUploadReservation(input.reservation);
+  return "deleted-lost-quota";
 }

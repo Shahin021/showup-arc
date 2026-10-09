@@ -34,6 +34,11 @@ let store: Map<string, Stored>;
 let etagCounter = 0;
 let failDeletes = false;
 let failReads = false;
+// Simulated CDN: when on, content reads return the version captured in
+// `cdnCache` (with that version's ETag), whatever the query string says.
+let staleCdn = false;
+let omitEtagHeader = false;
+const cdnCache = new Map<string, { body: string; etag: string }>();
 
 // Each storage call waits a pseudo-random number of event-loop turns, so
 // concurrent requests interleave in different orders (deterministic seed).
@@ -110,16 +115,26 @@ function fakeBlobApi() {
         ...existing,
       };
     },
-    async readText(pathname: string) {
+    async fetch(url: string, init?: { headers?: Record<string, string> }) {
       await tick();
       if (failReads) {
-        throw new Error("HTTP 503");
+        return new Response("unavailable", { status: 503 });
       }
-      const value = store.get(pathname);
-      if (!value) {
-        throw new Error("not found");
+      const pathname = url.replace("https://blob.test/", "").split("?")[0];
+      const current = store.get(pathname);
+      const served =
+        staleCdn && cdnCache.has(pathname)
+          ? cdnCache.get(pathname)!
+          : current
+            ? { body: current.body, etag: current.etag }
+            : null;
+      if (!served) {
+        return new Response("not found", { status: 404 });
       }
-      return value.body;
+      const range = init?.headers?.Range;
+      const body = range ? served.body.slice(0, 16) : served.body;
+      const headers: Record<string, string> = omitEtagHeader ? {} : { etag: `"${served.etag}"` };
+      return new Response(body, { status: range ? 206 : 200, headers });
     },
   };
 }
@@ -132,6 +147,9 @@ beforeEach(() => {
   store = new Map();
   failDeletes = false;
   failReads = false;
+  staleCdn = false;
+  omitEtagHeader = false;
+  cdnCache.clear();
   setBlobApiForTesting(fakeBlobApi() as never);
 });
 
@@ -321,7 +339,118 @@ describe("upload quota leases", () => {
   });
 });
 
+const VIDEO_BYTES = "\u0000\u0000\u0000\u0018ftypmp42-rest-of-the-video";
+
+/** Stores a video file and returns what the completion callback receives. */
+async function storeVideo(wallet: string, name: string) {
+  const reservation = await reserveUploadQuota("videos", wallet);
+  const pathname = `showup/videos/${wallet}/${name}.mp4`;
+  await fakeBlobApi().put(pathname, VIDEO_BYTES, {});
+  return { url: `https://blob.test/${pathname}`, pathname, reservation };
+}
+
+describe("video completion callback", () => {
+  it("keeps a valid video and finalizes its slots", async () => {
+    const upload = await storeVideo("wallet-v", "clip-a1");
+    assert.equal(await guard.completeVideoUpload(upload), "kept");
+    assert.ok(store.has(upload.pathname));
+    assert.equal(store.get(upload.reservation.globalLease.pathname)!.body, `U:${upload.pathname}`);
+  });
+
+  it("keeps the video when a repeated callback sees fresh metadata but stale CDN content", async () => {
+    const upload = await storeVideo("wallet-s", "clip-s1");
+    // The CDN cached the slots while they were still reserved ("R").
+    for (const lease of [upload.reservation.walletLease, upload.reservation.globalLease]) {
+      const record = store.get(lease.pathname)!;
+      cdnCache.set(lease.pathname, { body: record.body, etag: record.etag });
+    }
+    assert.equal(await guard.completeVideoUpload(upload), "kept");
+
+    // Redelivered webhook: head() is fresh (used), the CDN still serves "R".
+    staleCdn = true;
+    const second = await guard.completeVideoUpload(upload);
+    assert.equal(second, "kept-unknown");
+    assert.ok(store.has(upload.pathname), "the successful video was deleted");
+    assert.equal(store.get(upload.reservation.globalLease.pathname)!.body, `U:${upload.pathname}`);
+  });
+
+  it("keeps the video when the CDN serves the right bytes without a verifiable ETag", async () => {
+    const upload = await storeVideo("wallet-n", "clip-n1");
+    assert.equal(await guard.completeVideoUpload(upload), "kept");
+    omitEtagHeader = true;
+    assert.equal(await guard.completeVideoUpload(upload), "kept-unknown");
+    assert.ok(store.has(upload.pathname));
+  });
+
+  it("never deletes a successful video under repeated, concurrent callbacks with a stale CDN", async () => {
+    for (let round = 0; round < 20; round++) {
+      store = new Map();
+      cdnCache.clear();
+      setBlobApiForTesting(fakeBlobApi() as never);
+      staleCdn = round % 2 === 0;
+      const upload = await storeVideo("wallet-cc", `clip-${round}`);
+      for (const lease of [upload.reservation.walletLease, upload.reservation.globalLease]) {
+        const record = store.get(lease.pathname)!;
+        cdnCache.set(lease.pathname, { body: record.body, etag: record.etag });
+      }
+      const outcomes = await Promise.all([
+        guard.completeVideoUpload(upload),
+        guard.completeVideoUpload(upload),
+        guard.completeVideoUpload(upload),
+      ]);
+      assert.ok(store.has(upload.pathname), `round ${round}: video deleted (${outcomes})`);
+      assert.ok(outcomes.includes("kept"), `round ${round}: never finalized (${outcomes})`);
+      assert.ok(
+        outcomes.every((outcome) => outcome === "kept" || outcome === "kept-unknown"),
+        `round ${round}: ${outcomes}`,
+      );
+      assert.equal(store.get(upload.reservation.walletLease.pathname)!.body, `U:${upload.pathname}`);
+    }
+  });
+
+  it("deletes the video only on verified evidence that its slot is someone else's", async () => {
+    const upload = await storeVideo("wallet-l", "clip-l1");
+    // The global lease was verifiably taken over (a different "R" record).
+    store.set(upload.reservation.globalLease.pathname, {
+      etag: "takeover",
+      uploadedAt: new Date(now),
+      body: "R",
+    });
+    assert.equal(await guard.completeVideoUpload(upload), "deleted-lost-quota");
+    assert.ok(!store.has(upload.pathname));
+  });
+
+  it("keeps the video when its bytes cannot be read", async () => {
+    const upload = await storeVideo("wallet-u", "clip-u1");
+    failReads = true;
+    assert.equal(await guard.completeVideoUpload(upload), "kept-unknown");
+    assert.ok(store.has(upload.pathname));
+  });
+
+  it("deletes a file whose bytes were read and are not a video", async () => {
+    const reservation = await reserveUploadQuota("videos", "wallet-i");
+    const pathname = "showup/videos/wallet-i/fake.mp4";
+    await fakeBlobApi().put(pathname, "this is not a video file at all", {});
+    const outcome = await guard.completeVideoUpload({
+      url: `https://blob.test/${pathname}`,
+      pathname,
+      reservation,
+    });
+    assert.equal(outcome, "deleted-invalid");
+    assert.ok(!store.has(pathname));
+  });
+});
+
 describe("upload rollback and cleanup", () => {
+  it("aborts the cleanup when the CDN serves stale used records", async () => {
+    const reservation = await reserveUploadQuota("events", "wallet-cdn");
+    const record = store.get(reservation.globalLease.pathname)!;
+    cdnCache.set(reservation.globalLease.pathname, { body: record.body, etag: record.etag });
+    await finalizeUploadReservation(reservation, "showup/events/wallet-cdn/kept/");
+    staleCdn = true;
+    await assert.rejects(readCoveredMediaPaths("events"), guard.QuotaReadError);
+  });
+
   it("removes every file of a failed upload", async () => {
     const api = fakeBlobApi();
     const transaction = new UploadTransaction();

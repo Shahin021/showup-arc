@@ -130,8 +130,11 @@ deadline (at most 7 days after the event ends).
   deleted and any slot already finalized is rolled back. Finalizing is
   idempotent: a repeated or concurrent upload-completed callback for the
   same video counts as success, so a redelivered webhook never deletes a
-  good upload. A video is deleted only when its slots definitely belong to
-  someone else; if finalizing fails with an error, the video is kept. If a
+  good upload. Record contents are read through a CDN, so a read must carry
+  the ETag the store's metadata reports for the current version; a stale,
+  failed or unverifiable read counts as "unknown". A video is deleted only
+  on verified evidence: its bytes were read and are not a video, or its
+  slot verifiably belongs to someone else. Any uncertainty keeps it. If a
   deletion fails (or the server crashes mid-upload), the cleanup job
   removes media that no used slot covers, ignoring files younger than about
   two hours and files uploaded before `SHOWUP_CLEANUP_SINCE`. If any used
