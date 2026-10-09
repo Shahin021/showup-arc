@@ -25,6 +25,7 @@ import {
   CIRCLE_ARC_BLOCKCHAIN,
   networkStorageKey,
 } from "@/lib/showup-network";
+import { migrateLegacyCircleUser } from "@/lib/legacy-circle-migration";
 
 const CIRCLE_USER_ID_KEY = networkStorageKey("circle_user_id");
 const CIRCLE_WALLET_READY_KEY = networkStorageKey("circle_wallet_ready");
@@ -493,6 +494,13 @@ export default function CircleWalletButton() {
     let cancelled = false;
 
     async function restoreWallet() {
+      // Testnet only: carry over a wallet from the earlier site version.
+      await migrateLegacyCircleUser();
+
+      if (cancelled) {
+        return;
+      }
+
       const activeWallet = readActiveWallet();
 
       if (activeWallet?.kind === "browser") {

@@ -104,13 +104,19 @@ production key and App ID so wallets are created on `ARC`.
 
 4. Optional: `SHOWUP_MAX_TOTAL_VIDEOS` and `SHOWUP_MAX_TOTAL_EVENT_UPLOADS`
    cap all uploads together (defaults 20 and 100, sized for a 1 GB store).
-5. Every build first runs `npm run check-contract` (the `prebuild` step). It
+5. **Testnet upgrade only:** existing users of the current testnet site
+   keep their Circle wallets through a one-time migration, as long as the
+   upgraded site stays on the same domain (browser storage is per domain). Set
+   `SHOWUP_LEGACY_MIGRATION_UNTIL` to a date a few weeks ahead (for example
+   `2026-11-15`) on the testnet project; after that date the migration route
+   closes. Do not set it on mainnet.
+6. Every build first runs `npm run check-contract` (the `prebuild` step). It
    reads the configured address from the network and stops the deploy unless
    it is a ShowUpV6 with Arc USDC, a non-zero cap, the expected check-in TTL
    and the right EIP-712 domain for that chain. You can run it yourself in
    `web/` with the same variables. Only builds without network access (CI)
    set `SHOWUP_SKIP_CONTRACT_CHECK=1`.
-6. Deploy a **preview** first, run the checklist below against it, then
+7. Deploy a **preview** first, run the checklist below against it, then
    promote it to production.
 
 The app refuses to start if the network or contract address is missing or
@@ -135,7 +141,9 @@ the result is visible on-chain, not when a transaction hash appears.
 | No-show is blocked after check-in | Settling a no-show for the checked-in attendee is refused, and their status stays Attended |
 | Paid event: pay in full, check in | Status Attended; the price arrived in the organizer wallet |
 | Fallback refund | For a reservation left unsettled, the attendee reclaims it after the resolution deadline |
-| Reload during a transaction | After reload, the notice names that transaction and then shows its real result (confirmed, failed with a reason, or unknown) with an explorer link |
+| Reload during a transaction | After reload, the notice names that transaction and then shows its real result: confirmed only with a hash and successful receipt, failed with a reason, or unknown after 30 minutes |
+| Existing testnet user after the upgrade | Opening the upgraded testnet site in the same browser shows the same Circle wallet without a recovery code |
+| Abandoned upload authorization | A video upload started and cancelled does not reduce the quota once its lease (40 minutes) has passed |
 | Circle smart-contract (SCA) organizer, if you use one | A check-in QR signed by the SCA wallet is accepted by the check-in page and on-chain |
 | A second browser cannot reuse the Circle user ID | Opening the wallet in another browser asks for the recovery code; after restoring it works |
 | Upload limits | A fourth video from the same wallet is refused with the limit message |

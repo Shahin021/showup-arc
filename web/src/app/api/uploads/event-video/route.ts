@@ -19,9 +19,12 @@ import {
 } from "@/lib/showup-network";
 import {
   enforceUploadRateLimit,
+  finalizeUploadReservation,
+  releaseUploadReservation,
   reserveUploadQuota,
   UPLOAD_LIMITS,
   verifyUploadedVideo,
+  type UploadReservation,
 } from "@/lib/upload-guard";
 
 export const runtime = "nodejs";
@@ -358,7 +361,12 @@ export async function POST(request: NextRequest) {
         );
 
         enforceUploadRateLimit(request);
-        await reserveUploadQuota("videos", walletPathKey);
+        // Held until the upload completes (finalized) or fails (released);
+        // if the upload never happens, the lease expires on its own.
+        const reservation = await reserveUploadQuota(
+          "videos",
+          walletPathKey,
+        );
 
         return {
           allowedContentTypes: [
@@ -382,6 +390,7 @@ export async function POST(request: NextRequest) {
             walletId: wallet.id,
             walletAddress: wallet.address,
             blockchain: wallet.blockchain,
+            quota: reservation,
           }),
         };
       },
@@ -390,16 +399,6 @@ export async function POST(request: NextRequest) {
         blob,
         tokenPayload,
       }) => {
-        const genuine = await verifyUploadedVideo(blob.url);
-
-        if (!genuine) {
-          console.warn(
-            "ShowUp removed an upload that is not a valid video:",
-            blob.pathname,
-          );
-          return;
-        }
-
         let authorization:
           | Record<string, unknown>
           | null = null;
@@ -410,6 +409,27 @@ export async function POST(request: NextRequest) {
             : null;
         } catch {
           authorization = null;
+        }
+
+        const reservation = (
+          authorization?.quota ?? null
+        ) as UploadReservation | null;
+
+        const genuine = await verifyUploadedVideo(blob.url);
+
+        if (!genuine) {
+          console.warn(
+            "ShowUp removed an upload that is not a valid video:",
+            blob.pathname,
+          );
+          if (reservation) {
+            await releaseUploadReservation(reservation);
+          }
+          return;
+        }
+
+        if (reservation) {
+          await finalizeUploadReservation(reservation);
         }
 
         console.info(

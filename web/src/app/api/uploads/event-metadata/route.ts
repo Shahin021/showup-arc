@@ -18,8 +18,11 @@ import {
 } from "@/lib/showup-network";
 import {
   enforceUploadRateLimit,
+  finalizeUploadReservation,
+  releaseUploadReservation,
   reserveUploadQuota,
   sniffImageType,
+  type UploadReservation,
 } from "@/lib/upload-guard";
 
 export const runtime = "nodejs";
@@ -272,6 +275,8 @@ async function verifyCircleWallet(
 }
 
 export async function POST(request: NextRequest) {
+  let reservation: UploadReservation | null = null;
+
   try {
     const formData = await request.formData();
 
@@ -466,7 +471,7 @@ export async function POST(request: NextRequest) {
     }
 
     enforceUploadRateLimit(request);
-    await reserveUploadQuota("events", wallet.address);
+    reservation = await reserveUploadQuota("events", wallet.address);
 
     const metadataId = randomUUID();
 
@@ -563,6 +568,9 @@ export async function POST(request: NextRequest) {
       },
     );
 
+    await finalizeUploadReservation(reservation);
+    reservation = null;
+
     return NextResponse.json(
       {
         metadataURI: metadataBlob.url,
@@ -586,6 +594,11 @@ export async function POST(request: NextRequest) {
       },
     );
   } catch (error) {
+    // Give the quota back: nothing was published for this reservation.
+    if (reservation) {
+      await releaseUploadReservation(reservation);
+    }
+
     console.error(
       "ShowUp metadata upload failed:",
       error,

@@ -124,6 +124,7 @@ npm test                    # 132 tests, including randomized invariants
 cd web
 npm ci
 cp .env.example .env.local  # fill in the values
+npm test                    # upload quota lease tests
 npm run dev
 ```
 

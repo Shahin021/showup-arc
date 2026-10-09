@@ -72,4 +72,6 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
+      - name: Upload quota lease tests
+        run: npm test
       - run: npm run build

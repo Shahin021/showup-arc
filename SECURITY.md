@@ -103,17 +103,36 @@ deadline (at most 7 days after the event ends).
   with a recovery code. Knowing someone's user ID is therefore not enough to
   open their session or to mint a recovery code, and every transaction
   still requires the user's PIN. A new browser needs the recovery code.
+  Users of the earlier testnet site (ID in the browser, no cookie) are
+  migrated once by `/api/circle/legacy-migrate`, which accepts a bare ID.
+  That route exists only on testnet and only until
+  `SHOWUP_LEGACY_MIGRATION_UNTIL`; mainnet uses a new production Circle app
+  with no legacy users, so it never accepts a bare ID.
+- **Transaction results.** After a reload, a pending transaction is
+  followed by its own Circle reference ID or transaction hash. A Circle
+  transaction is matched only by its reference ID, never by "the latest
+  transaction from the wallet", and it is reported as confirmed only when
+  its hash has a successful on-chain receipt. Otherwise it stays pending
+  and is reported as unknown after 30 minutes.
 - **Uploads.** Uploads require a verified wallet. Before an upload is
-  authorized, the server atomically reserves a per-wallet slot (3 videos,
-  25 event uploads) and an app-wide slot (20 videos and 100 event uploads by
-  default, set with `SHOWUP_MAX_TOTAL_VIDEOS` and
-  `SHOWUP_MAX_TOTAL_EVENT_UPLOADS`). A slot is a marker file written without
-  overwrite, so concurrent requests cannot share one; the app-wide cap holds
-  however many wallets someone creates. A per-IP rate limit adds burst
-  protection, but it is per server instance, so it is best effort. Files are
-  checked by their leading bytes, which rejects renamed or mislabelled
-  files; this is a format check and does not prove a video is complete or
-  playable. Uploaded videos that fail it are deleted.
+  authorized, the server reserves a per-wallet slot (3 videos, 25 event
+  uploads) and an app-wide slot (20 videos and 100 event uploads by default,
+  set with `SHOWUP_MAX_TOTAL_VIDEOS` and `SHOWUP_MAX_TOTAL_EVENT_UPLOADS`).
+  Reservations are leases: a slot is taken with a write that cannot
+  overwrite, or, if its lease expired, with a write conditioned on the old
+  ETag, so concurrent requests never share a slot. A successful upload
+  finalizes its slots; a failed one releases them; an abandoned
+  authorization expires (40 minutes for videos, 5 for event uploads) and
+  its slots become free again, so unused authorizations cannot close
+  uploads for good. Every slot is searched, so a slot freed in the middle is
+  found again. Only file metadata (ETag, upload time) is read, never cached
+  contents. A per-IP rate limit adds burst protection, but it is per server
+  instance, so it is best effort. The lease logic is tested against an
+  in-memory model of the Blob operations (`web/tests`), not against a live
+  store. Files are checked by their leading bytes, which rejects renamed or
+  mislabelled files; this is a format check and does not prove a video is
+  complete or playable. Uploaded videos that fail it are deleted and their
+  slots released.
 - **Hosting limits.** Vercel's free (Hobby) plan includes limited Blob
   storage (1 GB), operations and data transfer. Exceeding any of them pauses
   Blob for 30 days rather than billing; the app-wide caps keep storage

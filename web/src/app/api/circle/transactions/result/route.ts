@@ -81,14 +81,6 @@ function readString(
     : "";
 }
 
-function singleUnlabelled(
-  candidates: CircleTransaction[],
-) {
-  return candidates.length === 1
-    ? candidates[0]
-    : undefined;
-}
-
 async function getOnchainReceipt(
   transaction: CircleTransaction,
 ) {
@@ -260,23 +252,13 @@ export async function POST(
     );
 
     const transaction =
+      // Only this transaction's own reference counts. Without a matching
+      // refId the result stays unknown (reported as pending): another
+      // transaction from the same wallet is never taken as this one.
       transactions.find(
         (item) =>
           item.refId === refId &&
           item.walletId === walletId,
-      ) ??
-      // Fallback for listings that omit refId: accept an unlabelled
-      // transaction only when it is the single one from this wallet since
-      // the challenge was created, so a result is never misattributed.
-      singleUnlabelled(
-        transactions.filter(
-          (item) =>
-            item.walletId === walletId &&
-            !item.refId &&
-            typeof item.createDate === "string" &&
-            Date.parse(item.createDate) >=
-              Date.parse(createdAfter),
-        ),
       );
 
     console.log("[circle-tx-poll]", {

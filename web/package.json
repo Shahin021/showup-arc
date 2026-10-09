@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check-contract": "node scripts/verify-contract.mjs"
+    "check-contract": "node scripts/verify-contract.mjs",
+    "test": "node --conditions=react-server --import tsx --test tests/*.test.mts"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.14.1",
@@ -20,6 +21,7 @@
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
     "viem": "^2.55.2"
   },
   "devDependencies": {
@@ -31,6 +33,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

@@ -26,7 +26,7 @@ const CIRCLE_WALLET_CHANGED_EVENT = "showup-circle-wallet-changed";
 
 type Outcome =
   | { state: "pending" }
-  | { state: "success"; txHash?: string }
+  | { state: "success"; txHash: string }
   | { state: "failed"; reason: string; txHash?: string }
   | { state: "unknown" };
 
@@ -64,24 +64,24 @@ async function checkCircle(
     return { state: "failed", reason: data.error ?? "The transaction failed.", txHash };
   }
 
-  const state = data.status ?? data.transaction?.state;
-  if (state === "COMPLETE" || state === "CONFIRMED") {
-    // Circle reports success; confirm with the receipt when there is a hash.
-    if (txHash) {
-      const receipt = await arcPublicClient
-        .getTransactionReceipt({ hash: txHash as `0x${string}` })
-        .catch(() => null);
-      if (receipt?.status === "reverted") {
-        return { state: "failed", reason: "The transaction reverted on-chain.", txHash };
-      }
-      if (!receipt) {
-        return { state: "pending" };
-      }
-    }
-    return { state: "success", txHash };
+  // Circle's own status is not enough to say "confirmed on-chain": success
+  // requires this transaction's hash and a successful receipt for it. Until
+  // both exist, it stays pending (and becomes "unknown" after the timeout).
+  if (!txHash) {
+    return { state: "pending" };
   }
 
-  return { state: "pending" };
+  const receipt = await arcPublicClient
+    .getTransactionReceipt({ hash: txHash as `0x${string}` })
+    .catch(() => null);
+
+  if (!receipt) {
+    return { state: "pending" };
+  }
+
+  return receipt.status === "success"
+    ? { state: "success", txHash }
+    : { state: "failed", reason: "The transaction reverted on-chain.", txHash };
 }
 
 async function checkBrowser(
