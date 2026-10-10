@@ -48,12 +48,15 @@ jobs:
         include:
           - network: testnet
             chain: "5042002"
+            wallet: "circle"
           - network: mainnet
             chain: "5042"
+            wallet: "browser"
     defaults:
       run:
         working-directory: web
     env:
+      NEXT_PUBLIC_SHOWUP_WALLET_MODE: ${{ matrix.wallet }}
       NEXT_PUBLIC_SHOWUP_NETWORK: ${{ matrix.network }}
       NEXT_PUBLIC_SHOWUP_CHAIN_ID: ${{ matrix.chain }}
       # Placeholder address: the build only needs a valid address.
@@ -72,6 +75,6 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
-      - name: Upload quota lease tests
+      - name: Upload quota and browser transaction tests
         run: npm test
       - run: npm run build

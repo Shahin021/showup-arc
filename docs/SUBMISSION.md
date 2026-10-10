@@ -18,7 +18,7 @@ Free events routinely lose a large share of sign-ups to no-shows, and paid
 events ask attendees to trust the organizer with their money. ShowUp puts
 the commitment on Arc. Organizers create free events with a refundable USDC
 deposit or paid events with full or split payments. Attendees reserve with
-a Circle wallet (PIN, no seed phrase) or any browser wallet; the USDC sits
+a compatible browser wallet; the USDC sits
 in a contract with no admin keys.
 
 At the venue, the organizer shows a short-lived QR code signed with their
@@ -33,11 +33,12 @@ can lose.
 
 ## Arc component
 
-- `ShowUpV6` is deployed and verified on Arc mainnet: `<ADDRESS>`
-  (`<EXPLORER LINK>`).
+- `ShowUpV6` is deployed and verified on Arc mainnet: `0x6108613878E4FA3531f3CB478D12AC49147d7366`
+  (https://sourcify.dev/server/repo-ui/5042/0x6108613878E4FA3531f3CB478D12AC49147d7366).
 - All payments, refunds and settlements are USDC on Arc; gas is paid in
   USDC, so users hold a single asset.
-- Circle user-controlled wallets on `ARC` for users without a crypto wallet.
+- The current deployment uses browser wallets on Arc. Circle embedded wallets
+  are retained as an optional integration, but are not enabled in this demo.
 - Sub-second finality makes door check-ins practical.
 
 ## Links
@@ -63,7 +64,7 @@ Transactions from the end-to-end run in `docs/DEPLOYMENT.md`:
 
 ## What the grant would fund
 
-- An external review of the contract before raising the per-reservation cap.
+- An external review of the contract before deploying a future version with a higher per-reservation cap.
 - Organizer-side tooling: rotating check-in codes on a dedicated door
   screen and an attendee list export after the event.
 - Running pilots with real community events and publishing the no-show

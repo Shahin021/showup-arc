@@ -1,5 +1,7 @@
 "use client";
 
+import { BROWSER_WALLET_ONLY } from "@/lib/wallet-mode";
+
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import WalletRecoveryDialog, {
@@ -495,7 +497,7 @@ export default function CircleWalletButton() {
 
     async function restoreWallet() {
       // Testnet only: carry over a wallet from the earlier site version.
-      await migrateLegacyCircleUser();
+      if (!BROWSER_WALLET_ONLY) await migrateLegacyCircleUser();
 
       if (cancelled) {
         return;
@@ -511,6 +513,8 @@ export default function CircleWalletButton() {
         setMessage("");
         return;
       }
+
+      if (BROWSER_WALLET_ONLY) return;
 
       if (activeWallet?.kind === "circle") {
         setWalletKind("circle");
@@ -1939,6 +1943,7 @@ export default function CircleWalletButton() {
                     </p>
                   </div>
 
+                  {!BROWSER_WALLET_ONLY && <>
                   <div className="my-7 flex items-center gap-4">
                     <div className="h-px flex-1 bg-white/10" />
 
@@ -2008,8 +2013,9 @@ export default function CircleWalletButton() {
                     </button>
                   </div>
 
+                  </>}
                   <p className="mt-6 text-center text-[11px] text-white/25">
-                    ShowUp · Circle Wallets · USDC · {ARC_NETWORK_LABEL}
+                    ShowUp · USDC · {ARC_NETWORK_LABEL}
                   </p>
                 </div>
               </div>,

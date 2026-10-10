@@ -147,3 +147,9 @@ accounting after every step, and Slither static analysis in CI.
 ## License
 
 MIT
+
+## Browser-wallet mainnet deployment
+
+The browser-only deployment does not require Circle Wallets credentials. See
+[the browser mainnet runbook](docs/BROWSER_MAINNET.md) for configuration and
+live acceptance checks. Enable it with `NEXT_PUBLIC_SHOWUP_WALLET_MODE=browser`.

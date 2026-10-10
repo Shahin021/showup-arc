@@ -9,6 +9,8 @@ import {
 } from "react";
 import { formatUnits } from "viem";
 import ShowUpHeader from "@/components/showup-header";
+import BrowserEventPanel from "@/components/browser-event-panel";
+import { BROWSER_WALLET_ONLY } from "@/lib/wallet-mode";
 import ReserveSeatButton from "@/components/reserve-seat-button";
 import PayRemainingBalanceButton from "@/components/pay-remaining-balance-button";
 import OrganizerAttendancePanel from "@/components/organizer-attendance-panel";
@@ -1085,6 +1087,8 @@ export default function EventDetailsPage() {
 
                 <OrganizerRecord organizer={event.organizer} />
 
+                {BROWSER_WALLET_ONLY && <BrowserEventPanel eventId={event.id} />}
+                {!BROWSER_WALLET_ONLY && <>
                 <ReserveSeatButton
                   eventId={event.id}
                   depositFormatted={
@@ -1193,6 +1197,7 @@ export default function EventDetailsPage() {
                   }
                 />
 
+                </>}
                 <OrganizerCheckInPanel
                   eventId={event.id}
                   organizer={event.organizer}
@@ -1201,7 +1206,7 @@ export default function EventDetailsPage() {
                   cancelled={event.cancelled}
                 />
 
-                <OrganizerAttendancePanel
+                {!BROWSER_WALLET_ONLY && <OrganizerAttendancePanel
                   eventId={event.id}
                   organizer={
                     event.organizer
@@ -1258,7 +1263,7 @@ export default function EventDetailsPage() {
                       },
                     );
                   }}
-                />
+                />}
               </div>
 
               <div className="rounded-[30px] border border-[#79b7ff]/12 bg-[#0a1025] p-6">
