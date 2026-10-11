@@ -11,6 +11,8 @@
 - [ ] (پیشنهادی) `NEXT_PUBLIC_SHOWUP_BASE_RPC_URLS` و `NEXT_PUBLIC_SHOWUP_ETHEREUM_RPC_URLS` با RPC اختصاصیِ محدود به دامنه.
 - [ ] (اختیاری) `CIRCLE_SWAP_API_KEY` (کلید **mainnet**) + `NEXT_PUBLIC_SHOWUP_SWAP_PROXY=true`.
 - [ ] `SHOWUP_SKIP_CONTRACT_CHECK` در production تنظیم **نشده** و build بررسی زندهٔ قرارداد را پاس کرد.
+- [ ] patch `showup-mainnet-v6-dependency-hardening.patch` روی v3 اعمال شد؛ `cd web; npm ci` از lockfile جدید بدون خطا؛ `npm audit --omit=dev` باید ۲۰ مورد low (همه از elliptic) و ۰ moderate/high نشان دهد (جزئیات: `docs/DEPENDENCY_AUDIT.md`).
+- [ ] پس از دیپلوی: صفحهٔ Swap باز شود، با ۱ واحد «Get quote» بزن و ببین quote از Circle برمی‌گردد (اولین بارگذاری واقعی App Kit با وابستگی‌های جدید روی مین‌نت).
 
 ## ۱. سربرگ و مسیرها (دسکتاپ و موبایل)
 

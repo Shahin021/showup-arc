@@ -44,3 +44,11 @@ npm run build
 ```
 
 CI runs all four for both networks.
+
+## Dependencies
+
+`package.json` pins a few transitive dependencies with scoped `overrides`
+(jayson, toml, uuid; plus the existing undici and grpc ones). Why each one
+exists, what was checked, and the remaining audit findings are in
+[docs/DEPENDENCY_AUDIT.md](../docs/DEPENDENCY_AUDIT.md). After any dependency
+update, re-run `npm audit --omit=dev` and `tests/dependency-compat.test.mts`.

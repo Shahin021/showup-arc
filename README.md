@@ -152,6 +152,12 @@ paths (blocklisted USDC transfers, invalid signatures, failing batch
 members), randomized operation sequences that re-check the escrow
 accounting after every step, and Slither static analysis in CI.
 
+## Dependency audit
+
+The web app's dependency overrides, the production audit before and after,
+and the reasons for the remaining findings are recorded in
+[docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md).
+
 ## License
 
 MIT

@@ -41,6 +41,15 @@
     "firebase": {
       "undici": "6.29.0"
     },
-    "@grpc/grpc-js": "1.13.6"
+    "@grpc/grpc-js": "1.13.6",
+    "@circle-fin/w3s-pw-web-sdk": {
+      "uuid": "11.1.1"
+    },
+    "@coral-xyz/anchor": {
+      "toml": "4.2.0"
+    },
+    "@solana/web3.js": {
+      "jayson": "5.0.0"
+    }
   }
 }
