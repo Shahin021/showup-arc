@@ -1,7 +1,9 @@
 import Image from "next/image";
+import SiteFooter from "@/components/site-footer";
 import Link from "next/link";
 import ShowUpHeader from "@/components/showup-header";
 import { ARC_NETWORK_LABEL, IS_MAINNET } from "@/lib/showup-network";
+import { BROWSER_WALLET_ONLY } from "@/lib/wallet-mode";
 
 const steps = [
   {
@@ -35,7 +37,9 @@ const features = [
   },
   {
     title: "Built with Circle",
-    description: "User-controlled wallets and USDC payments.",
+    description: BROWSER_WALLET_ONLY
+      ? "Your own wallet, USDC payments and Circle CCTP."
+      : "User-controlled wallets and USDC payments.",
   },
   {
     title: "Settled on Arc",
@@ -236,7 +240,7 @@ export default function Home() {
                   </Link>
 
                   <p className="mt-3 text-center text-xs text-white/30">
-                    Circle wallets · USDC · {ARC_NETWORK_LABEL}
+                    {BROWSER_WALLET_ONLY ? "Your wallet" : "Circle wallets"} · USDC · {ARC_NETWORK_LABEL}
                   </p>
                 </div>
               </div>
@@ -298,16 +302,17 @@ export default function Home() {
           <div className="grid gap-5 md:grid-cols-3">
             <div className="rounded-[28px] border border-[#79b7ff]/12 bg-[#0a1025] p-7">
               <p className="text-sm font-medium text-[#7fd2ff]">
-                Circle
+                {BROWSER_WALLET_ONLY ? "Wallets" : "Circle"}
               </p>
 
               <h3 className="mt-4 text-2xl font-semibold">
-                User-controlled wallets
+                {BROWSER_WALLET_ONLY ? "Your own wallet" : "User-controlled wallets"}
               </h3>
 
               <p className="mt-3 leading-7 text-white/48">
-                Attendees create and use wallets through a familiar PIN-based
-                experience while retaining onchain ownership.
+                {BROWSER_WALLET_ONLY
+                  ? "Attendees and organizers sign with the browser wallet they already use and keep full custody of their funds."
+                  : "Attendees create and use wallets through a familiar PIN-based experience while retaining onchain ownership."}
               </p>
             </div>
 
@@ -376,17 +381,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-[#79b7ff]/12">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 text-sm text-white/38 sm:flex-row sm:items-center sm:justify-between lg:px-10">
-          <p>
-            ShowUp. Programmable commitment on Arc.
-          </p>
-
-          <p>
-            Circle wallets · USDC settlement · Wallet-bound access
-          </p>
-        </div>
-      </footer>
+      <SiteFooter note="USDC settlement · Wallet-bound access" />
     </main>
   );
 }

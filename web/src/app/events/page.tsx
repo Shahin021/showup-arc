@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import SiteFooter from "@/components/site-footer";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ShowUpHeader from "@/components/showup-header";
@@ -625,17 +626,7 @@ export default function EventsPage() {
         </div>
       </section>
 
-      <footer className="border-t border-[#79b7ff]/12">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 text-sm text-white/38 sm:flex-row sm:items-center sm:justify-between lg:px-10">
-          <p>
-            ShowUp. Programmable commitment on Arc.
-          </p>
-
-          <p>
-            Live contract data · Circle wallets · USDC settlement
-          </p>
-        </div>
-      </footer>
+      <SiteFooter note="Live contract data · USDC settlement" />
     </main>
   );
 }

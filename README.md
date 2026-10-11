@@ -67,6 +67,14 @@ every reservation is refundable if the organizer cancels the event.
   collected, shown on every event page.
 - Invite-only events with wallet-bound, signed invitations.
 - Circle user-controlled wallets (PIN) and browser wallets (EIP-6963).
+- **Mainnet Wallet tools (browser wallets).** Bridge USDC between Arc and
+  Ethereum or Base with Circle CCTP V2 (standard or Fast Transfer, optional
+  Circle Forwarding Service delivery), with progress saved across refreshes
+  and a retryable receive step that never burns twice; and swap USDC ⇄ EURC
+  on Arc through Circle App Kit with slippage, minimum output, quote expiry
+  and a wallet guard that only signs what the confirmed quote needs. Add
+  funds, Bridge and Swap each have their own page in the header. See
+  [the browser mainnet runbook](docs/BROWSER_MAINNET.md#bridge-and-swap).
 - No admin keys: nobody, including the deployer, can move escrowed funds.
 
 ## Architecture
@@ -153,3 +161,4 @@ MIT
 The browser-only deployment does not require Circle Wallets credentials. See
 [the browser mainnet runbook](docs/BROWSER_MAINNET.md) for configuration and
 live acceptance checks. Enable it with `NEXT_PUBLIC_SHOWUP_WALLET_MODE=browser`.
+The same runbook covers the mainnet bridge (CCTP) and swap in Wallet tools.

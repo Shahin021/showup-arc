@@ -75,6 +75,6 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
-      - name: Upload quota and browser transaction tests
+      - name: Upload quota, browser transaction, bridge and swap tests
         run: npm test
       - run: npm run build

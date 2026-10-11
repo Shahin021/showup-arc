@@ -162,7 +162,6 @@ Optional:
 | `SHOWUP_MAX_TOTAL_VIDEOS` | default `20` |
 | `SHOWUP_MAX_TOTAL_EVENT_UPLOADS` | default `100` |
 | `SHOWUP_CHECK_RPC_URL` | RPC for the build-time contract check |
-| `NEXT_PUBLIC_ENABLE_FIAT_ONRAMP`, `NEXT_PUBLIC_FIAT_ONRAMP_URL` | card on-ramp, if you have one |
 
 Do **not** set `SHOWUP_SKIP_CONTRACT_CHECK` (CI only) or
 `SHOWUP_LEGACY_MIGRATION_UNTIL` (testnet upgrades only). Keep the two
@@ -265,6 +264,13 @@ their first real run:
   redelivered upload webhooks, and the backup and cleanup workflow.
 - **Smart-contract (SCA) organizer wallets:** ERC-1271 signatures are
   covered by tests with a mock wallet, not with a real Circle SCA wallet.
+- **Mainnet bridge and swap (Wallet tools):** the CCTP flow (Iris
+  responses, Fast Transfer and forwarding fees, Circle forwarding, receive
+  and re-attestation on mainnet) and the App Kit swap on Arc (live quotes,
+  permit and approval flows, the exact adapter call data Circle returns,
+  the swap receipt's output transfer, and the session-protected API-key
+  proxy) are covered by mocked unit tests and a mocked UI render only. Run the checks in
+  [BROWSER_MAINNET.md](BROWSER_MAINNET.md#live-acceptance-checks-bridge-and-swap).
 
 ## Testnet (optional)
 

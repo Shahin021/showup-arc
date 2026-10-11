@@ -1,20 +1,14 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import ShowUpHeader from "@/components/showup-header";
 import { FEATURES } from "@/lib/showup-network";
+import { WALLET_TOOL_ROUTES } from "@/lib/site-nav";
 
-import MainnetWalletOverview from "./mainnet-wallet-overview";
 import TestnetWalletTools from "./testnet-wallet-tools";
 
+/** Testnet keeps its combined tools page; on mainnet each tool has its own route. */
 export default function WalletToolsPage() {
   if (FEATURES.testnetBridgeAndSwap) {
     return <TestnetWalletTools />;
   }
-
-  return (
-    <main className="min-h-screen bg-[#050817] text-white">
-      <ShowUpHeader />
-      <MainnetWalletOverview />
-    </main>
-  );
+  redirect(WALLET_TOOL_ROUTES.addFunds);
 }

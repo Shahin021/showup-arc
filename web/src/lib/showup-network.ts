@@ -205,8 +205,20 @@ export const FEATURES = {
   faucet: !network.isMainnet,
   /** Sepolia <-> Arc Testnet bridge and USDC/EURC swap in Wallet tools. */
   testnetBridgeAndSwap: !network.isMainnet,
-  /** Card on-ramp; only meaningful with real funds. */
-  fiatOnramp: network.isMainnet,
+  /**
+   * CCTP V2 bridge between Arc mainnet and Ethereum / Base with browser
+   * wallets. NEXT_PUBLIC_SHOWUP_DISABLE_BRIDGE=true turns it off.
+   */
+  mainnetBridge:
+    network.isMainnet &&
+    process.env.NEXT_PUBLIC_SHOWUP_DISABLE_BRIDGE !== "true",
+  /**
+   * USDC <-> EURC swap on Arc mainnet through Circle App Kit (Stablecoin
+   * Service). NEXT_PUBLIC_SHOWUP_DISABLE_SWAP=true turns it off.
+   */
+  mainnetSwap:
+    network.isMainnet &&
+    process.env.NEXT_PUBLIC_SHOWUP_DISABLE_SWAP !== "true",
 } as const;
 
 export function explorerTxUrl(hash: string) {

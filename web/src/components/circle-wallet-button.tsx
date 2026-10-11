@@ -1,6 +1,7 @@
 "use client";
 
 import { BROWSER_WALLET_ONLY } from "@/lib/wallet-mode";
+import { OPEN_WALLET_CHOOSER_EVENT } from "@/lib/site-nav";
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -630,6 +631,18 @@ export default function CircleWalletButton() {
 
     void restoreWallet();
 
+    // "Connect wallet" buttons elsewhere on the page open this chooser.
+    function openChooserFromPage() {
+      setMenuOpen(false);
+      setWalletChooserOpen(true);
+      setMessage("");
+    }
+
+    window.addEventListener(
+      OPEN_WALLET_CHOOSER_EVENT,
+      openChooserFromPage,
+    );
+
     window.addEventListener(
       SHOWUP_WALLET_CHANGED_EVENT,
       syncSharedWallet,
@@ -642,6 +655,11 @@ export default function CircleWalletButton() {
 
     return () => {
       cancelled = true;
+
+      window.removeEventListener(
+        OPEN_WALLET_CHOOSER_EVENT,
+        openChooserFromPage,
+      );
 
       window.removeEventListener(
         SHOWUP_WALLET_CHANGED_EVENT,
