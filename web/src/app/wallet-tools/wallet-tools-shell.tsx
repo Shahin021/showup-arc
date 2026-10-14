@@ -21,7 +21,7 @@ const SECTIONS: { key: WalletToolSection; label: string; enabled: boolean }[] = 
 ];
 
 const INTRO: Record<WalletToolSection, { title: string; text: string }> = {
-  addFunds: { title: "Add funds", text: "Get USDC onto Arc mainnet for reservations, payments and network fees." },
+  addFunds: { title: "Add funds", text: "Buy USDC on Arc through Arc Portal for reservations, payments and network fees." },
   bridge: { title: "Bridge USDC", text: "Move USDC between Arc and Ethereum or Base." },
   swap: { title: "Swap on Arc", text: "Exchange USDC and EURC on Arc mainnet." },
 };
@@ -76,13 +76,9 @@ export default function WalletToolsShell({ section }: { section: WalletToolSecti
             })}
           </nav>
 
-          {!ready ? null : section === "addFunds" ? (
-            wallet && !browserWallet ? (
-              <WrongWalletKind />
-            ) : (
-              <AddFundsPanel key={browserWallet?.address ?? "none"} owner={browserWallet?.address ?? null} />
-            )
-          ) : !wallet ? (
+          {section === "addFunds" ? (
+            <AddFundsPanel key={browserWallet?.address ?? "none"} owner={browserWallet?.address ?? null} />
+          ) : !ready ? null : !wallet ? (
             <ConnectFirst section={section} />
           ) : !browserWallet ? (
             <WrongWalletKind />

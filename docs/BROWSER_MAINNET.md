@@ -211,7 +211,7 @@ menu); direct links, refresh and Back/Forward keep the section:
 
 | Route | Content |
 | --- | --- |
-| `/wallet-tools/add-funds` | Arc mainnet receiving address with copy and QR, network and token, balances, link to the bridge. Without a wallet: a short guide and a Connect wallet button. No card on-ramp is offered. |
+| `/wallet-tools/add-funds` | Purchase guide and an external link to Arc Portal for supported debit-card, Apple Pay and Google Pay purchases. Available without a ShowUp login; connected browser wallets can copy their address for comparison in Portal. No in-page Connect wallet button. |
 | `/wallet-tools/bridge` | CCTP bridge and the user's transfers |
 | `/wallet-tools/swap` | USDC ⇄ EURC swap and recent swaps |
 
@@ -222,6 +222,21 @@ tools page. The infrastructure overview moved from the header to the footer
 On mainnet, Add Funds is a regular navigation link immediately after Swap,
 with the same active-page styling in desktop and mobile menus. The wallet
 button stays separate. Testnet keeps its Get test USDC faucet action.
+
+### Add Funds: hosted purchase flow
+
+Add Funds opens `https://portal.arc.io/` in a new tab; it does not embed an
+Onramp Kit checkout, mint a session, or send the wallet address to Portal.
+No Circle developer key or new deployment configuration is needed for this
+link. The user must connect the same wallet in Portal, choose USDC on Arc,
+and check the destination before paying. The optional ShowUp address is only
+a reference; it is not prefilled in Portal. Purchases, verification, fees,
+and eligibility are handled in Portal by its providers. ShowUp does not
+claim a purchase succeeded from an external link click.
+
+According to the [official Arc Portal FAQ](https://help.arc.io/support_arc/en/arc-portal-faqs?id=arc_article_view&sysparm_article=KB0011405),
+payment methods and availability vary by country; credit cards are not
+supported. No card purchase has been tested for this release.
 
 ### Configuration
 
