@@ -2,12 +2,7 @@ import type {
   Address,
 } from "viem";
 
-import {
-  getShowUpAddress,
-} from "@/lib/showup-server";
-
-export const ARC_TESTNET_CHAIN_ID =
-  5_042_002;
+import { SHOWUP_EIP712_DOMAIN } from "@/lib/showup-network";
 
 export const SHOWUP_INVITATION_TYPES = {
   Invitation: [
@@ -57,14 +52,7 @@ export type ShowUpInvitationPayload = {
 };
 
 export function getInvitationDomain() {
-  return {
-    name: "ShowUp",
-    version: "5",
-    chainId:
-      ARC_TESTNET_CHAIN_ID,
-    verifyingContract:
-      getShowUpAddress(),
-  } as const;
+  return SHOWUP_EIP712_DOMAIN;
 }
 
 export function getViemInvitationTypedData(

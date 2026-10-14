@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ShowUp web app
 
-## Getting Started
+Next.js 16 app and API routes for ShowUp. See the
+[root README](../README.md) for what ShowUp does and
+[docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) to deploy it.
 
-First, run the development server:
+## Develop
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm ci
+cp .env.example .env.local   # set NEXT_PUBLIC_SHOWUP_NETWORK and the rest
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The app will not start without `NEXT_PUBLIC_SHOWUP_NETWORK` (`testnet` or
+`mainnet`) and the matching `NEXT_PUBLIC_SHOWUP_CONTRACT_ADDRESS`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Where things live
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Path | Purpose |
+|---|---|
+| `src/lib/showup-network.ts` | Every network-specific value (chain, RPCs, explorer, tokens, Circle chain codes, feature flags) |
+| `src/lib/showup-abi.ts` | Generated ShowUpV6 ABI (`npm run sync-abi` in the root) |
+| `src/lib/showup-checkin.ts` | Check-in code format and EIP-712 typed data |
+| `src/app/api/circle/...` | Routes that prepare Circle PIN challenges |
+| `src/app/api/check-in/verify` | Validates a check-in code before any transaction |
+| `src/app/events/[id]/check-in` | Attendee check-in page opened from the QR code |
+| `src/lib/upload-guard.ts` | Upload quotas and file-type checks |
+| `src/lib/mainnet-bridge/` | CCTP V2 bridge: routes and fees, attestation validation, persisted transfers, recovery engine, viem runtime |
+| `src/app/api/bridge/cctp/...` | Server proxy for Circle's Iris attestation, fee and re-attest APIs |
+| `src/lib/mainnet-swap/` | Arc USDC/EURC swap: wallet-request guard (decodes adapter call data, permits), Arc fees, on-chain outcome check, App Kit runtime |
+| `src/app/api/swap/circle/...` | Optional, session-authenticated and rate-limited proxy that adds `CIRCLE_SWAP_API_KEY` |
+| `src/app/wallet-tools/{add-funds,bridge,swap}` | Mainnet Wallet tools, one route per section |
+| `src/lib/site-nav.ts`, `src/components/showup-header.tsx`, `src/components/site-footer.tsx` | Header (desktop + mobile menu), active state, footer links |
+| `scripts/blob-backup.mjs`, `scripts/blob-restore.mjs` | Blob store backup and restore |
 
-## Learn More
+## Checks
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run lint
+npx tsc --noEmit
+npm test        # upload quotas, browser actions, bridge engine, swap guard/proxy, navigation
+npm run build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+CI runs all four for both networks.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Dependencies
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`package.json` pins a few transitive dependencies with scoped `overrides`
+(jayson, toml, uuid; plus the existing undici and grpc ones). Why each one
+exists, what was checked, and the remaining audit findings are in
+[docs/DEPENDENCY_AUDIT.md](../docs/DEPENDENCY_AUDIT.md). After any dependency
+update, re-run `npm audit --omit=dev` and `tests/dependency-compat.test.mts`.

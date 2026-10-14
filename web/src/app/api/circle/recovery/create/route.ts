@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createShowUpRecoveryCode } from "@/lib/showup-recovery";
+import type { NextRequest } from "next/server";
+import { isBoundToCircleUser } from "@/lib/circle-user-binding";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +18,7 @@ function isValidCircleUserId(userId: string): boolean {
   );
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = (await request
       .json()
@@ -34,6 +36,21 @@ export async function POST(request: Request) {
         },
         {
           status: 400,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
+
+    // Only the browser bound to this user may create a recovery code for it.
+    if (!isBoundToCircleUser(request, userId)) {
+      return NextResponse.json(
+        {
+          error: "This browser is not authorized for that wallet.",
+        },
+        {
+          status: 401,
           headers: {
             "Cache-Control": "no-store",
           },

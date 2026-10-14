@@ -10,6 +10,7 @@ import {
   verifyCircleArcWallet,
 } from "@/lib/showup-server";
 import { arcPublicClient } from "@/lib/arc-public-client";
+import { SHOWUP_ABI } from "@/lib/showup-abi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,50 +40,7 @@ type ReservationRow = {
   paymentDefaulted: boolean;
 };
 
-const ATTENDEE_READ_ABI = [
-  {
-    type: "function",
-    name: "getAttendeeCount",
-    stateMutability: "view",
-    inputs: [
-      {
-        name: "eventId",
-        type: "uint256",
-      },
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "uint256",
-      },
-    ],
-  },
-  {
-    type: "function",
-    name: "getAttendees",
-    stateMutability: "view",
-    inputs: [
-      {
-        name: "eventId",
-        type: "uint256",
-      },
-      {
-        name: "offset",
-        type: "uint256",
-      },
-      {
-        name: "limit",
-        type: "uint256",
-      },
-    ],
-    outputs: [
-      {
-        name: "attendees",
-        type: "address[]",
-      },
-    ],
-  },
-] as const;
+const ATTENDEE_READ_ABI = SHOWUP_ABI;
 
 const PAGE_SIZE = 20;
 const ADDRESS_BATCH_SIZE = BigInt(100);
@@ -101,19 +59,17 @@ const STATUS_FILTERS: Record<string, number | null> = {
   "payment-defaulted": 9,
 };
 
+// ShowUpV6 statuses: 1 Reserved (free), 7 PaymentDue and 8 Completed
+// (paid, before attendance), 3 Attended.
 function isAttendanceConfirmed(status: number) {
-  return (
-    status === 3 ||
-    status === 7 ||
-    status === 8 ||
-    status === 9
-  );
+  return status === 3;
 }
 
 function isActiveReservation(status: number) {
   return (
     status === 1 ||
-    status === 7
+    status === 7 ||
+    status === 8
   );
 }
 

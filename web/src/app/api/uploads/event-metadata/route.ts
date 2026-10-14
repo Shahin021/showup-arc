@@ -12,6 +12,19 @@ import {
   readWalletSession,
   SHOWUP_WALLET_SESSION_COOKIE,
 } from "@/lib/showup-wallet-auth";
+import {
+  ARC_NETWORK_LABEL,
+  CIRCLE_ARC_BLOCKCHAIN,
+} from "@/lib/showup-network";
+import {
+  enforceUploadRateLimit,
+  finalizeUploadReservation,
+  releaseUploadReservation,
+  reserveUploadQuota,
+  sniffImageType,
+  UploadTransaction,
+  type UploadReservation,
+} from "@/lib/upload-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -115,7 +128,7 @@ function readBrowserWallet(
     id:
       `browser:${session.address.toLowerCase()}`,
     address: session.address,
-    blockchain: "ARC-TESTNET",
+    blockchain: CIRCLE_ARC_BLOCKCHAIN,
     state: "LIVE",
   };
 }
@@ -215,7 +228,7 @@ async function verifyCircleWallet(
 
   circleUrl.searchParams.set(
     "blockchain",
-    "ARC-TESTNET",
+    CIRCLE_ARC_BLOCKCHAIN,
   );
 
   circleUrl.searchParams.set("pageSize", "10");
@@ -249,13 +262,13 @@ async function verifyCircleWallet(
   const wallet = wallets.find(
     (item) =>
       item.id === walletId &&
-      item.blockchain === "ARC-TESTNET" &&
+      item.blockchain === CIRCLE_ARC_BLOCKCHAIN &&
       item.state === "LIVE",
   );
 
   if (!wallet) {
     throw new Error(
-      "The connected Arc Testnet wallet could not be verified.",
+      `The connected ${ARC_NETWORK_LABEL} wallet could not be verified.`,
     );
   }
 
@@ -263,6 +276,10 @@ async function verifyCircleWallet(
 }
 
 export async function POST(request: NextRequest) {
+  let reservation: UploadReservation | null = null;
+  // Every file this request creates, so a failure removes all of them.
+  const transaction = new UploadTransaction();
+
   try {
     const formData = await request.formData();
 
@@ -439,6 +456,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    for (const [label, image] of [
+      ["Event image", eventImage],
+      ["Organizer avatar", organizerAvatar],
+    ] as const) {
+      if (!image) {
+        continue;
+      }
+      const header = new Uint8Array(
+        await image.slice(0, 16).arrayBuffer(),
+      );
+      if (sniffImageType(header) !== image.type) {
+        throw new Error(
+          `${label} is not a valid ${image.type.replace("image/", "").toUpperCase()} file.`,
+        );
+      }
+    }
+
+    enforceUploadRateLimit(request);
+    reservation = await reserveUploadQuota("events", wallet.address);
+
     const metadataId = randomUUID();
 
     const basePath =
@@ -463,6 +500,7 @@ export async function POST(request: NextRequest) {
         },
       );
 
+      transaction.record(eventImageBlob.url);
       eventImageUrl = eventImageBlob.url;
     }
 
@@ -480,6 +518,7 @@ export async function POST(request: NextRequest) {
         },
       );
 
+      transaction.record(organizerAvatarBlob.url);
       organizerAvatarUrl =
         organizerAvatarBlob.url;
     }
@@ -534,6 +573,32 @@ export async function POST(request: NextRequest) {
       },
     );
 
+    transaction.record(metadataBlob.url);
+
+    // The files stay only if both quota slots are finalized for them;
+    // otherwise everything this request stored is removed.
+    const finalized = await finalizeUploadReservation(
+      reservation,
+      `${basePath}/`,
+    );
+    reservation = null;
+
+    if (!finalized) {
+      await transaction.rollback();
+      return NextResponse.json(
+        {
+          error:
+            "The upload took too long and its quota reservation expired. Please try again.",
+        },
+        {
+          status: 409,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
+
     return NextResponse.json(
       {
         metadataURI: metadataBlob.url,
@@ -557,6 +622,12 @@ export async function POST(request: NextRequest) {
       },
     );
   } catch (error) {
+    // Remove any files already stored and give the quota back.
+    await transaction.rollback();
+    if (reservation) {
+      await releaseUploadReservation(reservation);
+    }
+
     console.error(
       "ShowUp metadata upload failed:",
       error,

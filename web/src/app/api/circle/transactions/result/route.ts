@@ -16,6 +16,10 @@ import {
 import {
   ShowUpApiError,
 } from "@/lib/showup-server";
+import {
+  CIRCLE_ARC_BLOCKCHAIN,
+  FEATURES,
+} from "@/lib/showup-network";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,7 +99,7 @@ async function getOnchainReceipt(
   try {
     if (
       transaction.blockchain ===
-      "ARC-TESTNET"
+      CIRCLE_ARC_BLOCKCHAIN
     ) {
       return await arcPublicClient
         .getTransactionReceipt({
@@ -105,6 +109,7 @@ async function getOnchainReceipt(
     }
 
     if (
+      FEATURES.testnetBridgeAndSwap &&
       transaction.blockchain ===
       "ETH-SEPOLIA"
     ) {
@@ -247,18 +252,13 @@ export async function POST(
     );
 
     const transaction =
+      // Only this transaction's own reference counts. Without a matching
+      // refId the result stays unknown (reported as pending): another
+      // transaction from the same wallet is never taken as this one.
       transactions.find(
         (item) =>
           item.refId === refId &&
           item.walletId === walletId,
-      ) ??
-      transactions.find(
-        (item) =>
-          item.walletId === walletId &&
-          !item.refId &&
-          typeof item.createDate === "string" &&
-          Date.parse(item.createDate) >=
-            Date.parse(createdAfter),
       );
 
     console.log("[circle-tx-poll]", {

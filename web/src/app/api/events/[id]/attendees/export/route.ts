@@ -10,6 +10,7 @@ import {
   verifyCircleArcWallet,
 } from "@/lib/showup-server";
 import { arcPublicClient } from "@/lib/arc-public-client";
+import { SHOWUP_ABI } from "@/lib/showup-abi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,50 +42,7 @@ type ExportAttendee = {
   paymentDefaulted: boolean;
 };
 
-const ATTENDEE_READ_ABI = [
-  {
-    type: "function",
-    name: "getAttendeeCount",
-    stateMutability: "view",
-    inputs: [
-      {
-        name: "eventId",
-        type: "uint256",
-      },
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "uint256",
-      },
-    ],
-  },
-  {
-    type: "function",
-    name: "getAttendees",
-    stateMutability: "view",
-    inputs: [
-      {
-        name: "eventId",
-        type: "uint256",
-      },
-      {
-        name: "offset",
-        type: "uint256",
-      },
-      {
-        name: "limit",
-        type: "uint256",
-      },
-    ],
-    outputs: [
-      {
-        name: "attendees",
-        type: "address[]",
-      },
-    ],
-  },
-] as const;
+const ATTENDEE_READ_ABI = SHOWUP_ABI;
 
 const ADDRESS_BATCH_SIZE =
   BigInt(100);

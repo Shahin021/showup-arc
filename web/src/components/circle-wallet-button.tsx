@@ -1,5 +1,8 @@
 "use client";
 
+import { BROWSER_WALLET_ONLY } from "@/lib/wallet-mode";
+import { OPEN_WALLET_CHOOSER_EVENT } from "@/lib/site-nav";
+
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import WalletRecoveryDialog, {
@@ -20,11 +23,17 @@ import {
   SHOWUP_WALLET_CHANGED_EVENT,
   type ShowUpWalletKind,
 } from "@/lib/showup-wallet";
+import {
+  ARC_NETWORK_LABEL,
+  CIRCLE_ARC_BLOCKCHAIN,
+  networkStorageKey,
+} from "@/lib/showup-network";
+import { migrateLegacyCircleUser } from "@/lib/legacy-circle-migration";
 
-const CIRCLE_USER_ID_KEY = "showup_circle_user_id";
-const CIRCLE_WALLET_READY_KEY = "showup_circle_wallet_ready";
-const CIRCLE_WALLET_ADDRESS_KEY = "showup_circle_wallet_address";
-const CIRCLE_WALLET_ID_KEY = "showup_circle_wallet_id";
+const CIRCLE_USER_ID_KEY = networkStorageKey("circle_user_id");
+const CIRCLE_WALLET_READY_KEY = networkStorageKey("circle_wallet_ready");
+const CIRCLE_WALLET_ADDRESS_KEY = networkStorageKey("circle_wallet_address");
+const CIRCLE_WALLET_ID_KEY = networkStorageKey("circle_wallet_id");
 
 const CIRCLE_WALLET_CHANGED_EVENT =
   "showup-circle-wallet-changed";
@@ -299,7 +308,7 @@ async function requestCircleWallets(
       (wallet) =>
         wallet.id &&
         wallet.address &&
-        wallet.blockchain === "ARC-TESTNET",
+        wallet.blockchain === CIRCLE_ARC_BLOCKCHAIN,
     );
 
     if (response.ok && validWallets.length > 0) {
@@ -477,6 +486,7 @@ export default function CircleWalletButton() {
     useState<WalletRecoveryMode>("backup");
 
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const browserConnectPendingRef = useRef(false);
 
   const setupTimeoutRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -484,10 +494,35 @@ export default function CircleWalletButton() {
   const copiedTimeoutRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Every entry point (header and in-page buttons) refreshes wallet discovery.
+  useEffect(() => {
+    if (!walletChooserOpen) return;
+    let cancelled = false;
+
+    void discoverBrowserWallets().then(
+      (providers) => {
+        if (!cancelled) setBrowserWallets(providers);
+      },
+      (error) => {
+        console.error("Browser wallet discovery failed:", error);
+        if (!cancelled) setBrowserWallets([]);
+      },
+    );
+
+    return () => { cancelled = true; };
+  }, [walletChooserOpen]);
+
   useEffect(() => {
     let cancelled = false;
 
     async function restoreWallet() {
+      // Testnet only: carry over a wallet from the earlier site version.
+      if (!BROWSER_WALLET_ONLY) await migrateLegacyCircleUser();
+
+      if (cancelled) {
+        return;
+      }
+
       const activeWallet = readActiveWallet();
 
       if (activeWallet?.kind === "browser") {
@@ -498,6 +533,8 @@ export default function CircleWalletButton() {
         setMessage("");
         return;
       }
+
+      if (BROWSER_WALLET_ONLY) return;
 
       if (activeWallet?.kind === "circle") {
         setWalletKind("circle");
@@ -613,6 +650,18 @@ export default function CircleWalletButton() {
 
     void restoreWallet();
 
+    // "Connect wallet" buttons elsewhere on the page open this chooser.
+    function openChooserFromPage() {
+      setMenuOpen(false);
+      setWalletChooserOpen(true);
+      setMessage("");
+    }
+
+    window.addEventListener(
+      OPEN_WALLET_CHOOSER_EVENT,
+      openChooserFromPage,
+    );
+
     window.addEventListener(
       SHOWUP_WALLET_CHANGED_EVENT,
       syncSharedWallet,
@@ -625,6 +674,11 @@ export default function CircleWalletButton() {
 
     return () => {
       cancelled = true;
+
+      window.removeEventListener(
+        OPEN_WALLET_CHOOSER_EVENT,
+        openChooserFromPage,
+      );
 
       window.removeEventListener(
         SHOWUP_WALLET_CHANGED_EVENT,
@@ -650,7 +704,7 @@ export default function CircleWalletButton() {
     userToken: string,
     attempts: number,
   ) {
-    setMessage("Loading your Arc Testnet wallet...");
+    setMessage(`Loading your ${ARC_NETWORK_LABEL} wallet...`);
 
     const availableWallets = await requestCircleWallets(
       userToken,
@@ -1209,7 +1263,7 @@ export default function CircleWalletButton() {
     }
 
     const confirmed = window.confirm(
-      "Create a new Arc Testnet wallet inside your current Circle account? Your existing wallets will remain available.",
+      `Create a new ${ARC_NETWORK_LABEL} wallet inside your current Circle account? Your existing wallets will remain available.`,
     );
 
     if (!confirmed) {
@@ -1378,10 +1432,11 @@ export default function CircleWalletButton() {
   async function handleConnectBrowserWallet(
     walletProvider: BrowserWalletProviderDetail,
   ) {
-    if (status === "loading") {
+    if (status === "loading" || browserConnectPendingRef.current) {
       return;
     }
 
+    browserConnectPendingRef.current = true;
     try {
       setStatus("loading");
       setMessage(
@@ -1430,10 +1485,12 @@ export default function CircleWalletButton() {
 
       setStatus("error");
       setMessage(getErrorMessage(error));
+    } finally {
+      browserConnectPendingRef.current = false;
     }
   }
 
-  async function toggleWalletChooser() {
+  function toggleWalletChooser() {
     if (status === "loading") {
       return;
     }
@@ -1446,24 +1503,6 @@ export default function CircleWalletButton() {
 
     if (status === "error") {
       setStatus("idle");
-    }
-
-    if (!willOpen) {
-      return;
-    }
-
-    try {
-      const providers =
-        await discoverBrowserWallets();
-
-      setBrowserWallets(providers);
-    } catch (error) {
-      console.error(
-        "Browser wallet discovery failed:",
-        error,
-      );
-
-      setBrowserWallets([]);
     }
   }
 
@@ -1557,7 +1596,7 @@ export default function CircleWalletButton() {
                     </p>
 
                     <span className="rounded-full bg-[#73d8ff]/10 px-2 py-1 text-[10px] font-medium text-[#b8e8ff]">
-                      Arc Testnet
+                      {ARC_NETWORK_LABEL}
                     </span>
                   </div>
 
@@ -1798,7 +1837,7 @@ export default function CircleWalletButton() {
 
                       <p className="mt-2 text-sm leading-6 text-white/45">
                         Choose how you want to connect to ShowUp
-                        on Arc Testnet.
+                        on {ARC_NETWORK_LABEL}.
                       </p>
                     </div>
 
@@ -1821,7 +1860,7 @@ export default function CircleWalletButton() {
                       </p>
 
                       <span className="rounded-full bg-[#73d8ff]/10 px-2.5 py-1 text-[10px] font-medium text-[#b8e8ff]">
-                        Arc Testnet
+                        {ARC_NETWORK_LABEL}
                       </span>
                     </div>
 
@@ -1832,12 +1871,13 @@ export default function CircleWalletButton() {
                             <button
                               key={walletProvider.info.uuid}
                               type="button"
+                              disabled={status === "loading"}
                               onClick={() => {
                                 void handleConnectBrowserWallet(
                                   walletProvider,
                                 );
                               }}
-                              className="group flex min-h-24 flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.025] px-3 py-3 text-center transition hover:border-[#73d8ff]/35 hover:bg-[#73d8ff]/10"
+                              className="group flex min-h-24 flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.025] px-3 py-3 text-center transition hover:border-[#73d8ff]/35 hover:bg-[#73d8ff]/10 disabled:cursor-wait disabled:opacity-50"
                             >
                               {walletProvider.info.icon ? (
                                 <span
@@ -1926,6 +1966,7 @@ export default function CircleWalletButton() {
                     </p>
                   </div>
 
+                  {!BROWSER_WALLET_ONLY && <>
                   <div className="my-7 flex items-center gap-4">
                     <div className="h-px flex-1 bg-white/10" />
 
@@ -1990,13 +2031,14 @@ export default function CircleWalletButton() {
 
                       <span className="mt-1 block text-xs leading-5 text-white/40">
                         Create a PIN-secured wallet directly on
-                        Arc Testnet.
+                        {ARC_NETWORK_LABEL}.
                       </span>
                     </button>
                   </div>
 
+                  </>}
                   <p className="mt-6 text-center text-[11px] text-white/25">
-                    ShowUp · Circle Wallets · USDC · Arc Testnet
+                    ShowUp · USDC · {ARC_NETWORK_LABEL}
                   </p>
                 </div>
               </div>,

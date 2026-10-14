@@ -5,148 +5,23 @@ import {
   isAddress,
 } from "viem";
 import { arcPublicClient } from "@/lib/arc-public-client";
+import { estimateGasReserveUsdc } from "@/lib/gas-reserve";
+import { SHOWUP_ABI } from "@/lib/showup-abi";
+import {
+  ARC_NETWORK_LABEL,
+  ARC_USDC_ADDRESS,
+  CIRCLE_ARC_BLOCKCHAIN,
+  SHOWUP_CONTRACT_ADDRESS,
+  type CircleWalletBlockchain,
+} from "@/lib/showup-network";
 
-export const SHOWUP_V5_ADDRESS =
-  "0x916fe65099332a613afb7413464D50183De7C263";
+export type { CircleWalletBlockchain };
 
 /**
- * Temporary compatibility alias for routes that still import the
- * previous constant name. New code should use SHOWUP_V5_ADDRESS.
+ * The full ShowUpV6 ABI, generated from the compiled contract. Kept under
+ * the old name for the routes that import it.
  */
-export const SHOWUP_V3_ADDRESS =
-  SHOWUP_V5_ADDRESS;
-
-export const ARC_TESTNET_USDC_ADDRESS =
-  "0x3600000000000000000000000000000000000000";
-
-export const SHOWUP_EVENT_ABI = [
-  {
-    type: "function",
-    name: "getEvent",
-    stateMutability: "view",
-    inputs: [
-      {
-        name: "eventId",
-        type: "uint256",
-      },
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "tuple",
-        components: [
-          {
-            name: "organizer",
-            type: "address",
-          },
-          {
-            name: "title",
-            type: "string",
-          },
-          {
-            name: "description",
-            type: "string",
-          },
-          {
-            name: "metadataURI",
-            type: "string",
-          },
-          {
-            name: "eventType",
-            type: "uint8",
-          },
-          {
-            name: "accessMode",
-            type: "uint8",
-          },
-          {
-            name: "depositAmount",
-            type: "uint256",
-          },
-          {
-            name: "totalPrice",
-            type: "uint256",
-          },
-          {
-            name: "capacity",
-            type: "uint256",
-          },
-          {
-            name: "reservedSeats",
-            type: "uint256",
-          },
-          {
-            name: "escrowedAmount",
-            type: "uint256",
-          },
-          {
-            name: "cancellationDeadline",
-            type: "uint64",
-          },
-          {
-            name: "eventStart",
-            type: "uint64",
-          },
-          {
-            name: "eventEnd",
-            type: "uint64",
-          },
-          {
-            name: "resolutionDeadline",
-            type: "uint64",
-          },
-          {
-            name: "cancelled",
-            type: "bool",
-          },
-          {
-            name: "paymentDeadline",
-            type: "uint64",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    type: "function",
-    name: "getReservation",
-    stateMutability: "view",
-    inputs: [
-      {
-        name: "eventId",
-        type: "uint256",
-      },
-      {
-        name: "attendee",
-        type: "address",
-      },
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "tuple",
-        components: [
-          {
-            name: "status",
-            type: "uint8",
-          },
-          {
-            name: "reservedAt",
-            type: "uint64",
-          },
-          {
-            name: "updatedAt",
-            type: "uint64",
-          },
-          {
-            name: "paymentDeadline",
-            type: "uint64",
-          },
-        ],
-      },
-    ],
-  },
-] as const;
+export const SHOWUP_EVENT_ABI = SHOWUP_ABI;
 
 export const ERC20_READ_ABI = [
   {
@@ -253,37 +128,11 @@ export class ShowUpApiError extends Error {
 }
 
 export function getShowUpAddress() {
-  const configured =
-    process.env
-      .NEXT_PUBLIC_SHOWUP_CONTRACT_ADDRESS
-      ?.trim() ||
-    SHOWUP_V5_ADDRESS;
-
-  if (!isAddress(configured)) {
-    throw new ShowUpApiError(
-      "ShowUp contract address is invalid.",
-      500,
-    );
-  }
-
-  return getAddress(configured);
+  return SHOWUP_CONTRACT_ADDRESS;
 }
 
 export function getUsdcAddress() {
-  const configured =
-    process.env
-      .NEXT_PUBLIC_ARC_USDC_ADDRESS
-      ?.trim() ||
-    ARC_TESTNET_USDC_ADDRESS;
-
-  if (!isAddress(configured)) {
-    throw new ShowUpApiError(
-      "Arc Testnet USDC address is invalid.",
-      500,
-    );
-  }
-
-  return getAddress(configured);
+  return ARC_USDC_ADDRESS;
 }
 
 export function parseEventId(
@@ -334,7 +183,7 @@ export async function getEventDetails(
     ) as unknown as ShowUpEventDetails;
   } catch {
     throw new ShowUpApiError(
-      "This event could not be found on Arc Testnet.",
+      `This event could not be found on ${ARC_NETWORK_LABEL}.`,
       404,
     );
   }
@@ -388,8 +237,21 @@ export async function getUsdcAccountState(
     }),
   ]);
 
+  // `balance` is what can be spent on ShowUp payments: the ERC-20 USDC
+  // balance minus an estimated reserve for network fees, which on Arc are
+  // paid from the same USDC (see lib/gas-reserve.ts). Every sufficiency
+  // check uses it, so a payment does not leave the wallet unable to pay for
+  // the approval, the payment and the transaction that follows.
+  const gasReserve = await estimateGasReserveUsdc();
+  const spendable =
+    balance > gasReserve
+      ? balance - gasReserve
+      : BigInt(0);
+
   return {
-    balance,
+    balance: spendable,
+    totalBalance: balance,
+    gasReserve,
     allowance,
   };
 }
@@ -397,7 +259,7 @@ export async function getUsdcAccountState(
 export async function verifyCircleWallet(
   userTokenValue: unknown,
   walletIdValue: unknown,
-  blockchain: "ARC-TESTNET" | "ETH-SEPOLIA",
+  blockchain: CircleWalletBlockchain,
 ) {
   const userToken =
     typeof userTokenValue === "string"
@@ -499,7 +361,7 @@ export async function verifyCircleArcWallet(
   return verifyCircleWallet(
     userTokenValue,
     walletIdValue,
-    "ARC-TESTNET",
+    CIRCLE_ARC_BLOCKCHAIN,
   );
 }
 

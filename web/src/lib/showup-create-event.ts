@@ -1,76 +1,16 @@
 import {
-  getAddress,
-  isAddress,
   parseUnits,
 } from "viem";
+import { SHOWUP_ABI } from "@/lib/showup-abi";
+import { SHOWUP_CONTRACT_ADDRESS } from "@/lib/showup-network";
 
 const MAX_TITLE_BYTES = 320;
 const MAX_DESCRIPTION_BYTES = 960;
 const MAX_METADATA_URI_BYTES = 2048;
 const MAX_RESOLUTION_HOURS = 168;
 
-export const SHOWUP_CREATE_EVENT_ABI = [
-  {
-    type: "function",
-    name: "createEvent",
-    stateMutability: "nonpayable",
-    inputs: [
-      {
-        name: "title",
-        type: "string",
-      },
-      {
-        name: "description",
-        type: "string",
-      },
-      {
-        name: "metadataURI",
-        type: "string",
-      },
-      {
-        name: "eventType",
-        type: "uint8",
-      },
-      {
-        name: "accessMode",
-        type: "uint8",
-      },
-      {
-        name: "depositAmount",
-        type: "uint256",
-      },
-      {
-        name: "totalPrice",
-        type: "uint256",
-      },
-      {
-        name: "capacity",
-        type: "uint256",
-      },
-      {
-        name: "cancellationDeadline",
-        type: "uint64",
-      },
-      {
-        name: "eventStart",
-        type: "uint64",
-      },
-      {
-        name: "eventEnd",
-        type: "uint64",
-      },
-      {
-        name: "resolutionDeadline",
-        type: "uint64",
-      },
-      {
-        name: "paymentDeadline",
-        type: "uint64",
-      },
-    ],
-    outputs: [],
-  },
-] as const;
+/** The generated ShowUpV6 ABI; kept under this name for existing imports. */
+export const SHOWUP_CREATE_EVENT_ABI = SHOWUP_ABI;
 
 export type ShowUpCreateEventInput = {
   title: string;
@@ -216,21 +156,7 @@ function validateMetadataURI(
 }
 
 export function getShowUpContractAddress() {
-  const contractAddress =
-    process.env
-      .NEXT_PUBLIC_SHOWUP_CONTRACT_ADDRESS
-      ?.trim();
-
-  if (
-    !contractAddress ||
-    !isAddress(contractAddress)
-  ) {
-    throw new Error(
-      "ShowUp contract address is not configured correctly.",
-    );
-  }
-
-  return getAddress(contractAddress);
+  return SHOWUP_CONTRACT_ADDRESS;
 }
 
 export function buildCreateEventArgs(

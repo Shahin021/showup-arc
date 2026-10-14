@@ -1,114 +1,14 @@
 import { NextResponse } from "next/server";
 import { formatUnits } from "viem";
 import { arcPublicClient } from "@/lib/arc-public-client";
+import { SHOWUP_ABI } from "@/lib/showup-abi";
+import {
+  ARC_NETWORK_LABEL,
+  SHOWUP_CONTRACT_ADDRESS,
+} from "@/lib/showup-network";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const FALLBACK_CONTRACT_ADDRESS =
-  "0x916fe65099332a613afb7413464D50183De7C263";
-
-const SHOWUP_ABI = [
-  {
-    type: "function",
-    name: "eventCount",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "uint256",
-      },
-    ],
-  },
-  {
-    type: "function",
-    name: "getEvent",
-    stateMutability: "view",
-    inputs: [
-      {
-        name: "eventId",
-        type: "uint256",
-      },
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "tuple",
-        components: [
-          {
-            name: "organizer",
-            type: "address",
-          },
-          {
-            name: "title",
-            type: "string",
-          },
-          {
-            name: "description",
-            type: "string",
-          },
-          {
-            name: "metadataURI",
-            type: "string",
-          },
-          {
-            name: "eventType",
-            type: "uint8",
-          },
-          {
-            name: "accessMode",
-            type: "uint8",
-          },
-          {
-            name: "depositAmount",
-            type: "uint256",
-          },
-          {
-            name: "totalPrice",
-            type: "uint256",
-          },
-          {
-            name: "capacity",
-            type: "uint256",
-          },
-          {
-            name: "reservedSeats",
-            type: "uint256",
-          },
-          {
-            name: "escrowedAmount",
-            type: "uint256",
-          },
-          {
-            name: "cancellationDeadline",
-            type: "uint64",
-          },
-          {
-            name: "eventStart",
-            type: "uint64",
-          },
-          {
-            name: "eventEnd",
-            type: "uint64",
-          },
-          {
-            name: "resolutionDeadline",
-            type: "uint64",
-          },
-          {
-            name: "cancelled",
-            type: "bool",
-          },
-          {
-            name: "paymentDeadline",
-            type: "uint64",
-          },
-        ],
-      },
-    ],
-  },
-] as const;
 
 type ContractEvent = {
   organizer: `0x${string}`;
@@ -131,23 +31,7 @@ type ContractEvent = {
 };
 
 function getContractAddress() {
-  const configuredAddress =
-    process.env
-      .NEXT_PUBLIC_SHOWUP_CONTRACT_ADDRESS
-      ?.trim() ||
-    FALLBACK_CONTRACT_ADDRESS;
-
-  if (
-    !/^0x[a-fA-F0-9]{40}$/.test(
-      configuredAddress,
-    )
-  ) {
-    throw new Error(
-      "ShowUp contract address is not configured correctly.",
-    );
-  }
-
-  return configuredAddress as `0x${string}`;
+  return SHOWUP_CONTRACT_ADDRESS;
 }
 
 function isRateLimitError(
@@ -341,8 +225,8 @@ export async function GET() {
     return NextResponse.json(
       {
         error: rateLimited
-          ? "All available Arc Testnet RPC endpoints are temporarily limiting requests. Please refresh in a few seconds."
-          : "Unable to load events from Arc Testnet.",
+          ? `All available ${ARC_NETWORK_LABEL} RPC endpoints are temporarily limiting requests. Please refresh in a few seconds.`
+          : `Unable to load events from ${ARC_NETWORK_LABEL}.`,
       },
       {
         status: rateLimited

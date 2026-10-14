@@ -10,18 +10,21 @@ import {
   getAddress,
   isAddress,
 } from "viem";
+import {
+  networkStorageKey,
+} from "@/lib/showup-network";
 
 const CIRCLE_USER_ID_KEY =
-  "showup_circle_user_id";
+  networkStorageKey("circle_user_id");
 
 const CIRCLE_WALLET_READY_KEY =
-  "showup_circle_wallet_ready";
+  networkStorageKey("circle_wallet_ready");
 
 const CIRCLE_WALLET_ADDRESS_KEY =
-  "showup_circle_wallet_address";
+  networkStorageKey("circle_wallet_address");
 
 const CIRCLE_WALLET_ID_KEY =
-  "showup_circle_wallet_id";
+  networkStorageKey("circle_wallet_id");
 
 const CIRCLE_WALLET_CHANGED_EVENT =
   "showup-circle-wallet-changed";

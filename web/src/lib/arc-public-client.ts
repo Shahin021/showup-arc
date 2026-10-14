@@ -1,38 +1,18 @@
 import { createPublicClient, fallback, http } from "viem";
-import { arcTestnet } from "viem/chains";
+import { ARC_CHAIN, ARC_RPC_URLS } from "@/lib/showup-network";
 
-export const ARC_RPC_URLS = [
-  "https://rpc.testnet.arc.network",
-  "https://rpc.blockdaemon.testnet.arc.network",
-  "https://rpc.drpc.testnet.arc.network",
-  "https://rpc.quicknode.testnet.arc.network",
-] as const;
+export { ARC_RPC_URLS };
 
 export const arcPublicClient = createPublicClient({
-  chain: arcTestnet,
+  chain: ARC_CHAIN,
 
   transport: fallback(
-    [
-      http(ARC_RPC_URLS[0], {
+    ARC_RPC_URLS.map((url) =>
+      http(url, {
         timeout: 20_000,
         retryCount: 0,
       }),
-
-      http(ARC_RPC_URLS[1], {
-        timeout: 20_000,
-        retryCount: 0,
-      }),
-
-      http(ARC_RPC_URLS[2], {
-        timeout: 20_000,
-        retryCount: 0,
-      }),
-
-      http(ARC_RPC_URLS[3], {
-        timeout: 20_000,
-        retryCount: 0,
-      }),
-    ],
+    ),
     {
       retryCount: 4,
       retryDelay: 300,

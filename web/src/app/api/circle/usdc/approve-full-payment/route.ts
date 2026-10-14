@@ -138,7 +138,7 @@ export async function POST(
       eventDetails.totalPrice
     ) {
       throw new ShowUpApiError(
-        `Insufficient USDC balance. Full payment requires ${serializeUsdc(
+        `Insufficient USDC balance (a small amount is kept aside for network fees). Full payment requires ${serializeUsdc(
           eventDetails.totalPrice,
         )} USDC.`,
       );

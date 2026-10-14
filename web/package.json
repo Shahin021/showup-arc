@@ -4,9 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/verify-contract.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check-contract": "node scripts/verify-contract.mjs",
+    "test": "node --conditions=react-server --import tsx --test tests/*.test.mts",
+    "blob-cleanup": "node --conditions=react-server --import tsx scripts/blob-cleanup.mts"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.14.1",
@@ -14,19 +18,38 @@
     "@circle-fin/user-controlled-wallets": "^10.8.0",
     "@circle-fin/w3s-pw-web-sdk": "^1.1.11",
     "@vercel/blob": "^2.6.1",
-    "next": "16.2.10",
+    "next": "16.4.0",
+    "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
     "viem": "^2.55.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
+  },
+  "overrides": {
+    "firebase": {
+      "undici": "6.29.0"
+    },
+    "@grpc/grpc-js": "1.13.6",
+    "@circle-fin/w3s-pw-web-sdk": {
+      "uuid": "11.1.1"
+    },
+    "@coral-xyz/anchor": {
+      "toml": "4.2.0"
+    },
+    "@solana/web3.js": {
+      "jayson": "5.0.0"
+    }
   }
 }

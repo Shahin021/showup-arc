@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import {
+  SHOWUP_CONTRACT_ADDRESS,
+} from "@/lib/showup-network";
+import { assertWithinReservationCap } from "@/lib/showup-cap";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -340,20 +344,7 @@ export async function POST(
       getCircleApiKey();
 
     const contractAddress =
-      process.env
-        .NEXT_PUBLIC_SHOWUP_CONTRACT_ADDRESS
-        ?.trim();
-
-    if (
-      !contractAddress ||
-      !/^0x[a-fA-F0-9]{40}$/.test(
-        contractAddress,
-      )
-    ) {
-      throw new Error(
-        "ShowUp contract address is not configured correctly.",
-      );
-    }
+      SHOWUP_CONTRACT_ADDRESS;
 
     const body =
       (await request
@@ -521,6 +512,12 @@ export async function POST(
         "Upfront payment must be lower than the total price.",
       );
     }
+
+    await assertWithinReservationCap(
+      eventType,
+      depositUnits,
+      totalPriceUnits,
+    );
 
     const capacity =
       parsePositiveInteger(

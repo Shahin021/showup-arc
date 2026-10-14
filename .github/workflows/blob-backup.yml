@@ -1,0 +1,49 @@
+name: Blob backup and cleanup
+
+# Weekly copy of the Vercel Blob store (event metadata, images, videos).
+# Requires the repository secret BLOB_READ_WRITE_TOKEN. Backups are kept as
+# workflow artifacts for 90 days. Run manually from the Actions tab as well.
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'Shahin021' }}
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Download all blobs
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: node scripts/blob-backup.mjs blob-backup
+      # After the backup: remove media that no used quota slot covers
+      # (left behind by failed uploads). Recent files are never touched.
+      - name: Clean up orphaned uploads
+        # Runs only once SHOWUP_CLEANUP_SINCE is set as a repository variable
+        # (the date this version was first deployed).
+        if: ${{ vars.SHOWUP_CLEANUP_SINCE != '' }}
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          SHOWUP_CLEANUP_SINCE: ${{ vars.SHOWUP_CLEANUP_SINCE }}
+        # Dry run (lists candidates) unless the repository variable
+        # SHOWUP_CLEANUP_DELETE is "true". Keep it off until a dry run on
+        # the live store has been reviewed.
+        run: >-
+          npm run blob-cleanup --
+          ${{ vars.SHOWUP_CLEANUP_DELETE == 'true' && '--delete' || '' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blob-backup-${{ github.run_id }}
+          path: web/blob-backup
+          retention-days: 90

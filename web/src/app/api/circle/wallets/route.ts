@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 
 import { NextResponse } from "next/server";
+import {
+  CIRCLE_ARC_BLOCKCHAIN,
+  CIRCLE_WALLET_BLOCKCHAINS,
+  isSupportedCircleBlockchain,
+  type CircleWalletBlockchain,
+} from "@/lib/showup-network";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,7 +82,7 @@ async function fetchWalletPage({
 }: {
   apiKey: string;
   userToken: string;
-  blockchain: "ARC-TESTNET" | "ETH-SEPOLIA";
+  blockchain: CircleWalletBlockchain;
   pageAfter?: string;
 }) {
   const circleUrl = new URL("https://api.circle.com/v1/w3s/wallets");
@@ -120,7 +126,7 @@ async function fetchAllWallets({
 }: {
   apiKey: string;
   userToken: string;
-  blockchain: "ARC-TESTNET" | "ETH-SEPOLIA";
+  blockchain: CircleWalletBlockchain;
 }) {
   const wallets: CircleWallet[] = [];
   const seenWalletIds = new Set<string>();
@@ -200,9 +206,8 @@ export async function POST(request: Request) {
 
       const blockchain =
         body.blockchain === undefined
-          ? "ARC-TESTNET"
-          : body.blockchain === "ARC-TESTNET" ||
-              body.blockchain === "ETH-SEPOLIA"
+          ? CIRCLE_ARC_BLOCKCHAIN
+          : isSupportedCircleBlockchain(body.blockchain)
             ? body.blockchain
             : null;
 
@@ -210,7 +215,7 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error:
-              "Unsupported blockchain. Use ARC-TESTNET or ETH-SEPOLIA.",
+              `Unsupported blockchain. Use ${CIRCLE_WALLET_BLOCKCHAINS.join(" or ")}.`,
           },
           {
             status: 400,

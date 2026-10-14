@@ -9,18 +9,23 @@ import {
   getAddress,
   isAddress,
 } from "viem";
+import {
+  ARC_NETWORK_LABEL,
+  networkStorageKey,
+} from "@/lib/showup-network";
+import { markPendingCircleTransaction } from "@/lib/pending-transactions";
 
 const CIRCLE_USER_ID_KEY =
-  "showup_circle_user_id";
+  networkStorageKey("circle_user_id");
 
 const CIRCLE_WALLET_READY_KEY =
-  "showup_circle_wallet_ready";
+  networkStorageKey("circle_wallet_ready");
 
 const CIRCLE_WALLET_ADDRESS_KEY =
-  "showup_circle_wallet_address";
+  networkStorageKey("circle_wallet_address");
 
 const CIRCLE_WALLET_ID_KEY =
-  "showup_circle_wallet_id";
+  networkStorageKey("circle_wallet_id");
 
 const CIRCLE_WALLET_CHANGED_EVENT =
   "showup-circle-wallet-changed";
@@ -1408,6 +1413,8 @@ export default function ReserveSeatButton({
               `Enter your Circle PIN to approve ${currentTotalPriceFormatted} USDC for full payment.`,
             );
 
+            markPendingCircleTransaction(approvalData, "USDC approval");
+
             await executeCircleChallenge(
               approvalData.challengeId,
               session.userToken,
@@ -1416,7 +1423,7 @@ export default function ReserveSeatButton({
           }
 
           setMessage(
-            "Waiting for the full-payment approval to be confirmed on Arc Testnet...",
+            `Waiting for the full-payment approval to be confirmed on ${ARC_NETWORK_LABEL}...`,
           );
 
           status =
@@ -1494,6 +1501,8 @@ export default function ReserveSeatButton({
           `Enter your Circle PIN to pay ${currentTotalPriceFormatted} USDC in full and reserve your seat.`,
         );
 
+        markPendingCircleTransaction(reserveData, "Full-payment reservation");
+
         await executeCircleChallenge(
           reserveData.challengeId,
           session.userToken,
@@ -1501,7 +1510,7 @@ export default function ReserveSeatButton({
         );
 
         setMessage(
-          "Waiting for the full-payment reservation to be confirmed on Arc Testnet...",
+          `Waiting for the full-payment reservation to be confirmed on ${ARC_NETWORK_LABEL}...`,
         );
 
         const confirmedStatus =
@@ -1615,6 +1624,8 @@ export default function ReserveSeatButton({
               : `Enter your Circle PIN to approve the ${currentDepositFormatted} USDC refundable deposit.`,
           );
 
+          markPendingCircleTransaction(approvalData, "USDC approval");
+
           await executeCircleChallenge(
             approvalData.challengeId,
             session.userToken,
@@ -1623,7 +1634,7 @@ export default function ReserveSeatButton({
         }
 
         setMessage(
-          "Waiting for the USDC approval to be confirmed on Arc Testnet...",
+          `Waiting for the USDC approval to be confirmed on ${ARC_NETWORK_LABEL}...`,
         );
 
         status =
@@ -1714,6 +1725,8 @@ export default function ReserveSeatButton({
         );
       }
 
+      markPendingCircleTransaction(reserveData, "Reservation");
+
       await executeCircleChallenge(
         reserveData.challengeId,
         session.userToken,
@@ -1721,7 +1734,7 @@ export default function ReserveSeatButton({
       );
 
       setMessage(
-        "Waiting for the reservation to be confirmed on Arc Testnet...",
+        `Waiting for the reservation to be confirmed on ${ARC_NETWORK_LABEL}...`,
       );
 
       const confirmedStatus =
@@ -1901,6 +1914,8 @@ export default function ReserveSeatButton({
         "Enter your Circle PIN to claim the available USDC refund.",
       );
 
+      markPendingCircleTransaction(data, "Refund claim");
+
       await executeCircleChallenge(
         data.challengeId,
         session.userToken,
@@ -1908,7 +1923,7 @@ export default function ReserveSeatButton({
       );
 
       setMessage(
-        "Waiting for the refund to be confirmed on Arc Testnet...",
+        `Waiting for the refund to be confirmed on ${ARC_NETWORK_LABEL}...`,
       );
 
       const expectedStatus =

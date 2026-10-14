@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 
 import { NextResponse } from "next/server";
+import {
+  CIRCLE_ARC_BLOCKCHAIN,
+  CIRCLE_WALLET_BLOCKCHAINS,
+  isSupportedCircleBlockchain,
+} from "@/lib/showup-network";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,9 +59,8 @@ export async function POST(request: Request) {
 
     const blockchain =
       body.blockchain === undefined
-        ? "ARC-TESTNET"
-        : body.blockchain === "ARC-TESTNET" ||
-            body.blockchain === "ETH-SEPOLIA"
+        ? CIRCLE_ARC_BLOCKCHAIN
+        : isSupportedCircleBlockchain(body.blockchain)
           ? body.blockchain
           : null;
 
@@ -64,7 +68,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Unsupported blockchain. Use ARC-TESTNET or ETH-SEPOLIA.",
+            `Unsupported blockchain. Use ${CIRCLE_WALLET_BLOCKCHAINS.join(" or ")}.`,
         },
         {
           status: 400,
@@ -94,7 +98,7 @@ export async function POST(request: Request) {
 
     const blockchains =
       body.unifiedBridgePair === true
-        ? ["ARC-TESTNET", "ETH-SEPOLIA"]
+        ? [...CIRCLE_WALLET_BLOCKCHAINS]
         : [blockchain];
 
     /*

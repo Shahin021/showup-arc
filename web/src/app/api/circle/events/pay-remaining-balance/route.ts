@@ -126,7 +126,7 @@ export async function POST(
       remainingBalance
     ) {
       throw new ShowUpApiError(
-        `Insufficient USDC balance. The remaining payment is ${serializeUsdc(
+        `Insufficient USDC balance (a small amount is kept aside for network fees). The remaining payment is ${serializeUsdc(
           remainingBalance,
         )} USDC.`,
       );

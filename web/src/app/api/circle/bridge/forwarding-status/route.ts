@@ -6,6 +6,7 @@ import {
   getCctpNetwork,
   type ShowUpCctpBlockchain,
 } from "@/lib/showup-cctp";
+import { testnetToolsDisabledResponse } from "@/lib/feature-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +38,11 @@ function readBlockchain(
 export async function POST(
   request: Request,
 ) {
+  const disabled = testnetToolsDisabledResponse();
+  if (disabled) {
+    return disabled;
+  }
+
   const body =
     (await request
       .json()

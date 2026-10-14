@@ -120,7 +120,7 @@ export async function POST(
       eventDetails.depositAmount
     ) {
       throw new ShowUpApiError(
-        `Insufficient USDC balance. This reservation requires ${serializeUsdc(
+        `Insufficient USDC balance (a small amount is kept aside for network fees). This reservation requires ${serializeUsdc(
           eventDetails.depositAmount,
         )} USDC.`,
       );

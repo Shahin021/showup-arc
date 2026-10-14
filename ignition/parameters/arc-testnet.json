@@ -1,0 +1,6 @@
+{
+  "ShowUpV6Module": {
+    "usdc": "0x3600000000000000000000000000000000000000",
+    "maxReservationAmount": "100000000n"
+  }
+}
