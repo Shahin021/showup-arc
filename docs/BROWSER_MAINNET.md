@@ -23,9 +23,10 @@ The deployed ShowUpV6 contract does not change:
 ## Production settings
 
 Use the separate Vercel project `showup-arc-mainnet`. For deployments from
-GitHub, set Root Directory to `web` and use the branch containing this patch
-(`mainnet-v6` until it is merged). A CLI production deployment must run from
-the local `web` directory linked to that project.
+GitHub, set Root Directory to `web`, Production Branch Tracking to `mainnet-v6`,
+Install Command to `npm ci`, and Build Command to `npm run build`. Create a
+fresh Git deployment after changing Root Directory. With this project setting,
+a CLI deployment must upload the repository root, not the local `web` directory.
 
 Required production variables:
 
@@ -48,6 +49,17 @@ wallet-signature upload authorization and quota protections remain in place.
 The upload lease/CDN behavior still requires validation against real Blob.
 
 ## Live acceptance checks
+
+Both header and in-page Connect wallet buttons discover installed wallets.
+Already-authorized accounts are read with `eth_accounts`; another permission
+request is made only when no authorized account is available. The account and
+Arc network are still checked before signing, and repeated clicks cannot start
+two concurrent browser-wallet logins.
+
+MetaMask's malicious-domain classification requires an external security
+review. Removing duplicate permission requests does not remove that flag.
+The production-domain review ticket was submitted on 14 October 2026; no
+clearance has been received. Real-wallet acceptance checks remain pending.
 
 Use two browser-wallet accounts and small amounts. All amounts are real USDC;
 each account needs some USDC for its own gas. Reuse the event scheduling
@@ -206,6 +218,10 @@ menu); direct links, refresh and Back/Forward keep the section:
 `/wallet-tools` redirects to Add funds on mainnet; testnet keeps its combined
 tools page. The infrastructure overview moved from the header to the footer
 ("About & infrastructure").
+
+On mainnet, Add Funds is a regular navigation link immediately after Swap,
+with the same active-page styling in desktop and mobile menus. The wallet
+button stays separate. Testnet keeps its Get test USDC faucet action.
 
 ### Configuration
 

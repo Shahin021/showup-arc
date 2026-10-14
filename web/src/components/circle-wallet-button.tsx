@@ -486,12 +486,31 @@ export default function CircleWalletButton() {
     useState<WalletRecoveryMode>("backup");
 
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const browserConnectPendingRef = useRef(false);
 
   const setupTimeoutRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const copiedTimeoutRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Every entry point (header and in-page buttons) refreshes wallet discovery.
+  useEffect(() => {
+    if (!walletChooserOpen) return;
+    let cancelled = false;
+
+    void discoverBrowserWallets().then(
+      (providers) => {
+        if (!cancelled) setBrowserWallets(providers);
+      },
+      (error) => {
+        console.error("Browser wallet discovery failed:", error);
+        if (!cancelled) setBrowserWallets([]);
+      },
+    );
+
+    return () => { cancelled = true; };
+  }, [walletChooserOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1413,10 +1432,11 @@ export default function CircleWalletButton() {
   async function handleConnectBrowserWallet(
     walletProvider: BrowserWalletProviderDetail,
   ) {
-    if (status === "loading") {
+    if (status === "loading" || browserConnectPendingRef.current) {
       return;
     }
 
+    browserConnectPendingRef.current = true;
     try {
       setStatus("loading");
       setMessage(
@@ -1465,10 +1485,12 @@ export default function CircleWalletButton() {
 
       setStatus("error");
       setMessage(getErrorMessage(error));
+    } finally {
+      browserConnectPendingRef.current = false;
     }
   }
 
-  async function toggleWalletChooser() {
+  function toggleWalletChooser() {
     if (status === "loading") {
       return;
     }
@@ -1481,24 +1503,6 @@ export default function CircleWalletButton() {
 
     if (status === "error") {
       setStatus("idle");
-    }
-
-    if (!willOpen) {
-      return;
-    }
-
-    try {
-      const providers =
-        await discoverBrowserWallets();
-
-      setBrowserWallets(providers);
-    } catch (error) {
-      console.error(
-        "Browser wallet discovery failed:",
-        error,
-      );
-
-      setBrowserWallets([]);
     }
   }
 
@@ -1867,12 +1871,13 @@ export default function CircleWalletButton() {
                             <button
                               key={walletProvider.info.uuid}
                               type="button"
+                              disabled={status === "loading"}
                               onClick={() => {
                                 void handleConnectBrowserWallet(
                                   walletProvider,
                                 );
                               }}
-                              className="group flex min-h-24 flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.025] px-3 py-3 text-center transition hover:border-[#73d8ff]/35 hover:bg-[#73d8ff]/10"
+                              className="group flex min-h-24 flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.025] px-3 py-3 text-center transition hover:border-[#73d8ff]/35 hover:bg-[#73d8ff]/10 disabled:cursor-wait disabled:opacity-50"
                             >
                               {walletProvider.info.icon ? (
                                 <span

@@ -29,13 +29,14 @@ export function primaryNavItems(): NavItem[] {
     if (FEATURES.mainnetSwap) {
       items.push({ href: WALLET_TOOL_ROUTES.swap, label: "Swap", activePrefixes: [WALLET_TOOL_ROUTES.swap] });
     }
+    items.push({ href: WALLET_TOOL_ROUTES.addFunds, label: "Add Funds", activePrefixes: [WALLET_TOOL_ROUTES.addFunds] });
   } else if (FEATURES.testnetBridgeAndSwap) {
     items.push({ href: "/wallet-tools", label: "Bridge & Swap", activePrefixes: ["/wallet-tools"] });
   }
   return items;
 }
 
-/** The highlighted funding action next to the wallet button. */
+/** Funding destination; mainnet uses a navigation link, testnet uses the faucet action. */
 export function fundingAction(): { href: string; label: string; external: boolean; activePrefixes: readonly string[] } {
   if (IS_MAINNET) {
     return { href: WALLET_TOOL_ROUTES.addFunds, label: "Add Funds", external: false, activePrefixes: [WALLET_TOOL_ROUTES.addFunds] };

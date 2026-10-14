@@ -165,10 +165,19 @@ export async function ensureArcNetwork(
 export async function connectBrowserWallet(
   provider: EIP1193Provider,
 ) {
-  await provider.request({
-    method: "eth_requestAccounts",
+  const authorizedAccounts = await provider.request({
+    method: "eth_accounts",
     params: undefined,
   });
+
+  // Reuse existing access, including the second state check before login signing.
+  // Request permissions only when this site no longer has an authorized account.
+  if (!Array.isArray(authorizedAccounts) || !isWalletAddress(authorizedAccounts[0])) {
+    await provider.request({
+      method: "eth_requestAccounts",
+      params: undefined,
+    });
+  }
 
   await ensureArcNetwork(provider);
 

@@ -102,7 +102,7 @@ export default function ShowUpHeader() {
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {fundingLink(`hidden whitespace-nowrap lg:inline-flex ${pillBase} ${fundingActive ? pillActive : pillIdle}`)}
+            {!IS_MAINNET && fundingLink(`hidden whitespace-nowrap lg:inline-flex ${pillBase} ${fundingActive ? pillActive : pillIdle}`)}
             <CircleWalletButton />
             <button
               type="button"
@@ -147,9 +147,9 @@ export default function ShowUpHeader() {
                   </li>
                 );
               })}
-              <li className="pt-2">
+              {!IS_MAINNET && <li className="pt-2">
                 {fundingLink(`flex justify-center ${pillBase} py-3 text-base ${fundingActive ? pillActive : pillIdle}`)}
-              </li>
+              </li>}
             </ul>
           </nav>
         ) : null}
